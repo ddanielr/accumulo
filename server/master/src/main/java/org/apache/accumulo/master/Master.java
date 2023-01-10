@@ -1503,10 +1503,17 @@ public class Master extends AccumuloServerContext
     // yield to happen
     long initialWait = Math.min(50, maxWait / 2);
 
-    Retry tserverRetry =
-        Retry.builder().infiniteRetries().retryAfter(initialWait, TimeUnit.MILLISECONDS)
-            .incrementBy(15_000, TimeUnit.MILLISECONDS).maxWait(maxWait, TimeUnit.MILLISECONDS)
-            .logInterval(30_000, TimeUnit.MILLISECONDS).createRetry();
+    long logInterval = 30_000;
+    long timeIncrement = 15_000;
+    // maxWait is the maximum amount of time for retry commands to be attempted.
+    // Let's attempt the max amount of retries in the provided time duration.
+    long maxRetries = Math.round((double) (maxWait - initialWait) / (timeIncrement + logInterval));
+    // Round up vs down for attempts
+    maxRetries++;
+    Retry tserverRetry = Retry.builder().maxRetries(maxRetries)
+        .retryAfter(initialWait, TimeUnit.MILLISECONDS)
+        .incrementBy(timeIncrement, TimeUnit.MILLISECONDS).maxWait(maxWait, TimeUnit.MILLISECONDS)
+        .logInterval(logInterval, TimeUnit.MILLISECONDS).createRetry();
 
     log.info("Checking for tserver availability - need to reach {} servers. Have {}",
         minTserverCount, tserverSet.size());
@@ -1526,20 +1533,21 @@ public class Master extends AccumuloServerContext
                 + " Time spent blocking {} sec.",
             minTserverCount, tserverSet.size(),
             TimeUnit.MILLISECONDS.toSeconds(System.currentTimeMillis() - waitStart));
+        tserverRetry.useRetry();
       }
     }
 
     if (tserverSet.size() < minTserverCount) {
       log.warn(
           "tserver availability check time expired - continuing. Requested {}, have {} tservers on line. "
-              + " Time waiting {} ms",
+              + " Time waiting {} sec",
           tserverSet.size(), minTserverCount,
           TimeUnit.MILLISECONDS.toSeconds(System.currentTimeMillis() - waitStart));
 
     } else {
       log.info(
           "tserver availability check completed. Requested {}, have {} tservers on line. "
-              + " Time waiting {} ms",
+              + " Time waiting {} sec",
           tserverSet.size(), minTserverCount,
           TimeUnit.MILLISECONDS.toSeconds(System.currentTimeMillis() - waitStart));
     }
