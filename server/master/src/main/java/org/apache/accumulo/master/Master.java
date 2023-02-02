@@ -20,6 +20,7 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.apache.accumulo.fate.util.UtilWaitThread.sleepUninterruptibly;
 
 import java.io.IOException;
+import java.sql.Time;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -1499,43 +1500,32 @@ public class Master extends AccumuloServerContext
       maxWait = Long.MAX_VALUE;
     }
 
-    // honor Retry condition that initial wait < max wait, otherwise use small value to allow thread
-    // yield to happen
-    long initialWait = Math.min(50, maxWait / 2);
-
-    long logInterval = 30_000;
-    long timeIncrement = 15_000;
-    // maxWait is the maximum amount of time for retry commands to be attempted.
-    // Let's attempt the max amount of retries in the provided time duration.
-    long maxRetries = Math.round((double) (maxWait - initialWait) / (timeIncrement + logInterval));
-    // Round up vs down for attempts
-    maxRetries++;
-    Retry tserverRetry = Retry.builder().maxRetries(maxRetries)
-        .retryAfter(initialWait, TimeUnit.MILLISECONDS)
-        .incrementBy(timeIncrement, TimeUnit.MILLISECONDS).maxWait(maxWait, TimeUnit.MILLISECONDS)
-        .logInterval(logInterval, TimeUnit.MILLISECONDS).createRetry();
+    long logIncrement = 15_000;
+    long logWait = 0, lastLog = 0;
 
     log.info("Checking for tserver availability - need to reach {} servers. Have {}",
         minTserverCount, tserverSet.size());
 
     boolean needTservers = tserverSet.size() < minTserverCount;
 
-    while (needTservers && tserverRetry.canRetry()) {
-
-      tserverRetry.waitForNextAttempt();
+    while (needTservers && (System.currentTimeMillis() - waitStart < maxWait)) {
 
       needTservers = tserverSet.size() < minTserverCount;
 
       // suppress last message once threshold reached.
       if (needTservers) {
-        log.info(
-            "Blocking for tserver availability - need to reach {} servers. Have {}"
-                + " Time spent blocking {} sec.",
-            minTserverCount, tserverSet.size(),
-            TimeUnit.MILLISECONDS.toSeconds(System.currentTimeMillis() - waitStart));
-        tserverRetry.useRetry();
+        if (System.currentTimeMillis() - lastLog > logWait) {
+          lastLog = System.currentTimeMillis();
+          log.info(
+              "Blocking for tserver availability - need to reach {} servers. Have {}"
+                  + " Time spent blocking {} sec.",
+              minTserverCount, tserverSet.size(),
+              TimeUnit.MILLISECONDS.toSeconds(System.currentTimeMillis() - waitStart));
+          logWait = logWait + logIncrement;
+        }
       }
     }
+    log.info("End of loop, time duration: {}", System.currentTimeMillis() - waitStart);
 
     if (tserverSet.size() < minTserverCount) {
       log.warn(
