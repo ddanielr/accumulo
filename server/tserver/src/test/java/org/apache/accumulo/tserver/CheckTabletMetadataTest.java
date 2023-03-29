@@ -18,7 +18,8 @@
  */
 package org.apache.accumulo.tserver;
 
-import static org.apache.accumulo.tserver.AssignmentHandler.checkTabletMetadata;
+import static org.apache.accumulo.core.metadata.schema.TabletMetadata.checkTabletMetadata;
+import static org.apache.accumulo.core.metadata.schema.TabletMetadata.convertRow;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -64,9 +65,9 @@ public class CheckTabletMetadataTest {
 
   private static void assertFail(TreeMap<Key,Value> tabletMeta, KeyExtent ke, TServerInstance tsi) {
     try {
-      TabletMetadata tm = TabletMetadata.convertRow(tabletMeta.entrySet().iterator(),
-          EnumSet.allOf(ColumnType.class), true);
-      assertFalse(checkTabletMetadata(ke, tsi, tm));
+      TabletMetadata tm =
+          convertRow(tabletMeta.entrySet().iterator(), EnumSet.allOf(ColumnType.class), true);
+      assertFalse(checkTabletMetadata(ke, tsi, tm, false));
     } catch (Exception e) {
       e.printStackTrace();
     }
@@ -77,9 +78,9 @@ public class CheckTabletMetadataTest {
     TreeMap<Key,Value> copy = new TreeMap<>(tabletMeta);
     assertNotNull(copy.remove(keyToDelete));
     try {
-      TabletMetadata tm = TabletMetadata.convertRow(copy.entrySet().iterator(),
-          EnumSet.allOf(ColumnType.class), true);
-      assertFalse(checkTabletMetadata(ke, tsi, tm));
+      TabletMetadata tm =
+          convertRow(copy.entrySet().iterator(), EnumSet.allOf(ColumnType.class), true);
+      assertFalse(checkTabletMetadata(ke, tsi, tm, false));
     } catch (Exception e) {
       e.printStackTrace();
     }
@@ -100,9 +101,9 @@ public class CheckTabletMetadataTest {
 
     TServerInstance tsi = new TServerInstance("127.0.0.1:9997", 4);
 
-    TabletMetadata tm = TabletMetadata.convertRow(tabletMeta.entrySet().iterator(),
-        EnumSet.allOf(ColumnType.class), true);
-    assertTrue(checkTabletMetadata(ke, tsi, tm));
+    TabletMetadata tm =
+        convertRow(tabletMeta.entrySet().iterator(), EnumSet.allOf(ColumnType.class), true);
+    assertTrue(checkTabletMetadata(ke, tsi, tm, false));
 
     assertFail(tabletMeta, ke, new TServerInstance("127.0.0.1:9998", 4));
     assertFail(tabletMeta, ke, new TServerInstance("127.0.0.1:9998", 5));

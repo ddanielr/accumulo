@@ -232,7 +232,7 @@ public class ScanServer extends AbstractServer
     long scanServerReservationExpiration =
         getConfiguration().getTimeInMillis(Property.SSERVER_SCAN_REFERENCE_EXPIRATION_TIME);
 
-    tabletMetadataLoader = new TabletMetadataLoader(getContext().getAmple());
+    tabletMetadataLoader = new TabletMetadataLoader(context.getAmple());
 
     if (cacheExpiration == 0L) {
       LOG.warn("Tablet metadata caching disabled, may cause excessive scans on metadata table.");
@@ -522,7 +522,7 @@ public class ScanServer extends AbstractServer
         failures.add(extent);
       }
 
-      if (!AssignmentHandler.checkTabletMetadata(extent, null, tabletMetadata, true)) {
+      if (!TabletMetadata.checkTabletMetadata(extent, null, tabletMetadata, true)) {
         LOG.info("RFFS {} extent unable to load {} as AssignmentHandler returned false",
             myReservationId, extent);
         failures.add(extent);

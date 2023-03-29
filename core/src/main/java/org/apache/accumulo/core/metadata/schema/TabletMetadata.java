@@ -41,6 +41,7 @@ import java.util.Set;
 import java.util.SortedMap;
 
 import org.apache.accumulo.core.Constants;
+import org.apache.accumulo.core.client.AccumuloException;
 import org.apache.accumulo.core.clientImpl.ClientContext;
 import org.apache.accumulo.core.data.ByteSequence;
 import org.apache.accumulo.core.data.Key;
@@ -481,5 +482,45 @@ public class TabletMetadata {
       server = Optional.of(new TServerInstance(client, stat.getEphemeralOwner()));
     }
     return server;
+  }
+
+  public static boolean checkTabletMetadata(KeyExtent extent, TServerInstance instance,
+      TabletMetadata meta, boolean ignoreLocationCheck) throws AccumuloException {
+
+    String METADATA_ISSUE = "Saw metadata issue when loading tablet : ";
+
+    if (meta == null) {
+      log.info(METADATA_ISSUE + "{}, its metadata was not found.", extent);
+      return false;
+    }
+
+    if (!meta.sawPrevEndRow()) {
+      throw new AccumuloException(METADATA_ISSUE + "metadata entry does not have prev row ("
+          + meta.getTableId() + " " + meta.getEndRow() + ")");
+    }
+
+    if (!extent.equals(meta.getExtent())) {
+      log.info(METADATA_ISSUE + "tablet extent mismatch {} {}", extent, meta.getExtent());
+      return false;
+    }
+
+    if (meta.getDirName() == null) {
+      throw new AccumuloException(
+          METADATA_ISSUE + "metadata entry does not have directory (" + meta.getExtent() + ")");
+    }
+
+    if (meta.getTime() == null && !extent.isRootTablet()) {
+      throw new AccumuloException(
+          METADATA_ISSUE + "metadata entry does not have time (" + meta.getExtent() + ")");
+    }
+
+    Location loc = meta.getLocation();
+
+    if (!ignoreLocationCheck
+        && (loc == null || loc.getType() != LocationType.FUTURE || !instance.equals(loc))) {
+      log.info(METADATA_ISSUE + "Unexpected location {} {}", extent, loc);
+      return false;
+    }
+    return true;
   }
 }
