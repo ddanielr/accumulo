@@ -36,7 +36,6 @@ import org.apache.accumulo.core.metadata.schema.TabletMetadata;
 import org.apache.accumulo.core.metadata.schema.TabletMetadata.Location;
 import org.apache.accumulo.core.metadata.schema.TabletMetadata.LocationType;
 import org.apache.accumulo.core.tabletserver.log.LogEntry;
-import org.apache.accumulo.server.util.ManagerMetadataUtil;
 import org.apache.hadoop.fs.Path;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -142,7 +141,8 @@ class ZooTabletStateStore implements TabletStateStore {
     // if the location mode is assignment, then preserve the current location in the last
     // location value
     if ("assignment".equals(context.getConfiguration().get(Property.TSERV_LAST_LOCATION_MODE))) {
-      TabletMetadata lastMetadata = ample.readTablet(assignment.tablet, TabletMetadata.ColumnType.LAST);
+      TabletMetadata lastMetadata =
+          ample.readTablet(assignment.tablet, TabletMetadata.ColumnType.LAST);
       TServerInstance lastLocation = (lastMetadata == null ? null : lastMetadata.getLast());
       tabletMutator.updateLast(lastLocation, assignment.server);
     }
@@ -166,8 +166,11 @@ class ZooTabletStateStore implements TabletStateStore {
 
     tabletMutator.deleteLocation(tls.futureOrCurrent(), LocationType.FUTURE);
     tabletMutator.deleteLocation(tls.futureOrCurrent(), LocationType.CURRENT);
-    ManagerMetadataUtil.updateLastForAssignmentMode(context, ample, tabletMutator, tls.extent,
-        tls.futureOrCurrent());
+    if ("assignment".equals(context.getConfiguration().get(Property.TSERV_LAST_LOCATION_MODE))) {
+      TabletMetadata lastMetadata = ample.readTablet(tls.extent, TabletMetadata.ColumnType.LAST);
+      TServerInstance lastLocation = (lastMetadata == null ? null : lastMetadata.getLast());
+      tabletMutator.updateLast(lastLocation, tls.futureOrCurrent());
+    }
     if (logsForDeadServers != null) {
       List<Path> logs = logsForDeadServers.get(tls.futureOrCurrent());
       if (logs != null) {

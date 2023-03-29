@@ -23,7 +23,6 @@ import java.util.Iterator;
 import java.util.UUID;
 import java.util.stream.Stream;
 
-import com.google.common.collect.Table;
 import org.apache.accumulo.core.data.Mutation;
 import org.apache.accumulo.core.data.TableId;
 import org.apache.accumulo.core.dataImpl.KeyExtent;
@@ -39,6 +38,8 @@ import org.apache.accumulo.core.metadata.schema.TabletMetadata.ColumnType;
 import org.apache.accumulo.core.metadata.schema.TabletMetadata.LocationType;
 import org.apache.accumulo.core.tabletserver.log.LogEntry;
 import org.apache.hadoop.io.Text;
+
+import com.google.common.collect.Table;
 
 /**
  * Accumulo Metadata Persistence Layer. Entry point and abstractions layer for reading and updating
@@ -249,6 +250,7 @@ public interface Ample {
    */
   interface TabletMutator {
     TabletMutator updateLast(TServerInstance lastLocation, TServerInstance newLocation);
+
     TabletMutator putPrevEndRow(Text per);
 
     TabletMutator putFile(TabletFile path, DataFileValue dfv);

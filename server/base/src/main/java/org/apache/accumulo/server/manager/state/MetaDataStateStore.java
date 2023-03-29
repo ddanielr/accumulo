@@ -33,7 +33,6 @@ import org.apache.accumulo.core.metadata.schema.MetadataSchema.TabletsSection;
 import org.apache.accumulo.core.metadata.schema.TabletMetadata;
 import org.apache.accumulo.core.metadata.schema.TabletMetadata.LocationType;
 import org.apache.accumulo.core.tabletserver.log.LogEntry;
-import org.apache.accumulo.server.util.ManagerMetadataUtil;
 import org.apache.hadoop.fs.Path;
 
 class MetaDataStateStore implements TabletStateStore {
@@ -67,8 +66,10 @@ class MetaDataStateStore implements TabletStateStore {
         tabletMutator.putLocation(assignment.server, LocationType.CURRENT);
         // if the location mode is assignment, then preserve the current location in the last
         // location value
-        if ("assignment".equals(context.getConfiguration().get(Property.TSERV_LAST_LOCATION_MODE))) {
-          TabletMetadata lastMetadata = ample.readTablet(assignment.tablet, TabletMetadata.ColumnType.LAST);
+        if ("assignment"
+            .equals(context.getConfiguration().get(Property.TSERV_LAST_LOCATION_MODE))) {
+          TabletMetadata lastMetadata =
+              ample.readTablet(assignment.tablet, TabletMetadata.ColumnType.LAST);
           TServerInstance lastLocation = (lastMetadata == null ? null : lastMetadata.getLast());
           tabletMutator.updateLast(lastLocation, assignment.server);
         }
@@ -116,8 +117,10 @@ class MetaDataStateStore implements TabletStateStore {
         if (tls.current != null) {
           // if the location mode is assignment, then preserve the current location in the last
           // location value
-          if ("assignment".equals(context.getConfiguration().get(Property.TSERV_LAST_LOCATION_MODE))) {
-            TabletMetadata lastMetadata = ample.readTablet(tls.extent, TabletMetadata.ColumnType.LAST);
+          if ("assignment"
+              .equals(context.getConfiguration().get(Property.TSERV_LAST_LOCATION_MODE))) {
+            TabletMetadata lastMetadata =
+                ample.readTablet(tls.extent, TabletMetadata.ColumnType.LAST);
             TServerInstance lastLocation = (lastMetadata == null ? null : lastMetadata.getLast());
             tabletMutator.updateLast(lastLocation, tls.current);
           }

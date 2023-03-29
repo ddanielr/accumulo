@@ -103,7 +103,6 @@ import org.apache.accumulo.server.replication.proto.Replication.Status;
 import org.apache.accumulo.server.tablets.TabletTime;
 import org.apache.accumulo.server.tablets.UniqueNameAllocator;
 import org.apache.accumulo.server.util.FileUtil;
-import org.apache.accumulo.server.util.ManagerMetadataUtil;
 import org.apache.accumulo.server.util.MetadataTableUtil;
 import org.apache.accumulo.server.util.ReplicationTableUtil;
 import org.apache.accumulo.tserver.ConditionCheckerContext.ConditionChecker;
@@ -1493,9 +1492,35 @@ public class Tablet extends TabletBase {
 
       MetadataTableUtil.splitTablet(high, extent.prevEndRow(), splitRatio,
           getTabletServer().getContext(), getTabletServer().getLock(), ecids);
-      ManagerMetadataUtil.addNewTablet(getTabletServer().getContext(), low, lowDirectoryName,
-          getTabletServer().getTabletSession(), lowDatafileSizes, bulkImported, time,
-          lastFlushID.get(), lastCompactID.get(), getTabletServer().getLock());
+      TabletMutator tablet = getTabletServer().getContext().getAmple().mutateTablet(low);
+      tablet.putPrevEndRow(low.prevEndRow());
+      tablet.putZooLock(getTabletServer().getLock());
+      tablet.putDirName(lowDirectoryName);
+      tablet.putTime(time);
+
+      if (lastFlushID.get() > 0) {
+        tablet.putFlushId(lastFlushID.get());
+      }
+
+      if (lastCompactID.get() > 0) {
+        tablet.putCompactionId(lastCompactID.get());
+      }
+
+      TServerInstance location = getTabletServer().getTabletSession();
+      if (location != null) {
+        tablet.putLocation(location, TabletMetadata.LocationType.CURRENT);
+        tablet.deleteLocation(location, TabletMetadata.LocationType.FUTURE);
+      }
+
+      lowDatafileSizes.forEach(tablet::putFile);
+
+      for (Entry<Long,? extends Collection<TabletFile>> entry : bulkImported.entrySet()) {
+        for (TabletFile ref : entry.getValue()) {
+          tablet.putBulkFile(ref, entry.getKey());
+        }
+      }
+      tablet.mutate();
+
       MetadataTableUtil.finishSplit(high, highDatafileSizes, highDatafilesToRemove,
           getTabletServer().getContext(), getTabletServer().getLock());
 
@@ -1948,6 +1973,7 @@ public class Tablet extends TabletBase {
     }
 
   }
+
   private TServerInstance getTServerInstance(String address, ServiceLock zooLock) {
     while (true) {
       try {
@@ -1980,10 +2006,12 @@ public class Tablet extends TabletBase {
         tablet.putTime(tabletTime.getMetadataTime(persistedTime));
         newFile = Optional.of(newDatafile.insert());
 
-        // if the location mode is 'compaction', then preserve the current compaction location in the
-        // last location value
-        if ("compaction".equals(context.getConfiguration().get(Property.TSERV_LAST_LOCATION_MODE))) {
-          TServerInstance newLocation = getTServerInstance(tabletServer.getClientAddressString(), zooLock);
+        // if the location mode is 'compaction', then preserve the current compaction location in
+        // the last location value
+        if ("compaction"
+            .equals(context.getConfiguration().get(Property.TSERV_LAST_LOCATION_MODE))) {
+          TServerInstance newLocation =
+              getTServerInstance(tabletServer.getClientAddressString(), zooLock);
           tablet.updateLast(lastLocation, newLocation);
         }
       }
