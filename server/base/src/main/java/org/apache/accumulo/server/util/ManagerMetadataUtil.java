@@ -18,14 +18,12 @@
  */
 package org.apache.accumulo.server.util;
 
-import static org.apache.accumulo.core.util.UtilWaitThread.sleepUninterruptibly;
 
 import java.util.Collection;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 
 import org.apache.accumulo.core.clientImpl.ClientContext;
 import org.apache.accumulo.core.conf.Property;
@@ -42,13 +40,8 @@ import org.apache.accumulo.core.metadata.schema.MetadataTime;
 import org.apache.accumulo.core.metadata.schema.TabletMetadata;
 import org.apache.accumulo.core.metadata.schema.TabletMetadata.LocationType;
 import org.apache.accumulo.server.ServerContext;
-import org.apache.zookeeper.KeeperException;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public class ManagerMetadataUtil {
-
-  private static final Logger log = LoggerFactory.getLogger(ManagerMetadataUtil.class);
 
   public static void addNewTablet(ServerContext context, KeyExtent extent, String dirName,
       TServerInstance location, Map<StoredTabletFile,DataFileValue> datafileSizes,
@@ -85,16 +78,6 @@ public class ManagerMetadataUtil {
     tablet.mutate();
   }
 
-  private static TServerInstance getTServerInstance(String address, ServiceLock zooLock) {
-    while (true) {
-      try {
-        return new TServerInstance(address, zooLock.getSessionId());
-      } catch (KeeperException | InterruptedException e) {
-        log.error("{}", e.getMessage(), e);
-      }
-      sleepUninterruptibly(1, TimeUnit.SECONDS);
-    }
-  }
 
   public static void replaceDatafiles(ServerContext context, KeyExtent extent,
       Set<StoredTabletFile> datafilesToDelete, Set<StoredTabletFile> scanFiles,
@@ -116,7 +99,8 @@ public class ManagerMetadataUtil {
       tablet.putCompactionId(compactionId);
     }
 
-    updateLastForCompactionMode(context, tablet, lastLocation, address, zooLock);
+    TServerInstance newLocation = getTServerInstance(address, zooLock);
+    tablet.updateLast(lastLocation, newLocation);
 
     if (ecid.isPresent()) {
       tablet.deleteExternalCompaction(ecid.get());
@@ -126,37 +110,6 @@ public class ManagerMetadataUtil {
 
     tablet.mutate();
   }
-
-  /**
-   * Update tablet file data from flush. Returns a StoredTabletFile if there are data entries.
-   */
-  public static Optional<StoredTabletFile> updateTabletDataFile(ServerContext context,
-      KeyExtent extent, TabletFile newDatafile, DataFileValue dfv, MetadataTime time,
-      String address, ServiceLock zooLock, Set<String> unusedWalLogs, TServerInstance lastLocation,
-      long flushId) {
-
-    TabletMutator tablet = context.getAmple().mutateTablet(extent);
-    // if there are no entries, the path doesn't get stored in metadata table, only the flush ID
-    Optional<StoredTabletFile> newFile = Optional.empty();
-
-    // if entries are present, write to path to metadata table
-    if (dfv.getNumEntries() > 0) {
-      tablet.putFile(newDatafile, dfv);
-      tablet.putTime(time);
-      newFile = Optional.of(newDatafile.insert());
-
-      updateLastForCompactionMode(context, tablet, lastLocation, address, zooLock);
-    }
-    tablet.putFlushId(flushId);
-
-    unusedWalLogs.forEach(tablet::deleteWal);
-
-    tablet.putZooLock(zooLock);
-
-    tablet.mutate();
-    return newFile;
-  }
-
   /**
    * Update the last location if the location mode is "assignment". This will delete the previous
    * last location if needed and set the new last location
@@ -169,51 +122,6 @@ public class ManagerMetadataUtil {
    */
   public static void updateLastForAssignmentMode(ClientContext context, Ample ample,
       Ample.TabletMutator tabletMutator, KeyExtent extent, TServerInstance location) {
-    // if the location mode is assignment, then preserve the current location in the last
-    // location value
-    if ("assignment".equals(context.getConfiguration().get(Property.TSERV_LAST_LOCATION_MODE))) {
-      TabletMetadata lastMetadata = ample.readTablet(extent, TabletMetadata.ColumnType.LAST);
-      TServerInstance lastLocation = (lastMetadata == null ? null : lastMetadata.getLast());
-      ManagerMetadataUtil.updateLast(tabletMutator, lastLocation, location);
-    }
-  }
 
-  /**
-   * Update the last location if the location mode is "compaction". This will delete the previous
-   * last location if needed and set the new last location
-   *
-   * @param context The server context
-   * @param tabletMutator The mutator being built
-   * @param lastLocation The last location
-   * @param address The server address
-   * @param zooLock The zookeeper lock
-   */
-  public static void updateLastForCompactionMode(ClientContext context, TabletMutator tabletMutator,
-      TServerInstance lastLocation, String address, ServiceLock zooLock) {
-    // if the location mode is 'compaction', then preserve the current compaction location in the
-    // last location value
-    if ("compaction".equals(context.getConfiguration().get(Property.TSERV_LAST_LOCATION_MODE))) {
-      TServerInstance newLocation = getTServerInstance(address, zooLock);
-      updateLast(tabletMutator, lastLocation, newLocation);
-    }
-  }
-
-  /**
-   * Update the last location, deleting the previous location if needed
-   *
-   * @param tabletMutator The mutator being built
-   * @param lastLocation The last location (may be null)
-   * @param newLocation The new location
-   */
-  public static void updateLast(TabletMutator tabletMutator, TServerInstance lastLocation,
-      TServerInstance newLocation) {
-    if (lastLocation != null) {
-      if (!lastLocation.equals(newLocation)) {
-        tabletMutator.deleteLocation(lastLocation, LocationType.LAST);
-        tabletMutator.putLocation(newLocation, LocationType.LAST);
-      }
-    } else {
-      tabletMutator.putLocation(newLocation, LocationType.LAST);
-    }
   }
 }

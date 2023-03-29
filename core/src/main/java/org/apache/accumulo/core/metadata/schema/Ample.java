@@ -23,6 +23,7 @@ import java.util.Iterator;
 import java.util.UUID;
 import java.util.stream.Stream;
 
+import com.google.common.collect.Table;
 import org.apache.accumulo.core.data.Mutation;
 import org.apache.accumulo.core.data.TableId;
 import org.apache.accumulo.core.dataImpl.KeyExtent;
@@ -247,6 +248,7 @@ public interface Ample {
    * Interface for changing a tablets persistent data.
    */
   interface TabletMutator {
+    TabletMutator updateLast(TServerInstance lastLocation, TServerInstance newLocation);
     TabletMutator putPrevEndRow(Text per);
 
     TabletMutator putFile(TabletFile path, DataFileValue dfv);

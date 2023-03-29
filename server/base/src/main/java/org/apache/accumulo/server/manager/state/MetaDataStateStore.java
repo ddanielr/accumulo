@@ -23,12 +23,14 @@ import java.util.List;
 import java.util.Map;
 
 import org.apache.accumulo.core.clientImpl.ClientContext;
+import org.apache.accumulo.core.conf.Property;
 import org.apache.accumulo.core.metadata.MetadataTable;
 import org.apache.accumulo.core.metadata.TServerInstance;
 import org.apache.accumulo.core.metadata.TabletLocationState;
 import org.apache.accumulo.core.metadata.schema.Ample;
 import org.apache.accumulo.core.metadata.schema.Ample.TabletMutator;
 import org.apache.accumulo.core.metadata.schema.MetadataSchema.TabletsSection;
+import org.apache.accumulo.core.metadata.schema.TabletMetadata;
 import org.apache.accumulo.core.metadata.schema.TabletMetadata.LocationType;
 import org.apache.accumulo.core.tabletserver.log.LogEntry;
 import org.apache.accumulo.server.util.ManagerMetadataUtil;
@@ -63,8 +65,13 @@ class MetaDataStateStore implements TabletStateStore {
       for (Assignment assignment : assignments) {
         TabletMutator tabletMutator = tabletsMutator.mutateTablet(assignment.tablet);
         tabletMutator.putLocation(assignment.server, LocationType.CURRENT);
-        ManagerMetadataUtil.updateLastForAssignmentMode(context, ample, tabletMutator,
-            assignment.tablet, assignment.server);
+        // if the location mode is assignment, then preserve the current location in the last
+        // location value
+        if ("assignment".equals(context.getConfiguration().get(Property.TSERV_LAST_LOCATION_MODE))) {
+          TabletMetadata lastMetadata = ample.readTablet(assignment.tablet, TabletMetadata.ColumnType.LAST);
+          TServerInstance lastLocation = (lastMetadata == null ? null : lastMetadata.getLast());
+          tabletMutator.updateLast(lastLocation, assignment.server);
+        }
         tabletMutator.deleteLocation(assignment.server, LocationType.FUTURE);
         tabletMutator.deleteSuspension();
         tabletMutator.mutate();
@@ -107,8 +114,13 @@ class MetaDataStateStore implements TabletStateStore {
       for (TabletLocationState tls : tablets) {
         TabletMutator tabletMutator = tabletsMutator.mutateTablet(tls.extent);
         if (tls.current != null) {
-          ManagerMetadataUtil.updateLastForAssignmentMode(context, ample, tabletMutator, tls.extent,
-              tls.current);
+          // if the location mode is assignment, then preserve the current location in the last
+          // location value
+          if ("assignment".equals(context.getConfiguration().get(Property.TSERV_LAST_LOCATION_MODE))) {
+            TabletMetadata lastMetadata = ample.readTablet(tls.extent, TabletMetadata.ColumnType.LAST);
+            TServerInstance lastLocation = (lastMetadata == null ? null : lastMetadata.getLast());
+            tabletMutator.updateLast(lastLocation, tls.current);
+          }
           tabletMutator.deleteLocation(tls.current, LocationType.CURRENT);
           if (logsForDeadServers != null) {
             List<Path> logs = logsForDeadServers.get(tls.current);

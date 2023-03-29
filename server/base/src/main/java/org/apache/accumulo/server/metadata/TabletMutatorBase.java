@@ -64,6 +64,25 @@ public abstract class TabletMutatorBase implements Ample.TabletMutator {
     mutation = new Mutation(extent.toMetaRow());
   }
 
+  /**
+   * Update the last location, deleting the previous location if needed
+   *
+   * @param lastLocation The last location (may be null)
+   * @param newLocation The new location
+   */
+  public Ample.TabletMutator updateLast(TServerInstance lastLocation, TServerInstance newLocation) {
+    Preconditions.checkState(updatesEnabled, "Cannot make updates after calling mutate.");
+    if (lastLocation != null) {
+      if (!lastLocation.equals(newLocation)) {
+        this.deleteLocation(lastLocation, LocationType.LAST);
+        this.putLocation(newLocation, LocationType.LAST);
+      }
+    } else {
+      this.putLocation(newLocation, LocationType.LAST);
+    }
+    return this;
+  }
+
   @Override
   public Ample.TabletMutator putPrevEndRow(Text per) {
     Preconditions.checkState(updatesEnabled, "Cannot make updates after calling mutate.");

@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Map;
 
 import org.apache.accumulo.core.clientImpl.ClientContext;
+import org.apache.accumulo.core.conf.Property;
 import org.apache.accumulo.core.metadata.RootTable;
 import org.apache.accumulo.core.metadata.TServerInstance;
 import org.apache.accumulo.core.metadata.TabletLocationState;
@@ -138,8 +139,13 @@ class ZooTabletStateStore implements TabletStateStore {
 
     TabletMutator tabletMutator = ample.mutateTablet(assignment.tablet);
     tabletMutator.putLocation(assignment.server, LocationType.CURRENT);
-    ManagerMetadataUtil.updateLastForAssignmentMode(context, ample, tabletMutator,
-        assignment.tablet, assignment.server);
+    // if the location mode is assignment, then preserve the current location in the last
+    // location value
+    if ("assignment".equals(context.getConfiguration().get(Property.TSERV_LAST_LOCATION_MODE))) {
+      TabletMetadata lastMetadata = ample.readTablet(assignment.tablet, TabletMetadata.ColumnType.LAST);
+      TServerInstance lastLocation = (lastMetadata == null ? null : lastMetadata.getLast());
+      tabletMutator.updateLast(lastLocation, assignment.server);
+    }
     tabletMutator.deleteLocation(assignment.server, LocationType.FUTURE);
 
     tabletMutator.mutate();
