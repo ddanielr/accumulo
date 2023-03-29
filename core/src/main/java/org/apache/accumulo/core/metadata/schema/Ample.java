@@ -182,6 +182,10 @@ public interface Ample {
     throw new UnsupportedOperationException();
   }
 
+  default KeyExtent fixSplit(TabletMetadata tabletMetadata, ServiceLock lock) {
+    throw new UnsupportedOperationException();
+  }
+
   default void putGcCandidates(TableId tableId, Collection<StoredTabletFile> candidates) {
     throw new UnsupportedOperationException();
   }
