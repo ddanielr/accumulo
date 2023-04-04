@@ -87,7 +87,6 @@ import org.apache.accumulo.core.metadata.schema.TabletsMetadata;
 import org.apache.accumulo.core.security.Authorizations;
 import org.apache.accumulo.core.tabletserver.log.LogEntry;
 import org.apache.accumulo.core.tabletserver.thrift.ConstraintViolationException;
-import org.apache.accumulo.core.util.ColumnFQ;
 import org.apache.accumulo.core.util.FastFormat;
 import org.apache.accumulo.core.util.Pair;
 import org.apache.accumulo.server.ServerContext;
@@ -133,10 +132,6 @@ public class MetadataTableUtil {
   public static void putLockID(ServerContext context, ServiceLock zooLock, Mutation m) {
     ServerColumnFamily.LOCK_COLUMN.put(m,
         new Value(zooLock.getLockID().serialize(context.getZooKeeperRoot() + "/")));
-  }
-
-  private static void update(ServerContext context, Mutation m, KeyExtent extent) {
-    update(context, null, m, extent);
   }
 
   public static void update(ServerContext context, ServiceLock zooLock, Mutation m,
@@ -202,14 +197,6 @@ public class MetadataTableUtil {
     return newFiles;
   }
 
-  public static void updateTabletDir(KeyExtent extent, String newDir, ServerContext context,
-      ServiceLock zooLock) {
-    TabletMutator tablet = context.getAmple().mutateTablet(extent);
-    tablet.putDirName(newDir);
-    tablet.putZooLock(zooLock);
-    tablet.mutate();
-  }
-
   public static void addTablet(KeyExtent extent, String path, ServerContext context,
       TimeType timeType, ServiceLock zooLock) {
     TabletMutator tablet = context.getAmple().mutateTablet(extent);
@@ -218,7 +205,6 @@ public class MetadataTableUtil {
     tablet.putTime(new MetadataTime(0, timeType));
     tablet.putZooLock(zooLock);
     tablet.mutate();
-
   }
 
   public static void updateTabletVolumes(KeyExtent extent, List<LogEntry> logsToRemove,
@@ -660,21 +646,5 @@ public class MetadataTableUtil {
     tablet.putChopped();
     tablet.putZooLock(zooLock);
     tablet.mutate();
-  }
-
-  public static SortedMap<Text,SortedMap<ColumnFQ,Value>>
-      getTabletEntries(SortedMap<Key,Value> tabletKeyValues, List<ColumnFQ> columns) {
-    TreeMap<Text,SortedMap<ColumnFQ,Value>> tabletEntries = new TreeMap<>();
-
-    HashSet<ColumnFQ> colSet = columns == null ? null : new HashSet<>(columns);
-
-    tabletKeyValues.forEach((key, val) -> {
-      ColumnFQ currentKey = new ColumnFQ(key);
-      if (columns == null || colSet.contains(currentKey)) {
-        tabletEntries.computeIfAbsent(key.getRow(), k -> new TreeMap<>()).put(currentKey, val);
-      }
-    });
-
-    return tabletEntries;
   }
 }
