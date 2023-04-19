@@ -341,6 +341,30 @@ public interface Ample {
   }
 
   /**
+   * Create a Problem report in the metadata table
+   *
+   * @param tableId id of the table with the problem
+   * @param problemType type of problem
+   * @param resource subject of the report
+   * @param value byte array of the report value
+   */
+  default void addProblemReport(TableId tableId, String problemType, String resource,
+      byte[] value) {
+    throw new UnsupportedOperationException();
+  }
+
+  /**
+   * Removes a Problem report from the metadata table.
+   *
+   * @param tableId id of the table with the problem
+   * @param problemType type of problem
+   * @param resource subject of the report
+   */
+  default void removeProblemReport(TableId tableId, String problemType, String resource) {
+    throw new UnsupportedOperationException();
+  }
+
+  /**
    * Create a Bulk Load In Progress flag in the metadata table
    *
    * @param path The bulk directory filepath

@@ -402,7 +402,7 @@ public class MetadataSchema {
   }
 
   /**
-   * Holds error message processing flags
+   * Holds Problem reports
    */
   public static class ProblemSection {
     private static final Section section =

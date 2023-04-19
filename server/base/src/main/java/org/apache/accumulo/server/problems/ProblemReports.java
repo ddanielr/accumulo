@@ -32,23 +32,19 @@ import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.accumulo.core.Constants;
-import org.apache.accumulo.core.client.IteratorSetting;
 import org.apache.accumulo.core.client.Scanner;
 import org.apache.accumulo.core.conf.SiteConfiguration;
 import org.apache.accumulo.core.data.Key;
-import org.apache.accumulo.core.data.Mutation;
 import org.apache.accumulo.core.data.Range;
 import org.apache.accumulo.core.data.TableId;
 import org.apache.accumulo.core.data.Value;
 import org.apache.accumulo.core.fate.zookeeper.ZooReaderWriter;
-import org.apache.accumulo.core.iterators.SortedKeyIterator;
 import org.apache.accumulo.core.metadata.MetadataTable;
 import org.apache.accumulo.core.metadata.RootTable;
 import org.apache.accumulo.core.metadata.schema.MetadataSchema.ProblemSection;
 import org.apache.accumulo.core.security.Authorizations;
 import org.apache.accumulo.core.util.threads.ThreadPools;
 import org.apache.accumulo.server.ServerContext;
-import org.apache.accumulo.server.util.MetadataTableUtil;
 import org.apache.commons.collections4.map.LRUMap;
 import org.apache.hadoop.io.Text;
 import org.slf4j.Logger;
@@ -92,13 +88,7 @@ public class ProblemReports implements Iterable<ProblemReport> {
           pr.getResource());
 
       try {
-        if (isMeta(pr.getTableId())) {
-          // file report in zookeeper
-          pr.saveToZooKeeper(context);
-        } else {
-          // file report in metadata table
-          pr.saveToMetadataTable(context);
-        }
+        pr.saveReport(context);
       } catch (Exception e) {
         log.error("Failed to file problem report " + pr.getTableId() + " " + pr.getProblemType()
             + " " + pr.getResource(), e);
@@ -126,13 +116,7 @@ public class ProblemReports implements Iterable<ProblemReport> {
 
     Runnable r = () -> {
       try {
-        if (isMeta(pr.getTableId())) {
-          // file report in zookeeper
-          pr.removeFromZooKeeper(context);
-        } else {
-          // file report in metadata table
-          pr.removeFromMetadataTable(context);
-        }
+        pr.removeReport(context);
       } catch (Exception e) {
         log.error("Failed to delete problem report {} {} {}", pr.getTableId(), pr.getProblemType(),
             pr.getResource(), e);
@@ -149,31 +133,11 @@ public class ProblemReports implements Iterable<ProblemReport> {
 
   private static ProblemReports instance;
 
-  public void deleteProblemReports(TableId table) throws Exception {
+  public void deleteProblemReports(TableId table) {
 
-    if (isMeta(table)) {
-      Iterator<ProblemReport> pri = iterator(table);
-      while (pri.hasNext()) {
-        pri.next().removeFromZooKeeper(context);
-      }
-      return;
-    }
-
-    Scanner scanner = context.createScanner(MetadataTable.NAME, Authorizations.EMPTY);
-    scanner.addScanIterator(new IteratorSetting(1, "keys-only", SortedKeyIterator.class));
-
-    scanner.setRange(new Range(new Text(ProblemSection.getRowPrefix() + table)));
-
-    Mutation delMut = new Mutation(new Text(ProblemSection.getRowPrefix() + table));
-
-    boolean hasProblems = false;
-    for (Entry<Key,Value> entry : scanner) {
-      hasProblems = true;
-      delMut.putDelete(entry.getKey().getColumnFamily(), entry.getKey().getColumnQualifier());
-    }
-
-    if (hasProblems) {
-      MetadataTableUtil.getMetadataTable(context).update(delMut);
+    Iterator<ProblemReport> pri = iterator(table);
+    while (pri.hasNext()) {
+      pri.next().removeReport(context);
     }
   }
 

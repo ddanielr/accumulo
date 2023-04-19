@@ -31,18 +31,14 @@ import java.util.Map.Entry;
 
 import org.apache.accumulo.core.Constants;
 import org.apache.accumulo.core.data.Key;
-import org.apache.accumulo.core.data.Mutation;
 import org.apache.accumulo.core.data.TableId;
 import org.apache.accumulo.core.data.Value;
-import org.apache.accumulo.core.fate.zookeeper.ZooReaderWriter;
-import org.apache.accumulo.core.fate.zookeeper.ZooUtil.NodeExistsPolicy;
-import org.apache.accumulo.core.fate.zookeeper.ZooUtil.NodeMissingPolicy;
 import org.apache.accumulo.core.metadata.schema.MetadataSchema.ProblemSection;
 import org.apache.accumulo.core.util.Encoding;
 import org.apache.accumulo.server.ServerContext;
-import org.apache.accumulo.server.util.MetadataTableUtil;
-import org.apache.hadoop.io.Text;
 import org.apache.zookeeper.KeeperException;
+
+import com.google.common.annotations.VisibleForTesting;
 
 public class ProblemReport {
   private TableId tableId;
@@ -95,11 +91,11 @@ public class ProblemReport {
     this.tableId = table;
     this.problemType = problemType;
     this.resource = resource;
-
     decode(enc);
   }
 
-  private byte[] encode() throws IOException {
+  @VisibleForTesting
+  byte[] encode() throws IOException {
     ByteArrayOutputStream baos = new ByteArrayOutputStream();
     DataOutputStream dos = new DataOutputStream(baos);
 
@@ -140,46 +136,12 @@ public class ProblemReport {
     }
   }
 
-  void removeFromMetadataTable(ServerContext context) throws Exception {
-
-    Mutation m = new Mutation(new Text(ProblemSection.getRowPrefix() + tableId));
-    m.putDelete(new Text(problemType.name()), new Text(resource));
-    MetadataTableUtil.getMetadataTable(context).update(m);
+  void removeReport(ServerContext context) {
+    context.getAmple().removeProblemReport(tableId, problemType.name(), resource);
   }
 
-  void saveToMetadataTable(ServerContext context) throws Exception {
-    Mutation m = new Mutation(new Text(ProblemSection.getRowPrefix() + tableId));
-    m.put(new Text(problemType.name()), new Text(resource), new Value(encode()));
-    MetadataTableUtil.getMetadataTable(context).update(m);
-  }
-
-  void removeFromZooKeeper(ServerContext context) throws Exception {
-    removeFromZooKeeper(context.getZooReaderWriter(), context);
-  }
-
-  void removeFromZooKeeper(ZooReaderWriter zoorw, ServerContext context)
-      throws IOException, KeeperException, InterruptedException {
-    String zpath = getZPath(context.getZooKeeperRoot());
-    zoorw.recursiveDelete(zpath, NodeMissingPolicy.SKIP);
-  }
-
-  void saveToZooKeeper(ServerContext context)
-      throws IOException, KeeperException, InterruptedException {
-    context.getZooReaderWriter().putPersistentData(getZPath(context.getZooKeeperRoot()), encode(),
-        NodeExistsPolicy.OVERWRITE);
-  }
-
-  private String getZPath(String zkRoot) throws IOException {
-    ByteArrayOutputStream baos = new ByteArrayOutputStream();
-    DataOutputStream dos = new DataOutputStream(baos);
-    dos.writeUTF(getTableId().canonical());
-    dos.writeUTF(getProblemType().name());
-    dos.writeUTF(getResource());
-    dos.close();
-    baos.close();
-
-    return zkRoot + Constants.ZPROBLEMS + "/"
-        + Encoding.encodeAsBase64FileName(new Text(baos.toByteArray()));
+  void saveReport(ServerContext context) throws Exception {
+    context.getAmple().addProblemReport(tableId, problemType.name(), resource, encode());
   }
 
   static ProblemReport decodeZooKeeperEntry(ServerContext context, String node)

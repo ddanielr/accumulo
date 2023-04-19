@@ -22,6 +22,9 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.apache.accumulo.core.metadata.RootTable.ZROOT_TABLET_GC_CANDIDATES;
 import static org.apache.accumulo.server.util.MetadataTableUtil.EMPTY_TEXT;
 
+import java.io.ByteArrayOutputStream;
+import java.io.DataOutputStream;
+import java.io.IOException;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.Map;
@@ -33,6 +36,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
+import org.apache.accumulo.core.Constants;
 import org.apache.accumulo.core.client.BatchWriter;
 import org.apache.accumulo.core.client.IsolatedScanner;
 import org.apache.accumulo.core.client.MutationsRejectedException;
@@ -45,6 +49,8 @@ import org.apache.accumulo.core.data.TableId;
 import org.apache.accumulo.core.data.Value;
 import org.apache.accumulo.core.dataImpl.KeyExtent;
 import org.apache.accumulo.core.fate.FateTxId;
+import org.apache.accumulo.core.fate.zookeeper.ZooReaderWriter;
+import org.apache.accumulo.core.fate.zookeeper.ZooUtil;
 import org.apache.accumulo.core.gc.ReferenceFile;
 import org.apache.accumulo.core.metadata.MetadataTable;
 import org.apache.accumulo.core.metadata.RootTable;
@@ -59,9 +65,11 @@ import org.apache.accumulo.core.metadata.schema.MetadataSchema.BlipSection;
 import org.apache.accumulo.core.metadata.schema.MetadataSchema.DeletesSection;
 import org.apache.accumulo.core.metadata.schema.MetadataSchema.DeletesSection.SkewedKeyValue;
 import org.apache.accumulo.core.metadata.schema.MetadataSchema.ExternalCompactionSection;
+import org.apache.accumulo.core.metadata.schema.MetadataSchema.ProblemSection;
 import org.apache.accumulo.core.metadata.schema.MetadataSchema.ScanServerFileReferenceSection;
 import org.apache.accumulo.core.metadata.schema.MetadataSchema.TabletsSection.BulkFileColumnFamily;
 import org.apache.accumulo.core.security.Authorizations;
+import org.apache.accumulo.core.util.Encoding;
 import org.apache.accumulo.server.ServerContext;
 import org.apache.hadoop.io.Text;
 import org.apache.zookeeper.KeeperException;
@@ -148,6 +156,71 @@ public class ServerAmpleImpl extends AmpleImpl implements Ample {
       for (var fileOrDir : candidates) {
         writer.addMutation(createDeleteMutation(fileOrDir));
       }
+    } catch (MutationsRejectedException | TableNotFoundException e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  private String getProblemReportZPath(TableId tableId, String problemType, String resource)
+      throws IOException {
+    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+    DataOutputStream dos = new DataOutputStream(baos);
+    dos.writeUTF(tableId.canonical());
+    dos.writeUTF(problemType);
+    dos.writeUTF(resource);
+    dos.close();
+    baos.close();
+
+    return context.getZooKeeperRoot() + Constants.ZPROBLEMS + "/"
+        + Encoding.encodeAsBase64FileName(new Text(baos.toByteArray()));
+  }
+
+  // QUESTION: Should errors be converted to Runtime Exceptions here?
+  @Override
+  public void addProblemReport(TableId tableId, String problemType, String resource, byte[] value) {
+
+    if (DataLevel.of(tableId) == DataLevel.ROOT) {
+      try {
+        context.getZooReaderWriter().putPersistentData(
+            getProblemReportZPath(tableId, problemType, resource), value,
+            ZooUtil.NodeExistsPolicy.OVERWRITE);
+      } catch (IOException | InterruptedException | KeeperException e) {
+        throw new RuntimeException(e);
+      }
+      return;
+    }
+
+    Mutation m = new Mutation(ProblemSection.getRowPrefix() + tableId);
+    m.put(new Text(problemType), new Text(resource), new Value(value));
+
+    // This could be root or metadata, so operate as such.
+    try (BatchWriter bw = context.createBatchWriter(DataLevel.of(tableId).metaTable())) {
+      bw.addMutation(m);
+    } catch (MutationsRejectedException | TableNotFoundException e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  @Override
+  public void removeProblemReport(TableId tableId, String problemType, String resource) {
+
+    if (DataLevel.of(tableId) == DataLevel.ROOT) {
+      ZooReaderWriter zooW = context.getZooReaderWriter();
+      try {
+        zooW.recursiveDelete(getProblemReportZPath(tableId, problemType, resource),
+            ZooUtil.NodeMissingPolicy.SKIP);
+      } catch (IOException | KeeperException | InterruptedException e) {
+        throw new RuntimeException(e);
+      }
+      return;
+    }
+
+    Mutation m = new Mutation(ProblemSection.getRowPrefix() + tableId);
+    m.putDelete(new Text(problemType), new Text(resource));
+
+    // This could be root or metadata, so operate as such.
+    try (BatchWriter bw = context.createBatchWriter(DataLevel.of(tableId).metaTable())) {
+      bw.addMutation(m);
     } catch (MutationsRejectedException | TableNotFoundException e) {
       throw new RuntimeException(e);
     }
