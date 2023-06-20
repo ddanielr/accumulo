@@ -94,6 +94,7 @@ public class CompactionJobPriorityQueue {
   // case where tablets decided to issues different compaction jobs than what is currently queued.
   private final TreeMap<CjpqKey,CompactionJobQueues.MetaJob> jobQueue;
   private final int maxSize;
+  private long rejectedJobs;
 
   // This map tracks what jobs a tablet currently has in the queue. Its used to efficiently remove
   // jobs in the queue when new jobs are queued for a tablet.
@@ -108,6 +109,7 @@ public class CompactionJobPriorityQueue {
     this.maxSize = maxSize;
     this.tabletJobs = new HashMap<>();
     this.executorId = executorId;
+    this.rejectedJobs = 0;
   }
 
   public synchronized boolean add(TabletMetadata tabletMetadata, Collection<CompactionJob> jobs) {
@@ -134,6 +136,18 @@ public class CompactionJobPriorityQueue {
     }
 
     return true;
+  }
+
+  public long getSize() {
+    return maxSize;
+  }
+
+  public long getRejectedJobs() {
+    return rejectedJobs;
+  }
+
+  public long getQueuedJobs() {
+    return jobQueue.size();
   }
 
   public synchronized CompactionJobQueues.MetaJob poll() {
@@ -174,10 +188,13 @@ public class CompactionJobPriorityQueue {
       if (job.getPriority() <= lastEntry.job.getPriority()) {
         // the queue is full and this job has a lower or same priority than the lowest job in the
         // queue, so do not add it
+        rejectedJobs++;
         return null;
       } else {
         // the new job has a higher priority than the lowest job in the queue, so remove the lowest
         jobQueue.pollLastEntry();
+        // Reset the rejected jobs counter
+        rejectedJobs = 0;
       }
 
     }

@@ -61,7 +61,14 @@ import io.micrometer.core.instrument.MeterRegistry;
  * <tr>
  * <td>N/A</td>
  * <td>N/A</td>
- * <td>{@link #METRICS_COMPACTOR_JOB_PRIORITY_QUEUE_LENGTH}</td
+ * <td>{@link #METRICS_COMPACTOR_JOB_PRIORITY_QUEUES}</td>
+ * <td>Gauge</td>
+ * <td></td>
+ * </tr>
+ * <tr>
+ * <td>N/A</td>
+ * <td>N/A</td>
+ * <td>{@link #METRICS_COMPACTOR_JOB_PRIORITY_QUEUE_LENGTH}</td>
  * <td>Gauge</td>
  * <td></td>
  * </tr>
@@ -646,9 +653,12 @@ public interface MetricsProducer {
   String METRICS_LOW_MEMORY = "accumulo.detected.low.memory";
   String METRICS_COMPACTOR_PREFIX = "accumulo.compactor";
   String METRICS_COMPACTOR_MAJC_STUCK = METRICS_COMPACTOR_PREFIX + "majc.stuck";
+  String METRICS_COMPACTOR_JOB_PRIORITY_QUEUES = METRICS_COMPACTOR_PREFIX + "cjpq.count";
   String METRICS_COMPACTOR_JOB_PRIORITY_QUEUE_LENGTH = METRICS_COMPACTOR_PREFIX + "cjpq.length";
-  String METRICS_COMPACTOR_JOB_PRIORITY_QUEUE_JOBS_QUEUED = METRICS_COMPACTOR_PREFIX + "cjpq.jobs_queued";
-  String METRICS_COMPACTOR_JOB_PRIORITY_QUEUE_JOBS_REJECTED = METRICS_COMPACTOR_PREFIX + "cjpq.jobs_rejected";
+  String METRICS_COMPACTOR_JOB_PRIORITY_QUEUE_JOBS_QUEUED =
+      METRICS_COMPACTOR_PREFIX + "cjpq.jobs_queued";
+  String METRICS_COMPACTOR_JOB_PRIORITY_QUEUE_JOBS_REJECTED =
+      METRICS_COMPACTOR_PREFIX + "cjpq.jobs_rejected";
   String METRICS_COMPACTOR_JOB_TIME_QUEUED = METRICS_COMPACTOR_PREFIX + "cjpq.job_queue_duration";
 
   String METRICS_FATE_PREFIX = "accumulo.fate.";
