@@ -35,14 +35,11 @@ import org.apache.accumulo.core.file.FileSKVIterator;
 import org.apache.accumulo.core.file.rfile.RFile.FencedReader;
 import org.apache.accumulo.core.iterators.SortedKeyValueIterator;
 import org.apache.accumulo.core.iteratorsImpl.system.MultiIterator;
-import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.io.Text;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 public class FencedRFileTest extends AbstractRFileTest {
-
-  private static final Configuration hadoopConf = new Configuration();
 
   @BeforeAll
   public static void setupCryptoKeyFile() throws Exception {
@@ -331,11 +328,24 @@ public class FencedRFileTest extends AbstractRFileTest {
     for (TestRFile rangedTrf : rangedTrfs) {
       // check index entries to verify within range
       FileSKVIterator iiter = ((FencedReader) rangedTrf.iter).getIndex();
-      while (iiter.hasTop()) {
-        assertTrue(expectedRange.stream().anyMatch(range -> range.contains(iiter.getTopKey())));
-        iiter.next();
+
+      // Validate Index
+      if (iiter.hasTop()) {
+        Key lastKey = new Key(iiter.getTopKey());
+        if (iiter.getFirstKey().compareTo(lastKey) > 0) {
+          throw new IllegalStateException(
+              "First Key out of order" + iiter.getFirstKey() + " " + lastKey);
+        }
+        while (iiter.hasTop()) {
+          assertTrue(expectedRange.stream().anyMatch(range -> range.contains(iiter.getTopKey())));
+          iiter.next();
+        }
+        if (!iiter.getLastKey().equals(lastKey)) {
+          throw new IllegalStateException(
+              "Last key out of order" + iiter.getLastKey() + " " + lastKey);
+        }
+        rangedTrf.closeReader();
       }
-      rangedTrf.closeReader();
     }
 
     return expectedKeys.size();
