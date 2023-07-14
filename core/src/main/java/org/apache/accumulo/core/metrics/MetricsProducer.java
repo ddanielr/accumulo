@@ -75,6 +75,13 @@ import io.micrometer.core.instrument.MeterRegistry;
  * <tr>
  * <td>N/A</td>
  * <td>N/A</td>
+ * <td>{@link #METRICS_COMPACTOR_JOB_PRIORITY_QUEUE_JOBS_PRIORITY}</td>
+ * <td>Gauge</td>
+ * <td></td>
+ * </tr>
+ * <tr>
+ * <td>N/A</td>
+ * <td>N/A</td>
  * <td>{@link #METRICS_COMPACTOR_JOB_PRIORITY_QUEUE_JOBS_QUEUED}</td>
  * <td>Gauge</td>
  * <td></td>
@@ -657,11 +664,14 @@ public interface MetricsProducer {
   String METRICS_COMPACTOR_JOB_PRIORITY_QUEUE_LENGTH = METRICS_COMPACTOR_PREFIX + "cjpq.length";
 
   String METRICS_COMPACTOR_JOB_PRIORITY_QUEUE_JOBS_DEQUEUED =
-      METRICS_COMPACTOR_PREFIX + "cjpq.jobs_dequeued";
+      METRICS_COMPACTOR_PREFIX + "cjpq.jobs.dequeued";
   String METRICS_COMPACTOR_JOB_PRIORITY_QUEUE_JOBS_QUEUED =
-      METRICS_COMPACTOR_PREFIX + "cjpq.jobs_queued";
+      METRICS_COMPACTOR_PREFIX + "cjpq.jobs.queued";
   String METRICS_COMPACTOR_JOB_PRIORITY_QUEUE_JOBS_REJECTED =
-      METRICS_COMPACTOR_PREFIX + "cjpq.jobs_rejected";
+      METRICS_COMPACTOR_PREFIX + "cjpq.jobs.rejected";
+
+  String METRICS_COMPACTOR_JOB_PRIORITY_QUEUE_JOBS_PRIORITY =
+      METRICS_COMPACTOR_PREFIX + "cjpq.jobs.priority";
 
   String METRICS_FATE_PREFIX = "accumulo.fate.";
   String METRICS_FATE_TYPE_IN_PROGRESS = METRICS_FATE_PREFIX + "ops.in_progress_by_type";
