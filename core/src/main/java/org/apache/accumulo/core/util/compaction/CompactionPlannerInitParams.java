@@ -77,9 +77,19 @@ public class CompactionPlannerInitParams implements CompactionPlanner.InitParame
         return ceid;
       }
 
+      /**
+       *
+       * @param name queue name of external executor
+       * @throws IllegalArgumentException if a prefix is detected.
+       *
+       * @return CompactionExecutorId
+       */
+
       @Override
       public CompactionExecutorId getExternalExecutor(String name) {
-        var ceid = CompactionExecutorIdImpl.externalId(name);
+        Preconditions.checkArgument(name.contains(serviceId + "."),
+            "Already contains compaction service id prefix");
+        var ceid = CompactionExecutorIdImpl.externalId(serviceId + "." + name);
         Preconditions.checkArgument(!getRequestedExternalExecutors().contains(ceid),
             "Duplicate external executor for group " + name);
         getRequestedExternalExecutors().add(ceid);
