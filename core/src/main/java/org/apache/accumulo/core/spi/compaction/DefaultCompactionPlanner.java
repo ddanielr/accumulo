@@ -117,6 +117,7 @@ public class DefaultCompactionPlanner implements CompactionPlanner {
     String maxSize;
     Integer numThreads;
     String group;
+    Integer queueSize;
 
     public String getType() {
       return type;
@@ -158,6 +159,13 @@ public class DefaultCompactionPlanner implements CompactionPlanner {
       this.group = group;
     }
 
+    public Integer getQueueSize() {
+      return queueSize;
+    }
+
+    public void setQueueSize(Integer queueSize) {
+      this.queueSize = queueSize;
+    }
   }
 
   private static class Executor {

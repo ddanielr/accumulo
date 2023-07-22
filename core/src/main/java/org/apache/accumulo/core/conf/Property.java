@@ -585,7 +585,8 @@ public enum Property {
       "The maximum number of files a compaction will open", "2.1.0"),
   TSERV_COMPACTION_SERVICE_SYSTEM_EXECUTORS(
       "tserver.compaction.major.service.system.planner.opts.executors",
-      "[{'name':'all','type':'external','group':'accumulo_meta'}]".replaceAll("'", "\""),
+      "[{'name':'all','type':'external','group':'accumulo_meta','queueSize':'10000'}]"
+          .replaceAll("'", "\""),
       PropertyType.STRING,
       "See {% jlink -f org.apache.accumulo.core.spi.compaction.DefaultCompactionPlanner %} ",
       "2.1.0"),

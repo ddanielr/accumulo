@@ -19,6 +19,7 @@
 package org.apache.accumulo.manager.compaction.queue;
 
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentHashMap.KeySetView;
 import java.util.stream.Collectors;
@@ -42,10 +43,16 @@ public class CompactionJobQueues {
   private final ConcurrentHashMap<CompactionExecutorId,CompactionJobPriorityQueue> priorityQueues =
       new ConcurrentHashMap<>();
 
-  private final int queueSize;
+  private HashMap<CompactionExecutorId,Integer> queueSizes;
 
-  public CompactionJobQueues(int queueSize) {
-    this.queueSize = queueSize;
+  private final int defaultQueueSize;
+
+  public CompactionJobQueues(int defaultQueueSize) {
+    this.defaultQueueSize = defaultQueueSize;
+  }
+
+  public void setQueueSizes(HashMap<CompactionExecutorId,Integer> queueSizes) {
+    this.queueSizes = queueSizes;
   }
 
   public void add(TabletMetadata tabletMetadata, Collection<CompactionJob> jobs) {
@@ -141,12 +148,17 @@ public class CompactionJobQueues {
     }
 
     var pq = priorityQueues.computeIfAbsent(executorId,
-        eid -> new CompactionJobPriorityQueue(eid, queueSize));
+        eid -> new CompactionJobPriorityQueue(eid, getQueueSize(eid)));
     while (!pq.add(tabletMetadata, jobs)) {
       // This loop handles race condition where poll() closes empty priority queues. The queue could
       // be closed after its obtained from the map and before add is called.
       pq = priorityQueues.computeIfAbsent(executorId,
-          eid -> new CompactionJobPriorityQueue(eid, queueSize));
+          eid -> new CompactionJobPriorityQueue(eid, getQueueSize(eid)));
     }
+  }
+
+  private int getQueueSize(CompactionExecutorId executorId) {
+    var queueSize = queueSizes.get(executorId);
+    return queueSize == null ? this.defaultQueueSize : queueSize;
   }
 }
