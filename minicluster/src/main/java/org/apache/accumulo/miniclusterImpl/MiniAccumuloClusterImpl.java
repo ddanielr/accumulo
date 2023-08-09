@@ -673,6 +673,7 @@ public class MiniAccumuloClusterImpl implements AccumuloCluster {
         cp.init(initParams);
         initParams.getRequestedExternalExecutors().forEach(ceid -> {
           String id = ceid.canonical();
+          // Remove all of these "e." handlers
           if (id.startsWith("e.")) {
             groupNames.add(id.substring(2));
           } else {
