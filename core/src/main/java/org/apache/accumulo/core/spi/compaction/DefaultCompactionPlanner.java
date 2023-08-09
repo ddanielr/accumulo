@@ -57,26 +57,8 @@ import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
  * <th>Description</th>
  * </tr>
  * <tr>
- * <td>name</td>
- * <td>name or alias of the executor (required)</td>
- * </tr>
- * <tr>
- * <td>type</td>
- * <td>valid values 'internal' or 'external' (required)</td>
- * </tr>
- * <tr>
  * <td>maxSize</td>
  * <td>threshold sum of the input files (required for all but one of the configs)</td>
- * </tr>
- * <tr>
- * <td>numThreads</td>
- * <td>number of threads for this executor configuration (required for 'internal', cannot be
- * specified for 'external')</td>
- * </tr>
- * <tr>
- * <td>group</td>
- * <td>name of the external compaction group (required for 'external', cannot be specified for
- * 'internal')</td>
  * </tr>
  * </table>
  * <br>
@@ -87,15 +69,16 @@ import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
  * system compactions will only run for compactions smaller than the largest max size. User, chop,
  * and selector compactions will always run, even if there is no executor for their size. These
  * compactions will run on the executor with the largest max size. The following example value for
- * this property will create 3 threads to run compactions of files whose file size sum is less than
- * 100M, 3 threads to run compactions of files whose file size sum is less than 500M, and run all
- * other compactions on Compactors configured to run compactions for Queue1:
+ * this property will create 3 queues to prioritize compaction jobs. The compactions of files whose
+ * file size sum is less than 100M will run in the "small" queue. The "medium" queue will prioritize
+ * compactions of files whose file size sum is less than 500M, and the "large" queue will prioritize
+ * all other compactions for the parent compaction service:
  *
  * <pre>
  * {@code
- * [{"name":"small", "type": "internal", "maxSize":"100M","numThreads":3},
- *  {"name":"medium", "type": "internal", "maxSize":"500M","numThreads":3},
- *  {"name: "large", "type": "external", "group", "Queue1"}
+ * [{"maxSize":"100M", "group", "small"},
+ *  {"maxSize":"500M", "group", "medium"},
+ *  {"group", "large"}
  * ]}
  * </pre>
  *
@@ -112,27 +95,8 @@ import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 public class DefaultCompactionPlanner implements CompactionPlanner {
 
   public static class ExecutorConfig {
-    String type;
-    String name;
     String maxSize;
-    Integer numThreads;
     String group;
-
-    public String getType() {
-      return type;
-    }
-
-    public void setType(String type) {
-      this.type = type;
-    }
-
-    public String getName() {
-      return name;
-    }
-
-    public void setName(String name) {
-      this.name = name;
-    }
 
     public String getMaxSize() {
       return maxSize;
@@ -140,14 +104,6 @@ public class DefaultCompactionPlanner implements CompactionPlanner {
 
     public void setMaxSize(String maxSize) {
       this.maxSize = maxSize;
-    }
-
-    public Integer getNumThreads() {
-      return numThreads;
-    }
-
-    public void setNumThreads(Integer numThreads) {
-      this.numThreads = numThreads;
     }
 
     public String getQueue() {
@@ -214,29 +170,10 @@ public class DefaultCompactionPlanner implements CompactionPlanner {
 
       CompactionExecutorId ceid;
 
-      // If not supplied, GSON will leave type null. Default to internal
-      if (executorConfig.type == null) {
-        executorConfig.type = "internal";
-      }
+      String group =
+          Objects.requireNonNull(executorConfig.group, "compaction 'group' must be specified");
+      ceid = params.getExecutorManager().getExternalExecutor(group);
 
-      switch (executorConfig.type) {
-        case "internal":
-          Preconditions.checkArgument(null == executorConfig.group,
-              "'group' should not be specified for internal compactions");
-          int numThreads = Objects.requireNonNull(executorConfig.numThreads,
-              "'numThreads' must be specified for internal type");
-          ceid = params.getExecutorManager().createExecutor(executorConfig.name, numThreads);
-          break;
-        case "external":
-          Preconditions.checkArgument(null == executorConfig.numThreads,
-              "'numThreads' should not be specified for external compactions");
-          String group = Objects.requireNonNull(executorConfig.group,
-              "'group' must be specified for external type");
-          ceid = params.getExecutorManager().getExternalExecutor(group);
-          break;
-        default:
-          throw new IllegalArgumentException("type must be 'internal' or 'external'");
-      }
       tmpExec.add(new Executor(ceid, maxSize));
     }
 
@@ -535,12 +472,13 @@ public class DefaultCompactionPlanner implements CompactionPlanner {
 
     long size = files.stream().mapToLong(CompactableFile::getEstimatedSize).sum();
 
+    // TODO review this logic to ensure proper queue is chosen.
     for (Executor executor : executors) {
       if (executor.maxSize == null || size < executor.maxSize) {
         return executor.ceid;
       }
     }
-
+    // no executors matched the proper spec so just grab the last one.
     return executors.get(executors.size() - 1).ceid;
   }
 
