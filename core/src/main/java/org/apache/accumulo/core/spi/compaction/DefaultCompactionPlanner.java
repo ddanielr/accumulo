@@ -172,7 +172,7 @@ public class DefaultCompactionPlanner implements CompactionPlanner {
 
       String group =
           Objects.requireNonNull(executorConfig.group, "compaction 'group' must be specified");
-      ceid = params.getExecutorManager().getExternalExecutor(group);
+      ceid = params.getExecutorManager().getExecutor(group);
 
       tmpExec.add(new Executor(ceid, maxSize));
     }

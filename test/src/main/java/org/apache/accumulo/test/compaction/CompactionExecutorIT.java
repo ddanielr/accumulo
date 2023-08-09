@@ -94,7 +94,7 @@ public class CompactionExecutorIT extends SharedMiniClusterBase {
       }
 
       for (int i = 0; i < executors; i++) {
-        var ceid = params.getExecutorManager().createExecutor("e" + i, 2);
+        var ceid = params.getExecutorManager().getExecutor("e" + i);
         executorIds.add(ceid);
       }
 

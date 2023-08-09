@@ -116,16 +116,10 @@ public class CheckCompactionConfig implements KeywordExecutable {
 
       planner.init(initParams);
 
-      initParams.getRequestedExecutors()
-          .forEach((execId, numThreads) -> log.info(
-              "Compaction service '{}' requested creation of thread pool '{}' with {} threads.",
-              serviceId, execId, numThreads));
-
       initParams.getRequestedExternalExecutors()
           .forEach(execId -> log.info(
               "Compaction service '{}' requested with external execution group '{}'", serviceId,
               execId));
-
     }
 
     log.info("Properties file has passed all checks.");
