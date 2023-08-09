@@ -23,7 +23,6 @@ import static java.util.stream.Collectors.toSet;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assertions.fail;
 
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -386,48 +385,6 @@ public class DefaultCompactionPlannerTest {
   }
 
   /**
-   * Tests internal type executor with no numThreads set throws error
-   */
-  @Test
-  public void testErrorInternalTypeNoNumThreads() {
-    DefaultCompactionPlanner planner = new DefaultCompactionPlanner();
-    Configuration conf = EasyMock.createMock(Configuration.class);
-    EasyMock.expect(conf.isSet(EasyMock.anyString())).andReturn(false).anyTimes();
-
-    ServiceEnvironment senv = EasyMock.createMock(ServiceEnvironment.class);
-    EasyMock.expect(senv.getConfiguration()).andReturn(conf).anyTimes();
-    EasyMock.replay(conf, senv);
-
-    String executors = getExecutors("'type': 'internal','maxSize':'32M'",
-        "'type': 'internal','maxSize':'128M','numThreads':2",
-        "'type': 'internal','maxSize':'512M','numThreads':3");
-    var e = assertThrows(NullPointerException.class,
-        () -> planner.init(getInitParams(senv, executors)), "Failed to throw error");
-    assertTrue(e.getMessage().contains("numThreads"), "Error message didn't contain numThreads");
-  }
-
-  /**
-   * Test external type executor with numThreads set throws error.
-   */
-  @Test
-  public void testErrorExternalTypeNumThreads() {
-    DefaultCompactionPlanner planner = new DefaultCompactionPlanner();
-    Configuration conf = EasyMock.createMock(Configuration.class);
-    EasyMock.expect(conf.isSet(EasyMock.anyString())).andReturn(false).anyTimes();
-
-    ServiceEnvironment senv = EasyMock.createMock(ServiceEnvironment.class);
-    EasyMock.expect(senv.getConfiguration()).andReturn(conf).anyTimes();
-    EasyMock.replay(conf, senv);
-
-    String executors = getExecutors("'type': 'internal','maxSize':'32M','numThreads':1",
-        "'type': 'internal','maxSize':'128M','numThreads':2",
-        "'type': 'external','maxSize':'512M','numThreads':3");
-    var e = assertThrows(IllegalArgumentException.class,
-        () -> planner.init(getInitParams(senv, executors)), "Failed to throw error");
-    assertTrue(e.getMessage().contains("numThreads"), "Error message didn't contain numThreads");
-  }
-
-  /**
    * Tests external type executor missing group throws error
    */
   @Test
@@ -440,9 +397,8 @@ public class DefaultCompactionPlannerTest {
     EasyMock.expect(senv.getConfiguration()).andReturn(conf).anyTimes();
     EasyMock.replay(conf, senv);
 
-    String executors = getExecutors("'type': 'internal','maxSize':'32M','numThreads':1",
-        "'type': 'internal','maxSize':'128M','numThreads':2",
-        "'type': 'external','maxSize':'512M'");
+    String executors = getExecutors("'maxSize':'32M','group':'small'",
+        "'maxSize':'128M','group':'medium'", "'maxSize':'512M'");
     var e = assertThrows(NullPointerException.class,
         () -> planner.init(getInitParams(senv, executors)), "Failed to throw error");
     assertTrue(e.getMessage().contains("group"), "Error message didn't contain group");
@@ -461,8 +417,8 @@ public class DefaultCompactionPlannerTest {
     EasyMock.expect(senv.getConfiguration()).andReturn(conf).anyTimes();
     EasyMock.replay(conf, senv);
 
-    String executors = getExecutors("'type': 'internal','maxSize':'32M','numThreads':1",
-        "'type': 'internal','numThreads':2", "'type': 'external','group':'q1'");
+    String executors =
+        getExecutors("'maxSize':'32M','group':'small'", "'group':'medium'", "'group':'q1'");
     var e = assertThrows(IllegalArgumentException.class,
         () -> planner.init(getInitParams(senv, executors)), "Failed to throw error");
     assertTrue(e.getMessage().contains("maxSize"), "Error message didn't contain maxSize");
@@ -481,9 +437,8 @@ public class DefaultCompactionPlannerTest {
     EasyMock.expect(senv.getConfiguration()).andReturn(conf).anyTimes();
     EasyMock.replay(conf, senv);
 
-    String executors = getExecutors("'type': 'internal','maxSize':'32M','numThreads':1",
-        "'type': 'internal','maxSize':'128M','numThreads':2",
-        "'type': 'external','maxSize':'128M','group':'q1'");
+    String executors = getExecutors("'maxSize':'32M','group':'small'",
+        "'maxSize':'128M','group':'medium'", "'maxSize':'128M','group':'q1'");
     var e = assertThrows(IllegalArgumentException.class,
         () -> planner.init(getInitParams(senv, executors)), "Failed to throw error");
     assertTrue(e.getMessage().contains("maxSize"), "Error message didn't contain maxSize");
@@ -527,8 +482,7 @@ public class DefaultCompactionPlannerTest {
   }
 
   private String getExecutors(String small, String medium, String large) {
-    String execBldr = "[{'name':'small'," + small + "},{'name':'medium'," + medium + "},"
-        + "{'name':'large'," + large + "}]";
+    String execBldr = "[{" + small + "},{" + medium + "}," + "{" + large + "}]";
     return execBldr.replaceAll("'", "\"");
   }
 
@@ -646,13 +600,11 @@ public class DefaultCompactionPlannerTest {
 
     EasyMock.replay(conf, senv);
 
-    StringBuilder execBldr =
-        new StringBuilder("[{'name':'small','type': 'internal','maxSize':'32M','numThreads':1},"
-            + "{'name':'medium','type': 'internal','maxSize':'128M','numThreads':2},"
-            + "{'name':'large','type': 'internal','maxSize':'512M','numThreads':3}");
+    StringBuilder execBldr = new StringBuilder("[{'group':'small','maxSize':'32M'},"
+        + "{'group':'medium','maxSize':'128M'}," + "{'group':'large','maxSize':'512M'}");
 
     if (withHugeExecutor) {
-      execBldr.append(",{'name':'huge','type': 'internal','numThreads':4}]");
+      execBldr.append(",{'group':'huge'}]");
     } else {
       execBldr.append("]");
     }
@@ -682,29 +634,13 @@ public class DefaultCompactionPlannerTest {
         return new ExecutorManager() {
           @Override
           public CompactionExecutorId createExecutor(String name, int threads) {
-            switch (name) {
-              case "small":
-                assertEquals(1, threads);
-                break;
-              case "medium":
-                assertEquals(2, threads);
-                break;
-              case "large":
-                assertEquals(3, threads);
-                break;
-              case "huge":
-                assertEquals(4, threads);
-                break;
-              default:
-                fail("Unexpected name " + name);
-                break;
-            }
+            // Discarding threads as we remove internal compactions
             return CompactionExecutorIdImpl.externalId(name);
           }
 
           @Override
           public CompactionExecutorId getExternalExecutor(String name) {
-            throw new UnsupportedOperationException();
+            return CompactionExecutorIdImpl.externalId(name);
           }
         };
       }

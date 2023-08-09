@@ -50,9 +50,8 @@ public class CheckCompactionConfigTest extends WithTestNames {
     String inputString = ("tserver.compaction.major.service.cs1.planner="
         + "org.apache.accumulo.core.spi.compaction.DefaultCompactionPlanner \n"
         + "tserver.compaction.major.service.cs1.planner.opts.executors=\\\n"
-        + "[{'name':'small','type':'internal','maxSize':'16M','numThreads':8},\\\n"
-        + "{'name':'medium','type':'internal','maxSize':'128M','numThreads':4},\\\n"
-        + "{'name':'large','type':'internal','numThreads':2}]").replaceAll("'", "\"");
+        + "[{'group':'small','maxSize':'16M'},\\\n" + "{'group':'medium','maxSize':'128M'},\\\n"
+        + "{'group':'large'}]").replaceAll("'", "\"");
 
     String filePath = writeToFileAndReturnPath(inputString);
 
@@ -64,53 +63,19 @@ public class CheckCompactionConfigTest extends WithTestNames {
     String inputString = ("tserver.compaction.major.service.cs1.planner="
         + "org.apache.accumulo.core.spi.compaction.DefaultCompactionPlanner \n"
         + "tserver.compaction.major.service.cs1.planner.opts.executors=\\\n"
-        + "[{'name':'small','type':'internal','maxSize':'16M','numThreads':8},\\\n"
-        + "{'name':'medium','type':'internal','maxSize':'128M','numThreads':4},\\\n"
-        + "{'name':'large','type':'internal','numThreads':2}] \n"
+        + "[{'group':'small','maxSize':'16M'},\\\n"
+        + "{'group':'medium','maxSize':'128M'},\\\n"
+        + "{'group':'large'}] \n"
         + "tserver.compaction.major.service.cs2.planner="
         + "org.apache.accumulo.core.spi.compaction.DefaultCompactionPlanner \n"
         + "tserver.compaction.major.service.cs2.planner.opts.executors=\\\n"
-        + "[{'name':'small','type':'internal','maxSize':'16M','numThreads':7},\\\n"
-        + "{'name':'medium','type':'internal','maxSize':'128M','numThreads':5},\\\n"
-        + "{'name':'large','type':'external','group':'DCQ1'}]").replaceAll("'", "\"");
+        + "[{'group':'small','maxSize':'16M'},\\\n"
+        + "{'group':'medium','maxSize':'128M'},\\\n"
+        + "{'group':'DCQ1'}]").replaceAll("'", "\"");
 
     String filePath = writeToFileAndReturnPath(inputString);
 
     CheckCompactionConfig.main(new String[] {filePath});
-  }
-
-  @Test
-  public void testThrowsExternalNumThreadsError() throws IOException {
-    String inputString = ("tserver.compaction.major.service.cs1.planner="
-        + "org.apache.accumulo.core.spi.compaction.DefaultCompactionPlanner \n"
-        + "tserver.compaction.major.service.cs1.planner.opts.executors=\\\n"
-        + "[{'name':'small','type':'internal','maxSize':'16M','numThreads':8},\\\n"
-        + "{'name':'medium','type':'external','maxSize':'128M', 'group':'DCQ1', 'numThreads':4},\\\n"
-        + "{'name':'large','type':'internal','numThreads':2}]").replaceAll("'", "\"");
-    String expectedErrorMsg = "'numThreads' should not be specified for external compactions";
-
-    String filePath = writeToFileAndReturnPath(inputString);
-
-    var e = assertThrows(IllegalArgumentException.class,
-        () -> CheckCompactionConfig.main(new String[] {filePath}));
-    assertEquals(e.getMessage(), expectedErrorMsg);
-  }
-
-  @Test
-  public void testNegativeThreadCount() throws IOException {
-    String inputString = ("tserver.compaction.major.service.cs1.planner="
-        + "org.apache.accumulo.core.spi.compaction.DefaultCompactionPlanner \n"
-        + "tserver.compaction.major.service.cs1.planner.opts.executors=\\\n"
-        + "[{'name':'small','type':'internal','maxSize':'16M','numThreads':8},\\\n"
-        + "{'name':'medium','type':'internal','maxSize':'128M','numThreads':-4},\\\n"
-        + "{'name':'large','type':'internal','numThreads':2}]").replaceAll("'", "\"");
-    String expectedErrorMsg = "Positive number of threads required : -4";
-
-    String filePath = writeToFileAndReturnPath(inputString);
-
-    var e = assertThrows(IllegalArgumentException.class,
-        () -> CheckCompactionConfig.main(new String[] {filePath}));
-    assertEquals(e.getMessage(), expectedErrorMsg);
   }
 
   @Test
@@ -133,10 +98,10 @@ public class CheckCompactionConfigTest extends WithTestNames {
     String inputString = ("tserver.compaction.major.service.cs1.planner="
         + "org.apache.accumulo.core.spi.compaction.DefaultCompactionPlanner \n"
         + "tserver.compaction.major.service.cs1.planner.opts.executors=\\\n"
-        + "[{'name':'small','type':'internal','maxSize':'16M','numThreads':8},\\\n"
-        + "{'name':'medium','type':'internal','maxSize':'128M','numThreads':4},\\\n"
-        + "{'name':'small','type':'internal','numThreads':2}]").replaceAll("'", "\"");
-    String expectedErrorMsg = "Duplicate Compaction Executor ID found";
+        + "[{'group':'small','maxSize':'16M'},\\\n"
+        + "{'group':'medium','maxSize':'128M'},\\\n"
+        + "{'group':'small'}]").replaceAll("'", "\"");
+    String expectedErrorMsg = "Duplicate external executor for group small";
 
     String filePath = writeToFileAndReturnPath(inputString);
 
@@ -146,30 +111,13 @@ public class CheckCompactionConfigTest extends WithTestNames {
   }
 
   @Test
-  public void testInvalidTypeValue() throws Exception {
-    String inputString = ("tserver.compaction.major.service.cs1.planner="
-        + "org.apache.accumulo.core.spi.compaction.DefaultCompactionPlanner \n"
-        + "tserver.compaction.major.service.cs1.planner.opts.executors=\\\n"
-        + "[{'name':'small','type':'internal','maxSize':'16M','numThreads':8},\\\n"
-        + "{'name':'medium','type':'internal','maxSize':'128M','numThreads':4},\\\n"
-        + "{'name':'large','type':'internl','numThreads':2}]").replaceAll("'", "\"");
-    String expectedErrorMsg = "type must be 'internal' or 'external'";
-
-    String filePath = writeToFileAndReturnPath(inputString);
-
-    var e = assertThrows(IllegalArgumentException.class,
-        () -> CheckCompactionConfig.main(new String[] {filePath}));
-    assertTrue(e.getMessage().startsWith(expectedErrorMsg));
-  }
-
-  @Test
   public void testInvalidMaxSize() throws Exception {
     String inputString = ("tserver.compaction.major.service.cs1.planner="
         + "org.apache.accumulo.core.spi.compaction.DefaultCompactionPlanner \n"
         + "tserver.compaction.major.service.cs1.planner.opts.executors=\\\n"
-        + "[{'name':'small','type':'internal','maxSize':'16M','numThreads':8},\\\n"
-        + "{'name':'medium','type':'internal','maxSize':'0M','numThreads':4},\\\n"
-        + "{'name':'large','type':'internal','numThreads':2}]").replaceAll("'", "\"");
+        + "[{'group':'small','maxSize':'16M'},\\\n"
+        + "{'group':'medium','maxSize':'0M'},\\\n"
+        + "{'group':'large'}]").replaceAll("'", "\"");
     String expectedErrorMsg = "Invalid value for maxSize";
 
     String filePath = writeToFileAndReturnPath(inputString);

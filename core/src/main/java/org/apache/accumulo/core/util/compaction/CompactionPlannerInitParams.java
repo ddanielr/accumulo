@@ -80,7 +80,7 @@ public class CompactionPlannerInitParams implements CompactionPlanner.InitParame
       @Override
       public CompactionExecutorId getExternalExecutor(String name) {
         var ceid = CompactionExecutorIdImpl.externalId(name);
-        Preconditions.checkArgument(!getRequestedExternalExecutors().contains(ceid),
+        Preconditions.checkState(!getRequestedExternalExecutors().contains(ceid),
             "Duplicate external executor for group " + name);
         getRequestedExternalExecutors().add(ceid);
         return ceid;
