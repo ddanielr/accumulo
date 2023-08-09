@@ -277,8 +277,9 @@ public class DefaultCompactionPlannerTest {
   public void testMultipleCompactionsAndLargeCompactionRatio() {
     var planner = createPlanner(false);
     var all = IntStream.range(0, 65).mapToObj(i -> createCF("F" + i, i + 1)).collect(toSet());
-    // This compaction ratio would not cause a system compaction, how a user compaction must compact
-    // all of the files so it should generate some compactions.
+    // This compaction ratio would not cause a system compaction; however, a user compaction must
+    // compact
+    // all the files, so it should generate some compactions.
     var params = createPlanningParams(all, all, Set.of(), 100, CompactionKind.USER);
     var plan = planner.makePlan(params);
 
@@ -466,23 +467,13 @@ public class DefaultCompactionPlannerTest {
 
       @Override
       public ExecutorManager getExecutorManager() {
-        return new ExecutorManager() {
-          @Override
-          public CompactionExecutorId createExecutor(String name, int threads) {
-            return CompactionExecutorIdImpl.externalId(name);
-          }
-
-          @Override
-          public CompactionExecutorId getExternalExecutor(String name) {
-            return CompactionExecutorIdImpl.externalId(name);
-          }
-        };
+        return CompactionExecutorIdImpl::externalId;
       }
     };
   }
 
   private String getExecutors(String small, String medium, String large) {
-    String execBldr = "[{" + small + "},{" + medium + "}," + "{" + large + "}]";
+    String execBldr = "[{" + small + "},{" + medium + "},{" + large + "}]";
     return execBldr.replaceAll("'", "\"");
   }
 
@@ -601,7 +592,7 @@ public class DefaultCompactionPlannerTest {
     EasyMock.replay(conf, senv);
 
     StringBuilder execBldr = new StringBuilder("[{'group':'small','maxSize':'32M'},"
-        + "{'group':'medium','maxSize':'128M'}," + "{'group':'large','maxSize':'512M'}");
+        + "{'group':'medium','maxSize':'128M'},{'group':'large','maxSize':'512M'}");
 
     if (withHugeExecutor) {
       execBldr.append(",{'group':'huge'}]");
@@ -631,18 +622,7 @@ public class DefaultCompactionPlannerTest {
 
       @Override
       public ExecutorManager getExecutorManager() {
-        return new ExecutorManager() {
-          @Override
-          public CompactionExecutorId createExecutor(String name, int threads) {
-            // Discarding threads as we remove internal compactions
-            return CompactionExecutorIdImpl.externalId(name);
-          }
-
-          @Override
-          public CompactionExecutorId getExternalExecutor(String name) {
-            return CompactionExecutorIdImpl.externalId(name);
-          }
-        };
+        return CompactionExecutorIdImpl::externalId;
       }
     });
 

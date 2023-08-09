@@ -18,7 +18,6 @@
  */
 package org.apache.accumulo.core.util.compaction;
 
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -34,7 +33,6 @@ import com.google.common.base.Preconditions;
 
 public class CompactionPlannerInitParams implements CompactionPlanner.InitParameters {
   private final Map<String,String> plannerOpts;
-  private final Map<CompactionExecutorId,Integer> requestedExecutors;
   private final Set<CompactionExecutorId> requestedExternalExecutors;
   private final ServiceEnvironment senv;
   private final CompactionServiceId serviceId;
@@ -43,7 +41,6 @@ public class CompactionPlannerInitParams implements CompactionPlanner.InitParame
       ServiceEnvironment senv) {
     this.serviceId = serviceId;
     this.plannerOpts = plannerOpts;
-    this.requestedExecutors = new HashMap<>();
     this.requestedExternalExecutors = new HashSet<>();
     this.senv = senv;
   }
@@ -67,18 +64,7 @@ public class CompactionPlannerInitParams implements CompactionPlanner.InitParame
   public ExecutorManager getExecutorManager() {
     return new ExecutorManager() {
       @Override
-      public CompactionExecutorId createExecutor(String executorName, int threads) {
-        Preconditions.checkArgument(threads > 0, "Positive number of threads required : %s",
-            threads);
-        var ceid = CompactionExecutorIdImpl.internalId(serviceId, executorName);
-        Preconditions.checkState(!getRequestedExecutors().containsKey(ceid),
-            "Duplicate Compaction Executor ID found");
-        getRequestedExecutors().put(ceid, threads);
-        return ceid;
-      }
-
-      @Override
-      public CompactionExecutorId getExternalExecutor(String name) {
+      public CompactionExecutorId getExecutor(String name) {
         var ceid = CompactionExecutorIdImpl.externalId(name);
         Preconditions.checkState(!getRequestedExternalExecutors().contains(ceid),
             "Duplicate external executor for group " + name);
@@ -86,10 +72,6 @@ public class CompactionPlannerInitParams implements CompactionPlanner.InitParame
         return ceid;
       }
     };
-  }
-
-  public Map<CompactionExecutorId,Integer> getRequestedExecutors() {
-    return requestedExecutors;
   }
 
   public Set<CompactionExecutorId> getRequestedExternalExecutors() {

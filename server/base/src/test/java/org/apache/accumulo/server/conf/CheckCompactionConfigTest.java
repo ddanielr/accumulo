@@ -50,7 +50,7 @@ public class CheckCompactionConfigTest extends WithTestNames {
     String inputString = ("tserver.compaction.major.service.cs1.planner="
         + "org.apache.accumulo.core.spi.compaction.DefaultCompactionPlanner \n"
         + "tserver.compaction.major.service.cs1.planner.opts.executors=\\\n"
-        + "[{'group':'small','maxSize':'16M'},\\\n" + "{'group':'medium','maxSize':'128M'},\\\n"
+        + "[{'group':'small','maxSize':'16M'},\\\n{'group':'medium','maxSize':'128M'},\\\n"
         + "{'group':'large'}]").replaceAll("'", "\"");
 
     String filePath = writeToFileAndReturnPath(inputString);
@@ -63,14 +63,11 @@ public class CheckCompactionConfigTest extends WithTestNames {
     String inputString = ("tserver.compaction.major.service.cs1.planner="
         + "org.apache.accumulo.core.spi.compaction.DefaultCompactionPlanner \n"
         + "tserver.compaction.major.service.cs1.planner.opts.executors=\\\n"
-        + "[{'group':'small','maxSize':'16M'},\\\n"
-        + "{'group':'medium','maxSize':'128M'},\\\n"
-        + "{'group':'large'}] \n"
-        + "tserver.compaction.major.service.cs2.planner="
+        + "[{'group':'small','maxSize':'16M'},\\\n{'group':'medium','maxSize':'128M'},\\\n"
+        + "{'group':'large'}] \ntserver.compaction.major.service.cs2.planner="
         + "org.apache.accumulo.core.spi.compaction.DefaultCompactionPlanner \n"
         + "tserver.compaction.major.service.cs2.planner.opts.executors=\\\n"
-        + "[{'group':'small','maxSize':'16M'},\\\n"
-        + "{'group':'medium','maxSize':'128M'},\\\n"
+        + "[{'group':'small','maxSize':'16M'},\\\n{'group':'medium','maxSize':'128M'},\\\n"
         + "{'group':'DCQ1'}]").replaceAll("'", "\"");
 
     String filePath = writeToFileAndReturnPath(inputString);
@@ -98,8 +95,7 @@ public class CheckCompactionConfigTest extends WithTestNames {
     String inputString = ("tserver.compaction.major.service.cs1.planner="
         + "org.apache.accumulo.core.spi.compaction.DefaultCompactionPlanner \n"
         + "tserver.compaction.major.service.cs1.planner.opts.executors=\\\n"
-        + "[{'group':'small','maxSize':'16M'},\\\n"
-        + "{'group':'medium','maxSize':'128M'},\\\n"
+        + "[{'group':'small','maxSize':'16M'},\\\n{'group':'medium','maxSize':'128M'},\\\n"
         + "{'group':'small'}]").replaceAll("'", "\"");
     String expectedErrorMsg = "Duplicate external executor for group small";
 
@@ -115,8 +111,7 @@ public class CheckCompactionConfigTest extends WithTestNames {
     String inputString = ("tserver.compaction.major.service.cs1.planner="
         + "org.apache.accumulo.core.spi.compaction.DefaultCompactionPlanner \n"
         + "tserver.compaction.major.service.cs1.planner.opts.executors=\\\n"
-        + "[{'group':'small','maxSize':'16M'},\\\n"
-        + "{'group':'medium','maxSize':'0M'},\\\n"
+        + "[{'group':'small','maxSize':'16M'},\\\n{'group':'medium','maxSize':'0M'},\\\n"
         + "{'group':'large'}]").replaceAll("'", "\"");
     String expectedErrorMsg = "Invalid value for maxSize";
 
