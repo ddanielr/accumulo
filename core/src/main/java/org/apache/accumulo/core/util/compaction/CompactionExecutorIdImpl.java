@@ -19,9 +19,6 @@
 package org.apache.accumulo.core.util.compaction;
 
 import org.apache.accumulo.core.spi.compaction.CompactionExecutorId;
-import org.apache.accumulo.core.spi.compaction.CompactionServiceId;
-
-import com.google.common.base.Preconditions;
 
 public class CompactionExecutorIdImpl extends CompactionExecutorId {
 
@@ -31,21 +28,12 @@ public class CompactionExecutorIdImpl extends CompactionExecutorId {
 
   private static final long serialVersionUID = 1L;
 
-  public boolean isExternalId() {
-    return canonical().startsWith("e.");
-  }
-
-  public String getExternalName() {
-    Preconditions.checkState(isExternalId());
-    return canonical().substring("e.".length());
-  }
-
-  public static CompactionExecutorId internalId(CompactionServiceId csid, String executorName) {
-    return new CompactionExecutorIdImpl("i." + csid + "." + executorName);
+  public String getName() {
+    return canonical();
   }
 
   public static CompactionExecutorId externalId(String executorName) {
-    return new CompactionExecutorIdImpl("e." + executorName);
+    return new CompactionExecutorIdImpl(executorName);
   }
 
 }

@@ -675,7 +675,8 @@ public class MiniAccumuloClusterImpl implements AccumuloCluster {
           String id = ceid.canonical();
           // Remove all of these "e." handlers
           if (id.startsWith("e.")) {
-            groupNames.add(id.substring(2));
+            // groupNames.add(id.substring(2));
+            throw new IllegalArgumentException("FOUND 'e.' prefix in external compaction");
           } else {
             groupNames.add(id);
           }
