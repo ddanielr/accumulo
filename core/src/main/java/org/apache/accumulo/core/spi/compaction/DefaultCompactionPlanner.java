@@ -18,19 +18,22 @@
  */
 package org.apache.accumulo.core.spi.compaction;
 
-import static org.apache.accumulo.core.util.LazySingletons.GSON;
-
+import java.lang.reflect.Type;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Iterator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
+import com.google.gson.*;
+import com.google.gson.annotations.Expose;
+import com.google.gson.reflect.TypeToken;
 import org.apache.accumulo.core.client.admin.compaction.CompactableFile;
 import org.apache.accumulo.core.conf.ConfigurationTypeHelper;
 import org.apache.accumulo.core.util.compaction.CompactionJobPrioritizer;
@@ -95,25 +98,61 @@ import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 public class DefaultCompactionPlanner implements CompactionPlanner {
 
   public static class ExecutorConfig {
-    String maxSize;
-    String group;
-
-    public String getMaxSize() {
-      return maxSize;
-    }
-
-    public void setMaxSize(String maxSize) {
-      this.maxSize = maxSize;
-    }
+    @Expose
+    private String maxSize;
+    @Expose
+    private String group;
 
     public String getQueue() {
       return group;
     }
 
+    public String getMaxSize() {
+      return maxSize;
+    }
+
+    // These are set via user properties and should not be adjusted.
+    public void setMaxSize(String maxSize) {
+      this.maxSize = maxSize;
+    }
+
+    // These are set via user properties and should not be adjusted.
     public void setGroup(String group) {
       this.group = group;
     }
 
+    @Override
+    public String toString() {
+      return "ExecutorConfig {group=" + group + ", maxSize=" + maxSize + "}";
+    }
+  }
+
+  private static class ExecutorConfigGsonDeserializer
+      implements JsonDeserializer<List<ExecutorConfig>> {
+    @Override
+    public List<ExecutorConfig> deserialize(JsonElement json, Type ExecutorConfig,
+        JsonDeserializationContext context) throws JsonParseException {
+
+      JsonArray jsonArray = json.getAsJsonArray();
+      ArrayList<ExecutorConfig> arrayList = new ArrayList<>(jsonArray.size());
+
+      Iterator<JsonElement> it = jsonArray.iterator();
+      while (it.hasNext()) {
+        JsonObject executor = it.next().getAsJsonObject();
+        JsonElement jsonGroup = executor.get("group");
+        Preconditions.checkArgument(!jsonGroup.isJsonNull(), "Group name must be set");
+        JsonElement jsonMaxSize = executor.get("maxSize");
+        Preconditions.checkArgument(jsonMaxSize.isJsonNull() || jsonMaxSize.getAsLong() > 0,
+            "Invalid value for maxSize");
+
+        ExecutorConfig executorConfig = new ExecutorConfig();
+        executorConfig.setGroup(jsonGroup.getAsString());
+        executorConfig.setMaxSize(jsonMaxSize.getAsString());
+
+        arrayList.add(executorConfig);
+      }
+      return arrayList;
+    }
   }
 
   private static class Executor {
@@ -159,8 +198,13 @@ public class DefaultCompactionPlanner implements CompactionPlanner {
       justification = "Field is written by Gson")
   @Override
   public void init(InitParameters params) {
-    ExecutorConfig[] execConfigs =
-        GSON.get().fromJson(params.getOptions().get("executors"), ExecutorConfig[].class);
+    // ExecutorConfig[] execConfigs =
+    // GSON.get().fromJson(params.getOptions().get("executors"), ExecutorConfig[].class);
+    Gson gson = new GsonBuilder()
+        .registerTypeAdapter(ExecutorConfig.class, new ExecutorConfigGsonDeserializer()).create();
+
+    List<ExecutorConfig> execConfigs = gson.fromJson(params.getOptions().get("executors"),
+        new TypeToken<List<ExecutorConfig>>() {}.getType());
 
     List<Executor> tmpExec = new ArrayList<>();
 
