@@ -51,7 +51,7 @@ public class DropUserCommand extends Command {
     boolean operate = true;
 
     if (!force) {
-      operate = shellState.yorn(getName() + " { " + user + " }");
+      operate = shellState.confirm(getName() + " { " + user + " }");
     }
     if (operate) {
       shellState.getAccumuloClient().securityOperations().dropLocalUser(user);

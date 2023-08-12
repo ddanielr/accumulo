@@ -45,7 +45,7 @@ public class DeleteNamespaceCommand extends Command {
 
     boolean operate = true;
     if (!force) {
-      operate = shellState.yorn(getName() + " { " + namespace + " }");
+      operate = shellState.confirm(getName() + " { " + namespace + " }");
     }
     if (operate) {
       doTableOp(shellState, namespace, force);
