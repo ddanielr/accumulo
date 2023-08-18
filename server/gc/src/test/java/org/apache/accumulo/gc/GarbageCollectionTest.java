@@ -52,6 +52,7 @@ public class GarbageCollectionTest {
 
   static class TestGCE implements GarbageCollectionEnvironment {
     TreeSet<String> candidates = new TreeSet<>();
+    TreeSet<String> deletedCandidates = new TreeSet<>();
     ArrayList<String> blips = new ArrayList<>();
     Map<String,Reference> references = new TreeMap<>();
     HashSet<TableId> tableIds = new HashSet<>();
@@ -59,6 +60,7 @@ public class GarbageCollectionTest {
     ArrayList<String> deletes = new ArrayList<>();
     ArrayList<TableId> tablesDirsToDelete = new ArrayList<>();
     TreeMap<String,Status> filesToReplicate = new TreeMap<>();
+    boolean deleteInUseRefs = false;
 
     private final Ample.DataLevel level;
 
@@ -105,6 +107,14 @@ public class GarbageCollectionTest {
     public void deleteConfirmedCandidates(SortedMap<String,String> candidateMap) {
       deletes.addAll(candidateMap.values());
       this.candidates.removeAll(candidateMap.values());
+    }
+
+    @Override
+    public void deleteRefCandidates(Set<String> refCandidates) {
+      if (deleteInUseRefs) {
+        deletedCandidates.addAll(refCandidates);
+        this.candidates.removeAll(refCandidates);
+      }
     }
 
     @Override
@@ -181,6 +191,14 @@ public class GarbageCollectionTest {
         throw new IllegalArgumentException("unknown level " + level);
       }
     }
+  }
+
+  private void assertCandidateRemoved(TestGCE gce, String... refs) {
+    for (String ref : refs) {
+      assertTrue(gce.deletedCandidates.remove(ref));
+    }
+    assertEquals(0, gce.deletedCandidates.size(),
+        "Deleted Candidates not empty: " + gce.deleteInUseRefs);
   }
 
   private void assertRemoved(TestGCE gce, String... refs) {
@@ -1007,5 +1025,63 @@ public class GarbageCollectionTest {
         () -> gca.ensureAllTablesChecked(tablesBefore, tablesSeen, tablesAfter)).getMessage();
     assertTrue(msg.startsWith("Saw table IDs in ZK that were not in metadata table:  [3]"));
 
+  }
+
+  @Test
+  public void testDeletingInUseReferenceCandidates() throws Exception {
+    TestGCE gce = new TestGCE();
+    gce.deleteInUseRefs = true;
+
+    gce.candidates.add("/4/t0/F000.rf");
+    // gce.candidates.add("/4/t0/F001.rf");
+    // gce.candidates.add("/4/t0/F002.rf");
+    // gce.candidates.add("hdfs://foo.com:6000/accumulo/tables/4/t0/F001.rf");
+    // gce.candidates.add("/8/t0/F003.rf");
+    // gce.candidates.add("hdfs://foo.com:6000/accumulo/tables/4/t0/F003.rf");
+    // gce.candidates.add("hdfs://foo.com:6000/accumulo/tables/5/t0/F003.rf");
+
+    gce.addFileReference("4", null, "/t0/F000.rf");
+    gce.addFileReference("4", null, "/t0/F001.rf");
+    gce.addFileReference("4", null, "/t0/F002.rf");
+    gce.addFileReference("4", null, "/t0/F003.rf");
+    gce.addFileReference("5", null, "../4/t0/F000.rf");
+    gce.addFileReference("9", null, "/t0/F003.rf");
+    gce.addFileReference("6", null, "hdfs://foo.com:6000/accumulo/tables/4/t0/F000.rf");
+
+    GarbageCollectionAlgorithm gca = new GarbageCollectionAlgorithm();
+
+    // All candidates currently have references
+    gca.collect(gce);
+    assertRemoved(gce);
+    assertCandidateRemoved(gce, "/4/t0/F000.rf");
+
+    gce.candidates.add("/9/t0/F003.rf");
+    gce.candidates.add("../144/t0/F003.rf");
+
+    gca.collect(gce);
+    assertCandidateRemoved(gce, "/9/t0/F003.rf");
+    assertRemoved(gce, "../144/t0/F003.rf");
+    assertCandidateRemoved(gce);
+
+    // So Far Working
+    /*
+     *
+     * gce.removeFileReference("4", null, "/t0/F000.rf"); gca.collect(gce); assertRemoved(gce);
+     * assertCandidateRemoved(gce);
+     *
+     * gca.collect(gce); assertRemoved(gce, "/4/t0/F000.rf");
+     *
+     * gce.removeFileReference("4", null, "/t0/F001.rf"); gca.collect(gce); assertRemoved(gce,
+     * "hdfs://foo.com:6000/accumulo/tables/4/t0/F001.rf");
+     *
+     * // add absolute candidate for file that already has a relative candidate
+     * gce.candidates.add("hdfs://foo.com:6000/accumulo/tables/4/t0/F002.rf"); gca.collect(gce);
+     * assertRemoved(gce);
+     *
+     * gce.removeFileReference("4", null, "/t0/F002.rf"); gca.collect(gce); assertRemoved(gce,
+     * "hdfs://foo.com:6000/accumulo/tables/4/t0/F002.rf");
+     *
+     * gca.collect(gce); assertRemoved(gce, "/4/t0/F002.rf");
+     */
   }
 }

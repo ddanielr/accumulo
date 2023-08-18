@@ -102,6 +102,13 @@ public interface GarbageCollectionEnvironment {
       throws TableNotFoundException;
 
   /**
+   * Delete in-use reference candidates based on property settings
+   *
+   * @param refCandidates Collection of deletion reference candidates to remove.
+   */
+  void deleteRefCandidates(Set<String> refCandidates);
+
+  /**
    * Delete a table's directory if it is empty.
    *
    * @param tableID The id of the table whose directory we are to operate on

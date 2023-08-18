@@ -93,6 +93,7 @@ public class SimpleGarbageCollector extends AbstractServer implements Iface {
     log.info("candidate batch size: {} bytes", getCandidateBatchSize());
     log.info("delete threads: {}", getNumDeleteThreads());
     log.info("gc post metadata action: {}", useFullCompaction);
+    log.info("gc remove in-use deletion candidates: {}", removeDelCandidates());
   }
 
   public static void main(String[] args) throws Exception {
@@ -146,6 +147,15 @@ public class SimpleGarbageCollector extends AbstractServer implements Iface {
    */
   boolean inSafeMode() {
     return getConfiguration().getBoolean(Property.GC_SAFEMODE);
+  }
+
+  /**
+   * Checks if in-use deletion candidates should be removed
+   *
+   * @return boolean
+   */
+  boolean removeDelCandidates() {
+    return getConfiguration().getBoolean(Property.GC_REMOVE_IN_USE_CANDIDATES);
   }
 
   @Override

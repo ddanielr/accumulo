@@ -144,6 +144,7 @@ public class GarbageCollectionAlgorithm {
     Set<TableId> tableIdsBefore = gce.getCandidateTableIDs();
     Set<TableId> tableIdsSeen = new HashSet<>();
     Iterator<Reference> iter = gce.getReferences().iterator();
+    Set<String> inUseCandidates = new HashSet<>();
     while (iter.hasNext()) {
       Reference ref = iter.next();
       tableIdsSeen.add(ref.getTableId());
@@ -158,6 +159,7 @@ public class GarbageCollectionAlgorithm {
 
         if (candidateMap.remove(dir) != null) {
           log.debug("Candidate was still in use: {}", dir);
+          inUseCandidates.add(ref.getMetadataEntry());
         }
       } else {
         String reference = ref.getMetadataEntry();
@@ -175,17 +177,21 @@ public class GarbageCollectionAlgorithm {
         // You MUST REMOVE candidates that are still in use
         if (candidateMap.remove(relativePath) != null) {
           log.debug("Candidate was still in use: {}", relativePath);
+          inUseCandidates.add(reference);
         }
 
         String dir = relativePath.substring(0, relativePath.lastIndexOf('/'));
         if (candidateMap.remove(dir) != null) {
           log.debug("Candidate was still in use: {}", relativePath);
+          inUseCandidates.add(reference);
         }
       }
     }
     Set<TableId> tableIdsAfter = gce.getCandidateTableIDs();
     ensureAllTablesChecked(Collections.unmodifiableSet(tableIdsBefore),
         Collections.unmodifiableSet(tableIdsSeen), Collections.unmodifiableSet(tableIdsAfter));
+
+    gce.deleteRefCandidates(inUseCandidates);
   }
 
   private long removeBlipCandidates(GarbageCollectionEnvironment gce,

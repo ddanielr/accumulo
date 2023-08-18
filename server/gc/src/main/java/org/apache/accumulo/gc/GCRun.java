@@ -108,6 +108,29 @@ public class GCRun implements GarbageCollectionEnvironment {
     return context.getAmple().getGcCandidates(level);
   }
 
+  /**
+   * Method for removing deletion reference Candidates from the metadata location if they are
+   * referencing data files that are still in use.
+   *
+   * @param refCandidates Collection of deletion reference candidates to remove.
+   */
+  @Override
+  public void deleteRefCandidates(Set<String> refCandidates) {
+    if (config.getBoolean(Property.GC_REMOVE_IN_USE_CANDIDATES)) {
+      if (inSafeMode()) {
+        System.out.println("SAFEMODE: There are " + refCandidates.size()
+            + " data file reference candidates entries marked for deletion from " + level + ".\n"
+            + "          Examine the log files to identify them.\n");
+        log.info("SAFEMODE: Listing all data file ref candidates for deletion");
+        for (String s : refCandidates) {
+          log.info("SAFEMODE: {}", s);
+        }
+        log.info("SAFEMODE: End reference candidates for deletion");
+      }
+      context.getAmple().deleteGcCandidates(level, refCandidates);
+    }
+  }
+
   @Override
   public List<String> readCandidatesThatFitInMemory(Iterator<String> candidates) {
     long candidateLength = 0;
