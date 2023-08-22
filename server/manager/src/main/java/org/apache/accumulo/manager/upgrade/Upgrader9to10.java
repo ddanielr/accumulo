@@ -549,6 +549,7 @@ public class Upgrader9to10 implements Upgrader {
 
     String tableName = level.metaTable();
     Ample ample = context.getAmple();
+    long timestamp = System.nanoTime();
 
     // find all deletes
     try (BatchWriter writer = context.createBatchWriter(tableName)) {
@@ -567,7 +568,7 @@ public class Upgrader9to10 implements Upgrader {
           Path absolutePath = resolveRelativeDelete(olddelete, upgradeProp);
           ReferenceFile updatedDel = switchToAllVolumes(absolutePath);
 
-          writer.addMutation(ample.createDeleteMutation(updatedDel));
+          writer.addMutation(ample.createDeleteMutation(updatedDel, timestamp));
         }
         writer.flush();
         // if nothing thrown then we're good so mark all deleted

@@ -177,10 +177,10 @@ public class ManagerMetadataUtil {
   public static void replaceDatafiles(ServerContext context, KeyExtent extent,
       Set<StoredTabletFile> datafilesToDelete, Set<StoredTabletFile> scanFiles,
       Optional<StoredTabletFile> path, Long compactionId, DataFileValue size,
-      TServerInstance tServerInstance, Location lastLocation, ServiceLock zooLock,
+      TServerInstance tServerInstance, Location lastLocation, ServiceLock zooLock, Long timestamp,
       Optional<ExternalCompactionId> ecid) {
 
-    context.getAmple().putGcCandidates(extent.tableId(), datafilesToDelete);
+    context.getAmple().putGcCandidates(extent.tableId(), datafilesToDelete, timestamp);
 
     TabletMutator tablet = context.getAmple().mutateTablet(extent);
 

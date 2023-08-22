@@ -319,12 +319,14 @@ public class GarbageCollectorIT extends ConfigurableMacBase {
     Ample ample = getServerContext().getAmple();
     client.securityOperations().grantTablePermission(client.whoami(), MetadataTable.NAME,
         TablePermission.WRITE);
+    long timestamp = System.nanoTime();
     try (BatchWriter bw = client.createBatchWriter(MetadataTable.NAME)) {
       for (int i = 0; i < 100000; ++i) {
         String longpath = "aaaaaaaaaabbbbbbbbbbccccccccccddddddddddeeeeeeeeee"
             + "ffffffffffgggggggggghhhhhhhhhhiiiiiiiiiijjjjjjjjjj";
         var path = String.format("file:/%020d/%s", i, longpath);
-        Mutation delFlag = ample.createDeleteMutation(new ReferenceFile(TableId.of("1"), path));
+        Mutation delFlag =
+            ample.createDeleteMutation(new ReferenceFile(TableId.of("1"), path), timestamp);
         bw.addMutation(delFlag);
       }
     }

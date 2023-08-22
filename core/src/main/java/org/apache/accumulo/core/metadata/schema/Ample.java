@@ -182,14 +182,17 @@ public interface Ample {
     throw new UnsupportedOperationException();
   }
 
-  default void putGcCandidates(TableId tableId, Collection<StoredTabletFile> candidates) {
+  default void putGcCandidates(TableId tableId, Collection<StoredTabletFile> candidates,
+      long timestamp) {
     throw new UnsupportedOperationException();
   }
 
   /**
-   * Unlike {@link #putGcCandidates(TableId, Collection)} this takes file and dir GC candidates.
+   * Unlike {@link #putGcCandidates(TableId, Collection, long)} this takes file and dir GC
+   * candidates.
    */
-  default void putGcFileAndDirCandidates(TableId tableId, Collection<ReferenceFile> candidates) {
+  default void putGcFileAndDirCandidates(TableId tableId, Collection<ReferenceFile> candidates,
+      long timestamp) {
     throw new UnsupportedOperationException();
   }
 
@@ -224,7 +227,7 @@ public interface Ample {
    * @param tabletFilePathToRemove String full path of the TabletFile
    * @return Mutation with encoded delete marker
    */
-  default Mutation createDeleteMutation(ReferenceFile tabletFilePathToRemove) {
+  default Mutation createDeleteMutation(ReferenceFile tabletFilePathToRemove, long timestamp) {
     throw new UnsupportedOperationException();
   }
 

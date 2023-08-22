@@ -54,12 +54,13 @@ public class CleanUpBulkImport extends ManagerRepo {
     manager.updateBulkImportStatus(info.sourceDir, BulkImportState.CLEANUP);
     log.debug("{} removing the bulkDir processing flag file in {}", FateTxId.formatTid(tid),
         info.bulkDir);
+    long timestamp = System.nanoTime();
     Ample ample = manager.getContext().getAmple();
     Path bulkDir = new Path(info.bulkDir);
     ample.removeBulkLoadInProgressFlag(
         "/" + bulkDir.getParent().getName() + "/" + bulkDir.getName());
     ample.putGcFileAndDirCandidates(info.tableId,
-        Collections.singleton(new ReferenceFile(info.tableId, bulkDir.toString())));
+        Collections.singleton(new ReferenceFile(info.tableId, bulkDir.toString())), timestamp);
     if (info.tableState == TableState.ONLINE) {
 
       Text firstSplit = info.firstSplit == null ? null : new Text(info.firstSplit);

@@ -511,10 +511,11 @@ class DatafileManager {
       if (!filesInUseByScans.isEmpty()) {
         log.debug("Adding scan refs to metadata {} {}", extent, filesInUseByScans);
       }
+      long timestamp = System.nanoTime();
       ManagerMetadataUtil.replaceDatafiles(tablet.getContext(), extent, oldDatafiles,
           filesInUseByScans, newFile, compactionIdToWrite, dfv,
           tablet.getTabletServer().getTabletSession(), lastLocation,
-          tablet.getTabletServer().getLock(), ecid);
+          tablet.getTabletServer().getLock(), timestamp, ecid);
       tablet.setLastCompactionID(compactionIdToWrite);
       removeFilesAfterScan(filesInUseByScans);
 

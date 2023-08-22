@@ -118,7 +118,8 @@ public class ServerAmpleImpl extends AmpleImpl implements Ample {
   }
 
   @Override
-  public void putGcCandidates(TableId tableId, Collection<StoredTabletFile> candidates) {
+  public void putGcCandidates(TableId tableId, Collection<StoredTabletFile> candidates,
+      long timestamp) {
 
     if (RootTable.ID.equals(tableId)) {
       mutateRootGcCandidates(rgcc -> rgcc.add(candidates.stream()));
@@ -127,7 +128,7 @@ public class ServerAmpleImpl extends AmpleImpl implements Ample {
 
     try (BatchWriter writer = context.createBatchWriter(DataLevel.of(tableId).metaTable())) {
       for (StoredTabletFile file : candidates) {
-        writer.addMutation(createDeleteMutation(file));
+        writer.addMutation(createDeleteMutation(file, timestamp));
       }
     } catch (MutationsRejectedException | TableNotFoundException e) {
       throw new RuntimeException(e);
@@ -135,7 +136,8 @@ public class ServerAmpleImpl extends AmpleImpl implements Ample {
   }
 
   @Override
-  public void putGcFileAndDirCandidates(TableId tableId, Collection<ReferenceFile> candidates) {
+  public void putGcFileAndDirCandidates(TableId tableId, Collection<ReferenceFile> candidates,
+      long timestamp) {
 
     if (DataLevel.of(tableId) == DataLevel.ROOT) {
       // Directories are unexpected for the root tablet, so convert to stored tablet file
@@ -146,7 +148,7 @@ public class ServerAmpleImpl extends AmpleImpl implements Ample {
 
     try (BatchWriter writer = context.createBatchWriter(DataLevel.of(tableId).metaTable())) {
       for (var fileOrDir : candidates) {
-        writer.addMutation(createDeleteMutation(fileOrDir));
+        writer.addMutation(createDeleteMutation(fileOrDir, timestamp));
       }
     } catch (MutationsRejectedException | TableNotFoundException e) {
       throw new RuntimeException(e);
@@ -258,17 +260,18 @@ public class ServerAmpleImpl extends AmpleImpl implements Ample {
   }
 
   @Override
-  public Mutation createDeleteMutation(ReferenceFile tabletFilePathToRemove) {
-    return createDelMutation(ValidationUtil.validate(tabletFilePathToRemove).getMetadataEntry());
+  public Mutation createDeleteMutation(ReferenceFile tabletFilePathToRemove, long timestamp) {
+    return createDelMutation(ValidationUtil.validate(tabletFilePathToRemove).getMetadataEntry(),
+        timestamp);
   }
 
-  public Mutation createDeleteMutation(StoredTabletFile pathToRemove) {
-    return createDelMutation(pathToRemove.getMetaUpdateDelete());
+  public Mutation createDeleteMutation(StoredTabletFile pathToRemove, long timestamp) {
+    return createDelMutation(pathToRemove.getMetaUpdateDelete(), timestamp);
   }
 
-  private Mutation createDelMutation(String path) {
+  private Mutation createDelMutation(String path, long timestamp) {
     Mutation delFlag = new Mutation(new Text(DeletesSection.encodeRow(path)));
-    delFlag.put(EMPTY_TEXT, EMPTY_TEXT, DeletesSection.SkewedKeyValue.NAME);
+    delFlag.put(EMPTY_TEXT, EMPTY_TEXT, timestamp, DeletesSection.SkewedKeyValue.NAME);
     return delFlag;
   }
 

@@ -341,6 +341,7 @@ public class MetadataTableUtil {
             new BatchWriterConfig().setMaxMemory(1000000)
                 .setMaxLatency(120000L, TimeUnit.MILLISECONDS).setMaxWriteThreads(2))) {
 
+      long timestamp = System.nanoTime();
       // scan metadata for our table and delete everything we find
       Mutation m = null;
       Ample ample = context.getAmple();
@@ -357,13 +358,13 @@ public class MetadataTableUtil {
 
           if (key.getColumnFamily().equals(DataFileColumnFamily.NAME)) {
             StoredTabletFile stf = new StoredTabletFile(key.getColumnQualifierData().toString());
-            bw.addMutation(
-                ample.createDeleteMutation(new ReferenceFile(tableId, stf.getMetaUpdateDelete())));
+            bw.addMutation(ample.createDeleteMutation(
+                new ReferenceFile(tableId, stf.getMetaUpdateDelete()), timestamp));
           }
 
           if (ServerColumnFamily.DIRECTORY_COLUMN.hasColumns(key)) {
             var uri = new AllVolumesDirectory(tableId, cell.getValue().toString());
-            bw.addMutation(ample.createDeleteMutation(uri));
+            bw.addMutation(ample.createDeleteMutation(uri, timestamp));
           }
         }
 

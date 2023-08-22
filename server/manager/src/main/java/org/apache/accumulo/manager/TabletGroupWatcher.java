@@ -690,6 +690,7 @@ abstract class TabletGroupWatcher extends AccumuloDaemonThread {
         start = new Text();
       }
       Manager.log.debug("Making file deletion entries for {}", extent);
+      long timestamp = System.nanoTime();
       Range deleteRange = new Range(TabletsSection.encodeRow(extent.tableId(), start), false,
           TabletsSection.encodeRow(extent.tableId(), extent.endRow()), true);
       Scanner scanner = client.createScanner(targetSystemTable, Authorizations.EMPTY);
@@ -705,7 +706,7 @@ abstract class TabletGroupWatcher extends AccumuloDaemonThread {
           var stf = new StoredTabletFile(key.getColumnQualifierData().toString());
           datafilesAndDirs.add(new ReferenceFile(stf.getTableId(), stf.getMetaUpdateDelete()));
           if (datafilesAndDirs.size() > 1000) {
-            ample.putGcFileAndDirCandidates(extent.tableId(), datafilesAndDirs);
+            ample.putGcFileAndDirCandidates(extent.tableId(), datafilesAndDirs, timestamp);
             datafilesAndDirs.clear();
           }
         } else if (ServerColumnFamily.TIME_COLUMN.hasColumns(key)) {
@@ -718,12 +719,12 @@ abstract class TabletGroupWatcher extends AccumuloDaemonThread {
               new AllVolumesDirectory(extent.tableId(), entry.getValue().toString());
           datafilesAndDirs.add(allVolumesDirectory);
           if (datafilesAndDirs.size() > 1000) {
-            ample.putGcFileAndDirCandidates(extent.tableId(), datafilesAndDirs);
+            ample.putGcFileAndDirCandidates(extent.tableId(), datafilesAndDirs, timestamp);
             datafilesAndDirs.clear();
           }
         }
       }
-      ample.putGcFileAndDirCandidates(extent.tableId(), datafilesAndDirs);
+      ample.putGcFileAndDirCandidates(extent.tableId(), datafilesAndDirs, timestamp);
       BatchWriter bw = client.createBatchWriter(targetSystemTable);
       try {
         deleteTablets(info, deleteRange, bw, client);
@@ -777,6 +778,7 @@ abstract class TabletGroupWatcher extends AccumuloDaemonThread {
 
     try (BatchWriter bw = client.createBatchWriter(targetSystemTable)) {
       long fileCount = 0;
+      long timestamp = System.nanoTime();
       // Make file entries in highest tablet
       Scanner scanner = client.createScanner(targetSystemTable, Authorizations.EMPTY);
       scanner.setRange(scanRange);
@@ -801,7 +803,8 @@ abstract class TabletGroupWatcher extends AccumuloDaemonThread {
               TabletTime.maxMetadataTime(maxLogicalTime, MetadataTime.parse(value.toString()));
         } else if (ServerColumnFamily.DIRECTORY_COLUMN.hasColumns(key)) {
           var allVolumesDir = new AllVolumesDirectory(range.tableId(), value.toString());
-          bw.addMutation(manager.getContext().getAmple().createDeleteMutation(allVolumesDir));
+          bw.addMutation(
+              manager.getContext().getAmple().createDeleteMutation(allVolumesDir, timestamp));
         }
       }
 
