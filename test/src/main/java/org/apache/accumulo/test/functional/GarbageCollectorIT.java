@@ -205,10 +205,10 @@ public class GarbageCollectorIT extends ConfigurableMacBase {
     }
   }
 
-  private Mutation createDelMutation(String path, String cf, String cq, String val) {
+  private Mutation createDelMutation(String path, String cf, String cq, Long timestamp, String val) {
     Text row = new Text(DeletesSection.encodeRow(path));
     Mutation delFlag = new Mutation(row);
-    delFlag.put(cf, cq, val);
+    delFlag.put(cf, cq, timestamp, val);
     return delFlag;
   }
 
@@ -221,7 +221,7 @@ public class GarbageCollectorIT extends ConfigurableMacBase {
 
       try (BatchWriter bw = c.createBatchWriter(table)) {
         Mutation m1 = new Mutation("r1");
-        m1.put("cf1", "cq1", "v1");
+        m1.put("cf1", "cq1", 5L, "v1");
         bw.addMutation(m1);
       }
 
@@ -231,12 +231,12 @@ public class GarbageCollectorIT extends ConfigurableMacBase {
       c.securityOperations().grantTablePermission(c.whoami(), MetadataTable.NAME,
           TablePermission.WRITE);
       try (BatchWriter bw = c.createBatchWriter(MetadataTable.NAME)) {
-        bw.addMutation(createDelMutation("", "", "", ""));
-        bw.addMutation(createDelMutation("", "testDel", "test", "valueTest"));
+        bw.addMutation(createDelMutation("", "", "", 0L, ""));
+        bw.addMutation(createDelMutation("", "testDel", "test", 0L, "valueTest"));
         // path is invalid but value is expected - only way the invalid entry will come through
         // processing and
         // show up to produce error in output to allow while loop to end
-        bw.addMutation(createDelMutation("/", "", "", SkewedKeyValue.STR_NAME));
+        bw.addMutation(createDelMutation("/", "", "", 0L, SkewedKeyValue.STR_NAME));
       }
 
       ProcessInfo gc = cluster.exec(SimpleGarbageCollector.class);
@@ -259,6 +259,7 @@ public class GarbageCollectorIT extends ConfigurableMacBase {
         assertEquals("r1", entry.getKey().getRow().toString());
         assertEquals("cf1", entry.getKey().getColumnFamily().toString());
         assertEquals("cq1", entry.getKey().getColumnQualifier().toString());
+        assertEquals(5L, entry.getKey().getTimestamp());
         assertEquals("v1", entry.getValue().toString());
       }
     }
@@ -319,9 +320,9 @@ public class GarbageCollectorIT extends ConfigurableMacBase {
     Ample ample = getServerContext().getAmple();
     client.securityOperations().grantTablePermission(client.whoami(), MetadataTable.NAME,
         TablePermission.WRITE);
-    long timestamp = System.nanoTime();
     try (BatchWriter bw = client.createBatchWriter(MetadataTable.NAME)) {
       for (int i = 0; i < 100000; ++i) {
+        long timestamp = System.nanoTime();
         String longpath = "aaaaaaaaaabbbbbbbbbbccccccccccddddddddddeeeeeeeeee"
             + "ffffffffffgggggggggghhhhhhhhhhiiiiiiiiiijjjjjjjjjj";
         var path = String.format("file:/%020d/%s", i, longpath);

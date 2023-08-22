@@ -25,6 +25,7 @@ import static org.apache.accumulo.server.util.MetadataTableUtil.EMPTY_TEXT;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
@@ -212,17 +213,17 @@ public class ServerAmpleImpl extends AmpleImpl implements Ample {
   }
 
   @Override
-  public void deleteGcCandidates(DataLevel level, Collection<String> paths) {
+  public void deleteGcCandidates(DataLevel level, Map<String,Long> paths) {
 
     if (level == DataLevel.ROOT) {
-      mutateRootGcCandidates(rgcc -> rgcc.remove(paths.stream()));
+      mutateRootGcCandidates(rgcc -> rgcc.remove(paths.keySet().stream()));
       return;
     }
 
     try (BatchWriter writer = context.createBatchWriter(level.metaTable())) {
-      for (String path : paths) {
-        Mutation m = new Mutation(DeletesSection.encodeRow(path));
-        m.putDelete(EMPTY_TEXT, EMPTY_TEXT);
+      for (Entry<String,Long> path : paths.entrySet()) {
+        Mutation m = new Mutation(DeletesSection.encodeRow(path.getKey()));
+        m.putDelete(EMPTY_TEXT, EMPTY_TEXT, path.getValue());
         writer.addMutation(m);
       }
     } catch (MutationsRejectedException | TableNotFoundException e) {

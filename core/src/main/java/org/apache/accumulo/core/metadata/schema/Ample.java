@@ -20,6 +20,7 @@ package org.apache.accumulo.core.metadata.schema;
 
 import java.util.Collection;
 import java.util.Iterator;
+import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Stream;
 
@@ -196,7 +197,7 @@ public interface Ample {
     throw new UnsupportedOperationException();
   }
 
-  default void deleteGcCandidates(DataLevel level, Collection<String> paths) {
+  default void deleteGcCandidates(DataLevel level, Map<String,Long> paths) {
     throw new UnsupportedOperationException();
   }
 

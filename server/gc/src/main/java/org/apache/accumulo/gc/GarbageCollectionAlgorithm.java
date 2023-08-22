@@ -191,6 +191,9 @@ public class GarbageCollectionAlgorithm {
     ensureAllTablesChecked(Collections.unmodifiableSet(tableIdsBefore),
         Collections.unmodifiableSet(tableIdsSeen), Collections.unmodifiableSet(tableIdsAfter));
 
+    for (String candidate : inUseCandidates) {
+      log.info("Deletion candidate to remove: {}", candidate);
+    }
     gce.deleteRefCandidates(inUseCandidates);
   }
 
