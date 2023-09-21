@@ -93,21 +93,48 @@ class ScanDataSource implements DataSource {
     if (isCurrent()) {
       return this;
     } else {
+      Exception exceptionThrown = null;
+
       // log.debug("Switching data sources during a scan");
       if (memIters != null) {
-        tablet.returnMemIterators(memIters);
+        log.trace("Returning mem iterators for {}", tablet.getExtent());
+        try {
+          tablet.returnMemIterators(memIters);
+        } catch (Exception e) {
+          log.warn("Failed to return memory iterators for " + tablet.getExtent(), e);
+          exceptionThrown = e;
+        }
         memIters = null;
-        tablet.returnFilesForScan(fileReservationId);
+        log.trace("Returning file iterators for {}", tablet.getExtent());
+        try {
+          tablet.returnFilesForScan(fileReservationId);
+        } catch (Exception e) {
+          log.warn("Error Returning files for scanning " + tablet.getExtent(), e);
+          if (exceptionThrown == null) {
+            exceptionThrown = e;
+          }
+        }
         fileReservationId = -1;
       }
 
       if (fileManager != null) {
         tablet.getScanMetrics().decrementOpenFiles(fileManager.getNumOpenFiles());
-        fileManager.releaseOpenFiles(false);
+        try {
+          fileManager.releaseOpenFiles(false);
+        } catch (Exception e) {
+          log.warn("Failed to release open files for scan on " + tablet.getExtent(), e);
+          if (exceptionThrown == null) {
+            exceptionThrown = e;
+          }
+        }
       }
 
       expectedDeletionCount = tablet.getDataSourceDeletions();
       iter = null;
+
+      if (exceptionThrown != null) {
+        Throwables.throwIfUnchecked(exceptionThrown);
+      }
 
       return this;
     }
