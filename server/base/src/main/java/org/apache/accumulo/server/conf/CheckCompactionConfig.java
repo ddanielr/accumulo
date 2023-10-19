@@ -116,7 +116,7 @@ public class CheckCompactionConfig implements KeywordExecutable {
 
       planner.init(initParams);
 
-      initParams.getRequestedExternalExecutors()
+      initParams.getRequestedExecutors()
           .forEach(execId -> log.info(
               "Compaction service '{}' requested with external execution group '{}'", serviceId,
               execId));

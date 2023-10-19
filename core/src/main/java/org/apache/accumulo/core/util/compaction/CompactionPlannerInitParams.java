@@ -33,7 +33,7 @@ import com.google.common.base.Preconditions;
 
 public class CompactionPlannerInitParams implements CompactionPlanner.InitParameters {
   private final Map<String,String> plannerOpts;
-  private final Set<CompactionExecutorId> requestedExternalExecutors;
+  private final Set<CompactionExecutorId> requestedExecutors;
   private final ServiceEnvironment senv;
   private final CompactionServiceId serviceId;
 
@@ -41,7 +41,7 @@ public class CompactionPlannerInitParams implements CompactionPlanner.InitParame
       ServiceEnvironment senv) {
     this.serviceId = serviceId;
     this.plannerOpts = plannerOpts;
-    this.requestedExternalExecutors = new HashSet<>();
+    this.requestedExecutors = new HashSet<>();
     this.senv = senv;
   }
 
@@ -66,15 +66,15 @@ public class CompactionPlannerInitParams implements CompactionPlanner.InitParame
       @Override
       public CompactionExecutorId getExecutor(String name) {
         var ceid = CompactionExecutorIdImpl.externalId(name);
-        Preconditions.checkState(!getRequestedExternalExecutors().contains(ceid),
-            "Duplicate external executor for group " + name);
-        getRequestedExternalExecutors().add(ceid);
+        Preconditions.checkState(!getRequestedExecutors().contains(ceid),
+            "Duplicate executor for group " + name);
+        getRequestedExecutors().add(ceid);
         return ceid;
       }
     };
   }
 
-  public Set<CompactionExecutorId> getRequestedExternalExecutors() {
-    return requestedExternalExecutors;
+  public Set<CompactionExecutorId> getRequestedExecutors() {
+    return requestedExecutors;
   }
 }

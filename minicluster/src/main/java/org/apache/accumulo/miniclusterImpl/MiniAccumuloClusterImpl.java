@@ -671,7 +671,7 @@ public class MiniAccumuloClusterImpl implements AccumuloCluster {
         var initParams = new CompactionPlannerInitParams(CompactionServiceId.of(serviceId),
             csc.getOptions().get(serviceId), senv);
         cp.init(initParams);
-        initParams.getRequestedExternalExecutors().forEach(ceid -> {
+        initParams.getRequestedExecutors().forEach(ceid -> {
           String id = ceid.canonical();
           // Remove all of these "e." handlers
           if (id.startsWith("e.")) {
