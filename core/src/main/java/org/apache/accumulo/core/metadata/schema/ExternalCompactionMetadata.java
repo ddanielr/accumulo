@@ -108,7 +108,7 @@ public class ExternalCompactionMetadata {
     jData.tmp = compactTmpName.insert().getMetadata();
     jData.compactor = compactorId;
     jData.kind = kind.name();
-    jData.executorId = ((CompactionExecutorIdImpl) ceid).getExternalName();
+    jData.executorId = ((CompactionExecutorIdImpl) ceid).getName();
     jData.priority = priority;
     jData.propDels = propagateDeletes;
     jData.fateTxId = fateTxId;
