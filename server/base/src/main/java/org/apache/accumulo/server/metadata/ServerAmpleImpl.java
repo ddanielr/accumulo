@@ -228,7 +228,12 @@ public class ServerAmpleImpl extends AmpleImpl implements Ample {
     try (BatchWriter writer = context.createBatchWriter(level.metaTable())) {
       for (GcCandidate candidate : candidates) {
         Mutation m = new Mutation(DeletesSection.encodeRow(candidate.getPath()));
-        m.putDelete(EMPTY_TEXT, EMPTY_TEXT, candidate.getUid());
+        // Only treat INUSE candidates as unique.
+        if (type == GcCandidateType.INUSE) {
+          m.putDelete(EMPTY_TEXT, EMPTY_TEXT, candidate.getUid());
+        } else {
+          m.putDelete(EMPTY_TEXT, EMPTY_TEXT);
+        }
         writer.addMutation(m);
       }
     } catch (MutationsRejectedException | TableNotFoundException e) {
