@@ -37,14 +37,14 @@ public class CompactionServicesConfigTest {
 
     conf.set(prefix.getKey() + "default.planner", DefaultCompactionPlanner.class.getName());
     conf.set(prefix.getKey() + "default.planner.opts.maxOpen", "10");
-    conf.set(prefix.getKey() + "default.planner.opts.executors",
-        "[{'name':'small','type':'internal','maxSize':'32M','numThreads':2},{'name':'medium','type':'internal','maxSize':'128M','numThreads':2},{'name':'large','type':'internal','numThreads':2}]");
+    conf.set(prefix.getKey() + "default.planner.opts.groups",
+        "[{'name':'small','maxSize':'32M'},{'name':'medium','maxSize':'128M'},{'name':'large'}]");
 
     conf.set(prefix.getKey() + "default.planner.opts.validProp", "1");
 
     var compactionConfig = new CompactionServicesConfig(conf);
-    assertEquals(Map.of("maxOpen", "10", "executors",
-        "[{'name':'small','type':'internal','maxSize':'32M','numThreads':2},{'name':'medium','type':'internal','maxSize':'128M','numThreads':2},{'name':'large','type':'internal','numThreads':2}]",
+    assertEquals(Map.of("maxOpen", "10", "groups",
+        "[{'name':'small','maxSize':'32M'},{'name':'medium','maxSize':'128M'},{'name':'large'}]",
         "validProp", "1"), compactionConfig.getOptions().get("default"));
   }
 

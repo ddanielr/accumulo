@@ -69,7 +69,7 @@ public class CompactionPlannerInitParams implements CompactionPlanner.InitParame
       public CompactionGroupId getGroup(String name) {
         var cgid = CompactionGroupIdImpl.groupId(name);
         Preconditions.checkArgument(!getRequestedGroups().contains(cgid),
-            "Duplicate external executor for group " + name);
+            "Duplicate compaction group for group: " + name);
         getRequestedGroups().add(cgid);
         return cgid;
       }

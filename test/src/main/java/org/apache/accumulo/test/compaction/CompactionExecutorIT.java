@@ -63,7 +63,7 @@ import org.apache.accumulo.core.iterators.user.RegExFilter;
 import org.apache.accumulo.core.metadata.StoredTabletFile;
 import org.apache.accumulo.core.metadata.schema.TabletMetadata.ColumnType;
 import org.apache.accumulo.core.metadata.schema.TabletsMetadata;
-import org.apache.accumulo.core.spi.compaction.CompactionExecutorId;
+import org.apache.accumulo.core.spi.compaction.CompactionGroupId;
 import org.apache.accumulo.core.spi.compaction.CompactionKind;
 import org.apache.accumulo.core.spi.compaction.CompactionPlan;
 import org.apache.accumulo.core.spi.compaction.CompactionPlanner;
@@ -83,21 +83,21 @@ public class CompactionExecutorIT extends SharedMiniClusterBase {
   public static class TestPlanner implements CompactionPlanner {
 
     private int filesPerCompaction;
-    private List<CompactionExecutorId> executorIds;
+    private List<CompactionGroupId> groupIds;
     private EnumSet<CompactionKind> kindsToProcess = EnumSet.noneOf(CompactionKind.class);
 
     @Override
     public void init(InitParameters params) {
-      var executors = Integer.parseInt(params.getOptions().get("executors"));
+      var executors = Integer.parseInt(params.getOptions().get("groups"));
       this.filesPerCompaction = Integer.parseInt(params.getOptions().get("filesPerCompaction"));
-      this.executorIds = new ArrayList<>();
+      this.groupIds = new ArrayList<>();
       for (String kind : params.getOptions().get("process").split(",")) {
         kindsToProcess.add(CompactionKind.valueOf(kind.toUpperCase()));
       }
 
       for (int i = 0; i < executors; i++) {
-        var ceid = params.getExecutorManager().createExecutor("e" + i, 2);
-        executorIds.add(ceid);
+        var cgid = params.getGroupManager().getGroup("" + i);
+        groupIds.add(cgid);
       }
 
     }
@@ -111,7 +111,7 @@ public class CompactionExecutorIT extends SharedMiniClusterBase {
       if (Boolean.parseBoolean(params.getExecutionHints().getOrDefault("compact_all", "false"))) {
         return params
             .createPlanBuilder().addJob((short) 1,
-                executorIds.get(RANDOM.get().nextInt(executorIds.size())), params.getCandidates())
+                groupIds.get(RANDOM.get().nextInt(groupIds.size())), params.getCandidates())
             .build();
       }
 
@@ -124,8 +124,7 @@ public class CompactionExecutorIT extends SharedMiniClusterBase {
         params.getCandidates().stream().collect(Collectors.groupingBy(TestPlanner::getFirstChar))
             .values().forEach(files -> {
               for (int i = filesPerCompaction; i <= files.size(); i += filesPerCompaction) {
-                planBuilder.addJob((short) 1,
-                    executorIds.get(RANDOM.get().nextInt(executorIds.size())),
+                planBuilder.addJob((short) 1, groupIds.get(RANDOM.get().nextInt(groupIds.size())),
                     files.subList(i - filesPerCompaction, i));
               }
             });
