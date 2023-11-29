@@ -106,6 +106,7 @@ import org.apache.accumulo.core.util.Retry;
 import org.apache.accumulo.core.util.UtilWaitThread;
 import org.apache.accumulo.core.util.cache.Caches.CacheName;
 import org.apache.accumulo.core.util.compaction.CompactionExecutorIdImpl;
+import org.apache.accumulo.core.util.compaction.CompactionGroupIdImpl;
 import org.apache.accumulo.core.util.compaction.ExternalCompactionUtil;
 import org.apache.accumulo.core.util.compaction.RunningCompaction;
 import org.apache.accumulo.core.util.threads.ThreadPools;
@@ -396,7 +397,7 @@ public class CompactionCoordinator implements CompactionCoordinatorService.Iface
     TExternalCompactionJob result = null;
 
     CompactionJobQueues.MetaJob metaJob =
-        jobQueues.poll(CompactionExecutorIdImpl.externalId(groupName));
+        jobQueues.poll(CompactionGroupIdImpl.groupId(groupName));
 
     while (metaJob != null) {
 
@@ -428,7 +429,7 @@ public class CompactionCoordinator implements CompactionCoordinatorService.Iface
       } else {
         LOG.debug("Unable to reserve compaction job for {}, pulling another off the queue ",
             metaJob.getTabletMetadata().getExtent());
-        metaJob = jobQueues.poll(CompactionExecutorIdImpl.externalId(groupName));
+        metaJob = jobQueues.poll(CompactionGroupIdImpl.groupId(groupName));
       }
     }
 
@@ -543,7 +544,7 @@ public class CompactionCoordinator implements CompactionCoordinatorService.Iface
         tablet, directoryCreator, externalCompactionId);
 
     return new CompactionMetadata(jobFiles, newFile, compactorAddress, job.getKind(),
-        job.getPriority(), job.getExecutor(), propDels, fateTxId);
+        job.getPriority(), job.getGroup(), propDels, fateTxId);
 
   }
 
