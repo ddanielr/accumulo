@@ -53,8 +53,8 @@ public class CompactionJobQueues {
       var executorId = jobs.iterator().next().getGroup();
       add(tabletMetadata, executorId, jobs);
     } else {
-      jobs.stream().collect(Collectors.groupingBy(CompactionJob::getGroup)).forEach(
-          ((groupId, compactionJobs) -> add(tabletMetadata, groupId, compactionJobs)));
+      jobs.stream().collect(Collectors.groupingBy(CompactionJob::getGroup))
+          .forEach(((groupId, compactionJobs) -> add(tabletMetadata, groupId, compactionJobs)));
     }
   }
 

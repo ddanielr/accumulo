@@ -43,9 +43,9 @@ public class CompactionMetadata {
   private final boolean propagateDeletes;
   private final Long fateTxId;
 
-  public CompactionMetadata(Set<StoredTabletFile> jobFiles,
-      ReferencedTabletFile compactTmpName, String compactorId, CompactionKind kind, short priority,
-      CompactionGroupId ceid, boolean propagateDeletes, Long fateTxId) {
+  public CompactionMetadata(Set<StoredTabletFile> jobFiles, ReferencedTabletFile compactTmpName,
+      String compactorId, CompactionKind kind, short priority, CompactionGroupId ceid,
+      boolean propagateDeletes, Long fateTxId) {
     this.jobFiles = Objects.requireNonNull(jobFiles);
     this.compactTmpName = Objects.requireNonNull(compactTmpName);
     this.compactorId = Objects.requireNonNull(compactorId);
@@ -118,8 +118,7 @@ public class CompactionMetadata {
   public static CompactionMetadata fromJson(String json) {
     GSonData jData = GSON.get().fromJson(json, GSonData.class);
 
-    return new CompactionMetadata(
-        jData.inputs.stream().map(StoredTabletFile::new).collect(toSet()),
+    return new CompactionMetadata(jData.inputs.stream().map(StoredTabletFile::new).collect(toSet()),
         StoredTabletFile.of(jData.tmp).getTabletFile(), jData.compactor,
         CompactionKind.valueOf(jData.kind), jData.priority,
         CompactionGroupIdImpl.groupId(jData.groupId), jData.propDels, jData.fateTxId);

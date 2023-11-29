@@ -19,9 +19,6 @@
 package org.apache.accumulo.core.util.compaction;
 
 import org.apache.accumulo.core.spi.compaction.CompactionGroupId;
-import org.apache.accumulo.core.spi.compaction.CompactionServiceId;
-
-import com.google.common.base.Preconditions;
 
 public class CompactionGroupIdImpl extends CompactionGroupId {
 

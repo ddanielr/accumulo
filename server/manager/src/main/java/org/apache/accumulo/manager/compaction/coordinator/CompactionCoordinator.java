@@ -105,7 +105,6 @@ import org.apache.accumulo.core.tabletserver.thrift.TabletServerClientService;
 import org.apache.accumulo.core.util.Retry;
 import org.apache.accumulo.core.util.UtilWaitThread;
 import org.apache.accumulo.core.util.cache.Caches.CacheName;
-import org.apache.accumulo.core.util.compaction.CompactionExecutorIdImpl;
 import org.apache.accumulo.core.util.compaction.CompactionGroupIdImpl;
 import org.apache.accumulo.core.util.compaction.ExternalCompactionUtil;
 import org.apache.accumulo.core.util.compaction.RunningCompaction;
@@ -396,8 +395,7 @@ public class CompactionCoordinator implements CompactionCoordinatorService.Iface
 
     TExternalCompactionJob result = null;
 
-    CompactionJobQueues.MetaJob metaJob =
-        jobQueues.poll(CompactionGroupIdImpl.groupId(groupName));
+    CompactionJobQueues.MetaJob metaJob = jobQueues.poll(CompactionGroupIdImpl.groupId(groupName));
 
     while (metaJob != null) {
 

@@ -120,8 +120,7 @@ public class CompactionJobPriorityQueue {
       return false;
     }
 
-    Preconditions
-        .checkArgument(jobs.stream().allMatch(job -> job.getGroup().equals(groupId)));
+    Preconditions.checkArgument(jobs.stream().allMatch(job -> job.getGroup().equals(groupId)));
 
     removePreviousSubmissions(tabletMetadata.getExtent());
 
