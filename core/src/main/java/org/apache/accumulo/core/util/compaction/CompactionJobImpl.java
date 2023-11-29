@@ -70,6 +70,7 @@ public class CompactionJobImpl implements CompactionJob {
   public CompactionGroupId getGroup() {
     return group;
   }
+
   /**
    * @return The files to compact
    */

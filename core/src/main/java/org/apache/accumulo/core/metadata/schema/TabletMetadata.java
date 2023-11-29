@@ -449,8 +449,7 @@ public class TabletMetadata {
     final var filesBuilder = ImmutableMap.<StoredTabletFile,DataFileValue>builder();
     final var scansBuilder = ImmutableList.<StoredTabletFile>builder();
     final var logsBuilder = ImmutableList.<LogEntry>builder();
-    final var extCompBuilder =
-        ImmutableMap.<ExternalCompactionId,CompactionMetadata>builder();
+    final var extCompBuilder = ImmutableMap.<ExternalCompactionId,CompactionMetadata>builder();
     final var loadedFilesBuilder = ImmutableMap.<StoredTabletFile,Long>builder();
     final var compactedBuilder = ImmutableSet.<Long>builder();
     ByteSequence row = null;
@@ -542,8 +541,7 @@ public class TabletMetadata {
           logsBuilder.add(LogEntry.fromMetaWalEntry(kv));
           break;
         case ExternalCompactionColumnFamily.STR_NAME:
-          extCompBuilder.put(ExternalCompactionId.of(qual),
-              CompactionMetadata.fromJson(val));
+          extCompBuilder.put(ExternalCompactionId.of(qual), CompactionMetadata.fromJson(val));
           break;
         case MergedColumnFamily.STR_NAME:
           te.merged = true;

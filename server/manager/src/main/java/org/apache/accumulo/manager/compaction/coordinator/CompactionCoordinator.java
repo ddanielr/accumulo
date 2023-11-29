@@ -86,9 +86,9 @@ import org.apache.accumulo.core.metadata.TServerInstance;
 import org.apache.accumulo.core.metadata.schema.Ample;
 import org.apache.accumulo.core.metadata.schema.Ample.Refreshes.RefreshEntry;
 import org.apache.accumulo.core.metadata.schema.Ample.RejectionHandler;
+import org.apache.accumulo.core.metadata.schema.CompactionMetadata;
 import org.apache.accumulo.core.metadata.schema.DataFileValue;
 import org.apache.accumulo.core.metadata.schema.ExternalCompactionId;
-import org.apache.accumulo.core.metadata.schema.ExternalCompactionMetadata;
 import org.apache.accumulo.core.metadata.schema.SelectedFiles;
 import org.apache.accumulo.core.metadata.schema.TabletMetadata;
 import org.apache.accumulo.core.metadata.schema.TabletMetadata.ColumnType;
@@ -404,7 +404,7 @@ public class CompactionCoordinator implements CompactionCoordinatorService.Iface
 
       // this method may reread the metadata, do not use the metadata in metaJob for anything after
       // this method
-      ExternalCompactionMetadata ecm = null;
+      CompactionMetadata ecm = null;
 
       var kind = metaJob.getJob().getKind();
 
@@ -513,7 +513,7 @@ public class CompactionCoordinator implements CompactionCoordinatorService.Iface
     }
   }
 
-  private ExternalCompactionMetadata createExternalCompactionMetadata(CompactionJob job,
+  private CompactionMetadata createExternalCompactionMetadata(CompactionJob job,
       Set<StoredTabletFile> jobFiles, TabletMetadata tablet, String compactorAddress,
       ExternalCompactionId externalCompactionId) {
     boolean propDels;
@@ -542,12 +542,12 @@ public class CompactionCoordinator implements CompactionCoordinatorService.Iface
     ReferencedTabletFile newFile = TabletNameGenerator.getNextDataFilenameForMajc(propDels, ctx,
         tablet, directoryCreator, externalCompactionId);
 
-    return new ExternalCompactionMetadata(jobFiles, newFile, compactorAddress, job.getKind(),
+    return new CompactionMetadata(jobFiles, newFile, compactorAddress, job.getKind(),
         job.getPriority(), job.getExecutor(), propDels, fateTxId);
 
   }
 
-  private ExternalCompactionMetadata reserveCompaction(CompactionJobQueues.MetaJob metaJob,
+  private CompactionMetadata reserveCompaction(CompactionJobQueues.MetaJob metaJob,
       String compactorAddress, ExternalCompactionId externalCompactionId) {
 
     Preconditions.checkArgument(metaJob.getJob().getKind() == CompactionKind.SYSTEM
@@ -602,9 +602,8 @@ public class CompactionCoordinator implements CompactionCoordinatorService.Iface
     return null;
   }
 
-  TExternalCompactionJob createThriftJob(String externalCompactionId,
-      ExternalCompactionMetadata ecm, CompactionJobQueues.MetaJob metaJob,
-      Optional<CompactionConfig> compactionConfig) {
+  TExternalCompactionJob createThriftJob(String externalCompactionId, CompactionMetadata ecm,
+      CompactionJobQueues.MetaJob metaJob, Optional<CompactionConfig> compactionConfig) {
 
     Map<String,String> overrides = CompactionPluginUtils.computeOverrides(compactionConfig, ctx,
         metaJob.getTabletMetadata().getExtent(), metaJob.getJob().getFiles());
@@ -767,7 +766,7 @@ public class CompactionCoordinator implements CompactionCoordinatorService.Iface
       return;
     }
 
-    ExternalCompactionMetadata ecm = tabletMeta.getExternalCompactions().get(ecid);
+    CompactionMetadata ecm = tabletMeta.getExternalCompactions().get(ecid);
 
     // ELASTICITY_TODO this code does not handle race conditions or faults. Need to ensure refresh
     // happens in the case of manager process death between commit and refresh.
@@ -810,7 +809,7 @@ public class CompactionCoordinator implements CompactionCoordinatorService.Iface
   }
 
   private Optional<ReferencedTabletFile> renameOrDeleteFile(TCompactionStats stats,
-      ExternalCompactionMetadata ecm, ReferencedTabletFile newDatafile) throws IOException {
+      CompactionMetadata ecm, ReferencedTabletFile newDatafile) throws IOException {
     if (stats.getEntriesWritten() == 0) {
       // the compaction produced no output so do not need to rename or add a file to the metadata
       // table, only delete the input files.
@@ -864,7 +863,7 @@ public class CompactionCoordinator implements CompactionCoordinatorService.Iface
       return false;
     }
 
-    ExternalCompactionMetadata ecm = tabletMetadata.getExternalCompactions().get(ecid);
+    CompactionMetadata ecm = tabletMetadata.getExternalCompactions().get(ecid);
 
     if (ecm == null) {
       LOG.debug("Received completion notification for unknown compaction {} {}", ecid, extent);
@@ -919,7 +918,7 @@ public class CompactionCoordinator implements CompactionCoordinatorService.Iface
         .logInterval(3, MINUTES).createRetry();
 
     while (canCommitCompaction(ecid, tablet)) {
-      ExternalCompactionMetadata ecm = tablet.getExternalCompactions().get(ecid);
+      CompactionMetadata ecm = tablet.getExternalCompactions().get(ecid);
 
       // the compacted files should not exists in the tablet already
       var tablet2 = tablet;
@@ -977,7 +976,7 @@ public class CompactionCoordinator implements CompactionCoordinatorService.Iface
 
   private void updateTabletForCompaction(TCompactionStats stats, ExternalCompactionId ecid,
       TabletMetadata tablet, Optional<ReferencedTabletFile> newDatafile, KeyExtent extent,
-      ExternalCompactionMetadata ecm, Ample.ConditionalTabletMutator tabletMutator) {
+      CompactionMetadata ecm, Ample.ConditionalTabletMutator tabletMutator) {
     // ELASTICITY_TODO improve logging adapt to use existing tablet files logging
     if (ecm.getKind() == CompactionKind.USER) {
       if (tablet.getSelectedFiles().getFiles().equals(ecm.getJobFiles())) {
