@@ -29,12 +29,13 @@ import java.io.FileNotFoundException;
 import java.io.FileWriter;
 import java.io.IOException;
 
-import com.google.gson.JsonParseException;
 import org.apache.accumulo.server.WithTestNames;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import com.google.gson.JsonParseException;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
@@ -51,7 +52,7 @@ public class CheckCompactionConfigTest extends WithTestNames {
     String inputString = ("compaction.service.cs1.planner="
         + "org.apache.accumulo.core.spi.compaction.DefaultCompactionPlanner \n"
         + "compaction.service.cs1.planner.opts.groups=\\\n"
-        + "[{'name':'small','maxSize':'16M'},\\\n" + "{'name':'medium','maxSize':'128M'},\\\n"
+        + "[{'name':'small','maxSize':'16M'},{'name':'medium','maxSize':'128M'},\\\n"
         + "{'name':'large'}]").replaceAll("'", "\"");
 
     String filePath = writeToFileAndReturnPath(inputString);
@@ -64,11 +65,11 @@ public class CheckCompactionConfigTest extends WithTestNames {
     String inputString = ("compaction.service.cs1.planner="
         + "org.apache.accumulo.core.spi.compaction.DefaultCompactionPlanner \n"
         + "compaction.service.cs1.planner.opts.groups=\\\n"
-        + "[{'name':'small','maxSize':'16M'},\\\n" + "{'name':'medium','maxSize':'128M'},\\\n"
-        + "{'name':'large'}] \n" + "compaction.service.cs2.planner="
+        + "[{'name':'small','maxSize':'16M'},{'name':'medium','maxSize':'128M'},\\\n"
+        + "{'name':'large'}] \ncompaction.service.cs2.planner="
         + "org.apache.accumulo.core.spi.compaction.DefaultCompactionPlanner \n"
         + "compaction.service.cs2.planner.opts.groups=\\\n"
-        + "[{'name':'small','maxSize':'16M'},\\\n" + "{'name':'medium','maxSize':'128M'},\\\n"
+        + "[{'name':'small','maxSize':'16M'},{'name':'medium','maxSize':'128M'},\\\n"
         + "{'name':'large'}]").replaceAll("'", "\"");
 
     String filePath = writeToFileAndReturnPath(inputString);
@@ -81,12 +82,12 @@ public class CheckCompactionConfigTest extends WithTestNames {
     String inputString = ("compaction.service.cs1.planner="
         + "org.apache.accumulo.core.spi.compaction.DefaultCompactionPlanner \n"
         + "compaction.service.cs1.planner.opts.groups=\\\n"
-        + "[{'name':'small','maxSize':'16M'},\\\n" + "{'name':'medium','maxSize':'128M'},\\\n"
-        + "{'name':'large'}] \n" + "compaction.service.cs2.planner="
+        + "[{'name':'small','maxSize':'16M'},{'name':'medium','maxSize':'128M'},\\\n"
+        + "{'name':'large'}] \ncompaction.service.cs2.planner="
         + "org.apache.accumulo.core.spi.compaction.DefaultCompactionPlanner \n"
         + "compaction.service.cs2.planner.opts.groups=\\\n"
-        + "[{'name':'small','maxSize':'16M'},\\\n" + "{'name':'medium','maxSize':'128M'},\\\n"
-        + "{'name':'large'}] \n" + "compaction.service.cs3.planner="
+        + "[{'name':'small','maxSize':'16M'}, {'name':'medium','maxSize':'128M'},\\\n"
+        + "{'name':'large'}] \ncompaction.service.cs3.planner="
         + "org.apache.accumulo.core.spi.compaction.DefaultCompactionPlanner \n"
         + "compaction.service.cs3.planner.opts.groups=\\\n"
         + "[{'name':'small','maxSize':'16M'},{'name':'large'}]").replaceAll("'", "\"");
@@ -100,7 +101,7 @@ public class CheckCompactionConfigTest extends WithTestNames {
     String inputString = ("compaction.service.cs1.planner="
         + "org.apache.accumulo.core.spi.compaction.DefaultCompactionPlanner \n"
         + "compaction.service.cs1.planner.opts.groups=\\\n"
-        + "[{'name':'small','maxSize':'16M'},\\\n" + "{'name':'medium','maxSize':'128M'},\\\n"
+        + "[{'name':'small','maxSize':'16M'},{'name':'medium','maxSize':'128M'},\\\n"
         + "{'name':'large','numThreads':2}]").replaceAll("'", "\"");
     String expectedErrorMsg =
         "Invalid fields: [numThreads] provided for class: org.apache.accumulo.core.spi.compaction.DefaultCompactionPlanner$GroupConfig";
@@ -115,7 +116,7 @@ public class CheckCompactionConfigTest extends WithTestNames {
   @Test
   public void testNoPlanner() throws Exception {
     String inputString = ("compaction.service.cs1.planner.opts.groups=\\\n"
-        + "[{'name':'small','maxSize':'16M'},\\\n" + "{'name':'medium','maxSize':'128M'},\\\n"
+        + "[{'name':'small','maxSize':'16M'}, {'name':'medium','maxSize':'128M'},\\\n"
         + "{'name':'large'}]").replaceAll("'", "\"");
     String expectedErrorMsg =
         "Incomplete compaction service definitions, missing planner class [cs1]";
@@ -132,7 +133,7 @@ public class CheckCompactionConfigTest extends WithTestNames {
     String inputString = ("compaction.service.cs1.planner="
         + "org.apache.accumulo.core.spi.compaction.DefaultCompactionPlanner \n"
         + "compaction.service.cs1.planner.opts.groups=\\\n"
-        + "[{'name':'small','maxSize':'16M'},\\\n" + "{'name':'medium','maxSize':'128M'},\\\n"
+        + "[{'name':'small','maxSize':'16M'},{'name':'medium','maxSize':'128M'},\\\n"
         + "{'name':'small'}]").replaceAll("'", "\"");
     String expectedErrorMsg = "Duplicate compaction group for group: small";
 
@@ -148,7 +149,7 @@ public class CheckCompactionConfigTest extends WithTestNames {
     String inputString = ("compaction.service.cs1.planner="
         + "org.apache.accumulo.core.spi.compaction.DefaultCompactionPlanner \n"
         + "compaction.service.cs1.planner.opts.groups=\\\n"
-        + "[{'name':'small','maxSize':'16M'},\\\n" + "{'name':'medium','maxSize':'0M'},\\\n"
+        + "[{'name':'small','maxSize':'16M'},{'name':'medium','maxSize':'0M'},\\\n"
         + "{'name':'large'}]").replaceAll("'", "\"");
     String expectedErrorMsg = "Invalid value for maxSize";
 

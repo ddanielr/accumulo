@@ -88,14 +88,14 @@ public class CompactionExecutorIT extends SharedMiniClusterBase {
 
     @Override
     public void init(InitParameters params) {
-      var executors = Integer.parseInt(params.getOptions().get("groups"));
+      var groups = Integer.parseInt(params.getOptions().get("groups"));
       this.filesPerCompaction = Integer.parseInt(params.getOptions().get("filesPerCompaction"));
       this.groupIds = new ArrayList<>();
       for (String kind : params.getOptions().get("process").split(",")) {
         kindsToProcess.add(CompactionKind.valueOf(kind.toUpperCase()));
       }
 
-      for (int i = 0; i < executors; i++) {
+      for (int i = 0; i < groups; i++) {
         var cgid = params.getGroupManager().getGroup("" + i);
         groupIds.add(cgid);
       }
@@ -143,28 +143,28 @@ public class CompactionExecutorIT extends SharedMiniClusterBase {
 
       var csp = Property.COMPACTION_SERVICE_PREFIX.getKey();
       siteCfg.put(csp + "cs1.planner", TestPlanner.class.getName());
-      siteCfg.put(csp + "cs1.planner.opts.executors", "3");
+      siteCfg.put(csp + "cs1.planner.opts.groups", "3");
       siteCfg.put(csp + "cs1.planner.opts.filesPerCompaction", "5");
       siteCfg.put(csp + "cs1.planner.opts.process", "SYSTEM");
 
       siteCfg.put(csp + "cs2.planner", TestPlanner.class.getName());
-      siteCfg.put(csp + "cs2.planner.opts.executors", "2");
+      siteCfg.put(csp + "cs2.planner.opts.groups", "2");
       siteCfg.put(csp + "cs2.planner.opts.filesPerCompaction", "7");
       siteCfg.put(csp + "cs2.planner.opts.process", "SYSTEM");
 
       siteCfg.put(csp + "cs3.planner", TestPlanner.class.getName());
-      siteCfg.put(csp + "cs3.planner.opts.executors", "1");
+      siteCfg.put(csp + "cs3.planner.opts.groups", "1");
       siteCfg.put(csp + "cs3.planner.opts.filesPerCompaction", "3");
       siteCfg.put(csp + "cs3.planner.opts.process", "USER");
 
       siteCfg.put(csp + "cs4.planner", TestPlanner.class.getName());
-      siteCfg.put(csp + "cs4.planner.opts.executors", "2");
+      siteCfg.put(csp + "cs4.planner.opts.groups", "2");
       siteCfg.put(csp + "cs4.planner.opts.filesPerCompaction", "11");
       siteCfg.put(csp + "cs4.planner.opts.process", "USER");
 
       // this is meant to be dynamically reconfigured
       siteCfg.put(csp + "recfg.planner", TestPlanner.class.getName());
-      siteCfg.put(csp + "recfg.planner.opts.executors", "2");
+      siteCfg.put(csp + "recfg.planner.opts.groups", "2");
       siteCfg.put(csp + "recfg.planner.opts.filesPerCompaction", "11");
       siteCfg.put(csp + "recfg.planner.opts.process", "SYSTEM");
 
@@ -210,7 +210,7 @@ public class CompactionExecutorIT extends SharedMiniClusterBase {
           Property.COMPACTION_SERVICE_PREFIX.getKey() + "recfg.planner.opts.filesPerCompaction",
           "5");
       client.instanceOperations().setProperty(
-          Property.COMPACTION_SERVICE_PREFIX.getKey() + "recfg.planner.opts.executors", "1");
+          Property.COMPACTION_SERVICE_PREFIX.getKey() + "recfg.planner.opts.groups", "1");
 
       addFiles(client, "rctt", 10);
 
@@ -231,7 +231,7 @@ public class CompactionExecutorIT extends SharedMiniClusterBase {
       client.instanceOperations().setProperty(
           Property.COMPACTION_SERVICE_PREFIX.getKey() + "newcs.planner.opts.process", "SYSTEM");
       client.instanceOperations().setProperty(
-          Property.COMPACTION_SERVICE_PREFIX.getKey() + "newcs.planner.opts.executors", "3");
+          Property.COMPACTION_SERVICE_PREFIX.getKey() + "newcs.planner.opts.groups", "3");
       client.instanceOperations().setProperty(
           Property.COMPACTION_SERVICE_PREFIX.getKey() + "newcs.planner",
           TestPlanner.class.getName());

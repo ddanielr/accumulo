@@ -18,7 +18,8 @@
  */
 package org.apache.accumulo.test.shell;
 
-import static org.apache.accumulo.core.conf.Property.*;
+import static org.apache.accumulo.core.conf.Property.COMPACTION_SERVICE_ROOT_GROUPS;
+import static org.apache.accumulo.core.conf.Property.MONITOR_RESOURCES_EXTERNAL;
 import static org.apache.accumulo.harness.AccumuloITBase.MINI_CLUSTER_ONLY;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
