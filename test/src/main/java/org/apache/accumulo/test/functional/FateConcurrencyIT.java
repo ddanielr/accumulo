@@ -127,7 +127,6 @@ public class FateConcurrencyIT extends AccumuloClusterHarness {
   @Test
   public void changeTableStateTest() throws Exception {
     String tableName = getUniqueNames(1)[0];
-    SlowOps.setExpectedCompactions(client, 1);
     slowOps = new SlowOps(client, tableName, maxWaitMillis);
 
     assertEquals(TableState.ONLINE, getTableState(tableName), "verify table online after created");
@@ -219,7 +218,6 @@ public class FateConcurrencyIT extends AccumuloClusterHarness {
    */
   @Test
   public void getFateStatus() {
-    SlowOps.setExpectedCompactions(client, 1);
     String tableName = getUniqueNames(1)[0];
     slowOps = new SlowOps(client, tableName, maxWaitMillis);
 
@@ -477,7 +475,6 @@ public class FateConcurrencyIT extends AccumuloClusterHarness {
   public void multipleCompactions() {
 
     int tableCount = 4;
-    SlowOps.setExpectedCompactions(client, tableCount);
 
     List<SlowOps> tables = Arrays.stream(getUniqueNames(tableCount))
         .map(tableName -> new SlowOps(client, tableName, maxWaitMillis))

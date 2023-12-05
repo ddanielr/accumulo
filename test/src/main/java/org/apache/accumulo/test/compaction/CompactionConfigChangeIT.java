@@ -62,10 +62,9 @@ public class CompactionConfigChangeIT extends AccumuloClusterHarness {
           Property.COMPACTION_SERVICE_PREFIX.getKey() + "cs1.planner",
           DefaultCompactionPlanner.class.getName());
       client.instanceOperations().setProperty(
-          Property.COMPACTION_SERVICE_PREFIX.getKey() + "cs1.planner.opts.executors",
-          ("[{'name':'small','type':'internal','maxSize':'2M','numThreads':2},"
-              + "{'name':'medium','type':'internal','maxSize':'128M','numThreads':2},"
-              + "{'name':'large','type':'internal','numThreads':2}]").replaceAll("'", "\""));
+          Property.COMPACTION_SERVICE_PREFIX.getKey() + "cs1.planner.opts.groups",
+          ("[{'name':'small','maxSize':'2M'},{'name':'medium','maxSize':'128M'},"
+              + "{'name':'large',}]").replaceAll("'", "\""));
 
       createTable(client, table, "cs1", 100);
 
@@ -88,14 +87,13 @@ public class CompactionConfigChangeIT extends AccumuloClusterHarness {
       // give some time for compactions to start running
       Wait.waitFor(() -> countFiles(client, table, "F") < 95);
 
-      // Change config deleting executors named small, medium, and large. There was bug where
-      // deleting executors running compactions would leave the tablet in a bad state for future
+      // Change config deleting groups named small, medium, and large. There was bug where
+      // deleting groups running compactions would leave the tablet in a bad state for future
       // compactions. Because the compactions are running slow, expect this config change to overlap
       // with running compactions.
       client.instanceOperations().setProperty(
-          Property.COMPACTION_SERVICE_PREFIX.getKey() + "cs1.planner.opts.executors",
-          ("[{'name':'little','type':'internal','maxSize':'128M','numThreads':8},"
-              + "{'name':'big','type':'internal','numThreads':2}]").replaceAll("'", "\""));
+          Property.COMPACTION_SERVICE_PREFIX.getKey() + "cs1.planner.opts.groups",
+          ("[{'name':'little','maxSize':'128M'},{'name':'big'}]").replaceAll("'", "\""));
 
       Wait.waitFor(() -> countFiles(client, table, "F") == 0, 60000);
 
