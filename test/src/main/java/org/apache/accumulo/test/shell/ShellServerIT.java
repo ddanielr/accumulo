@@ -1739,11 +1739,12 @@ public class ShellServerIT extends SharedMiniClusterBase {
     ts.exec("grant Namespace.CREATE_TABLE -ns " + ns_2 + " -u dude", true);
     ts.exec("revoke Namespace.CREATE_TABLE -ns " + ns_2 + " -u dude", true);
 
+    var testProp = Property.TABLE_ARBITRARY_PROP_PREFIX.getKey() + "shell.test.prop";
     // properties override and such
-    ts.exec("config -ns " + ns_2 + " -s table.file.max=44444", true);
+    ts.exec("config -ns " + ns_2 + " -s " + testProp + "=44444", true);
     ts.exec("config -ns " + ns_2, true, "44444", true);
     ts.exec("config -t " + ns_2 + "." + tableName, true, "44444", true);
-    ts.exec("config -t " + ns_2 + "." + tableName + " -s table.file.max=55555", true);
+    ts.exec("config -t " + ns_2 + "." + tableName + " -s " + testProp + "=55555", true);
     ts.exec("config -t " + ns_2 + "." + tableName, true, "55555", true);
 
     // can copy properties when creating
