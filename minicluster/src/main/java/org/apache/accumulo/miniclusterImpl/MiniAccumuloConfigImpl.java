@@ -32,6 +32,7 @@ import org.apache.accumulo.core.conf.ClientProperty;
 import org.apache.accumulo.core.conf.HadoopCredentialProvider;
 import org.apache.accumulo.core.conf.Property;
 import org.apache.accumulo.core.conf.SiteConfiguration;
+import org.apache.accumulo.core.spi.compaction.DefaultCompactionPlanner;
 import org.apache.accumulo.minicluster.MemoryUnit;
 import org.apache.accumulo.minicluster.MiniAccumuloCluster;
 import org.apache.accumulo.minicluster.ServerType;
@@ -166,21 +167,12 @@ public class MiniAccumuloConfigImpl {
 
       mergeProp(Property.MANAGER_COMPACTION_SERVICE_PRIORITY_QUEUE_SIZE.getKey(),
           Property.MANAGER_COMPACTION_SERVICE_PRIORITY_QUEUE_SIZE.getDefaultValue());
-      mergeProp(Property.COMPACTION_SERVICE_ROOT_PLANNER.getKey(),
-          Property.COMPACTION_SERVICE_ROOT_PLANNER.getDefaultValue());
-      mergeProp(Property.COMPACTION_SERVICE_ROOT_GROUPS.getKey(),
-          Property.COMPACTION_SERVICE_ROOT_GROUPS.getDefaultValue());
 
-      mergeProp(Property.COMPACTION_SERVICE_META_PLANNER.getKey(),
-          Property.COMPACTION_SERVICE_META_PLANNER.getDefaultValue());
-      mergeProp(Property.COMPACTION_SERVICE_META_GROUPS.getKey(),
-          Property.COMPACTION_SERVICE_META_GROUPS.getDefaultValue());
-
-      mergeProp(Property.COMPACTION_SERVICE_DEFAULT_PLANNER.getKey(),
-          Property.COMPACTION_SERVICE_DEFAULT_PLANNER.getDefaultValue());
-
-      mergeProp(Property.COMPACTION_SERVICE_DEFAULT_GROUPS.getKey(),
-          Property.COMPACTION_SERVICE_DEFAULT_GROUPS.getDefaultValue());
+      mergeProp("compaction.service.default.planner", DefaultCompactionPlanner.class.getName());
+      mergeProp("compaction.service.default.planner.opts.maxOpen", "10");
+      mergeProp("compaction.service.default.planner.opts.groups",
+          "[{'name':'defaultSmall','maxSize':'128M'}, {'name':'defaultLarge'}]".replaceAll("'",
+              "\""));
 
       if (isUseCredentialProvider()) {
         updateConfigForCredentialProvider();
