@@ -69,6 +69,19 @@ public enum Property {
           + " been deprecated in anticipation of it being removed in a future release that"
           + " removes the rate limiting feature.",
       "2.1.0"),
+  @Example
+  COMPACTION_DEFAULT_PLANNER(COMPACTION_SERVICE_PREFIX + "default.planner", null,
+      "org.apache.accumulo.core.spi.compaction.DefaultCompactionPlanner", PropertyType.CLASSNAME,
+      "Default Compaction Planner property that is used by the compaction service.", "3.1.0"),
+  @Example
+  COMPACTION_DEFAULT_PLANNER_GROUPS(COMPACTION_SERVICE_PREFIX + "default.planner.opts.groups", null,
+      "[{'name':'default'},{'name':'large'}]".replaceAll("'", "\""), PropertyType.JSON,
+      "Default Compaction Planner property that is used by the compaction service.", "3.1.0"),
+  @Example
+  COMPACTION_DEFAULT_PLANNER_TEST(COMPACTION_SERVICE_PREFIX + "default.planner.opts.test", null,
+      "0B", PropertyType.BYTES,
+      "Default Compaction Planner property that is used by the compaction service.", "3.1.0"),
+
   COMPACTION_WARN_TIME(COMPACTION_PREFIX + "warn.time", "10m", PropertyType.TIMEDURATION,
       "When a compaction has not made progress for this time period, a warning will be logged.",
       "3.1.0"),
