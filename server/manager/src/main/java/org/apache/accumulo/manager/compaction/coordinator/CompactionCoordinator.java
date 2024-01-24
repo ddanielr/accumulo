@@ -82,7 +82,6 @@ import org.apache.accumulo.core.metadata.schema.CompactionMetadata;
 import org.apache.accumulo.core.metadata.schema.ExternalCompactionId;
 import org.apache.accumulo.core.metadata.schema.TabletMetadata;
 import org.apache.accumulo.core.metadata.schema.TabletMetadata.ColumnType;
-import org.apache.accumulo.core.metadata.schema.TabletsMetadata;
 import org.apache.accumulo.core.metrics.MetricsProducer;
 import org.apache.accumulo.core.securityImpl.thrift.TCredentials;
 import org.apache.accumulo.core.spi.compaction.CompactionJob;
@@ -178,7 +177,7 @@ public class CompactionCoordinator
     this.eventCoordinator = eventCoordinator;
 
     this.jobQueues = new CompactionJobQueues(
-        ctx.getConfiguration().getCount(Property.MANAGER_COMPACTION_SERVICE_PRIORITY_QUEUE_SIZE));
+        ctx.getConfiguration().getCount(Property.COMPACTION_SERVICE_PRIORITY_QUEUE_SIZE));
 
     this.queueMetrics = new QueueMetrics(jobQueues);
 
@@ -842,12 +841,9 @@ public class CompactionCoordinator
   }
 
   protected Set<ExternalCompactionId> readExternalCompactionIds() {
-    try (TabletsMetadata tabletsMetadata =
-        this.ctx.getAmple().readTablets().forLevel(Ample.DataLevel.USER)
-            .filter(new HasExternalCompactionsFilter()).fetch(ECOMP).build()) {
-      return tabletsMetadata.stream().flatMap(tm -> tm.getExternalCompactions().keySet().stream())
-          .collect(Collectors.toSet());
-    }
+    return this.ctx.getAmple().readTablets().forLevel(Ample.DataLevel.USER)
+        .filter(new HasExternalCompactionsFilter()).fetch(ECOMP).build().stream()
+        .flatMap(tm -> tm.getExternalCompactions().keySet().stream()).collect(Collectors.toSet());
   }
 
   /**
