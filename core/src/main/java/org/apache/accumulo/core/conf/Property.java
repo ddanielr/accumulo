@@ -83,14 +83,14 @@ public enum Property {
   COMPACTION_SERVICE_DEFAULT_MAX_OPEN(COMPACTION_SERVICE_PREFIX + "default.planner.opts.maxOpen",
       "10", PropertyType.COUNT, "The maximum number of files a compaction will open.", "4.0.0"),
   COMPACTION_SERVICE_DEFAULT_GROUPS(COMPACTION_SERVICE_PREFIX + "default.planner.opts.groups",
-      ("[{'name':'user_small','maxSize':'128M', 'maxJobs'}, {'name':'user_large'}]").replaceAll("'",
-          "\""),
+      ("[{'name':'user_small','maxSize':'128M', 'maxJobs': 100}, {'name':'user_large'}]")
+          .replaceAll("'", "\""),
       PropertyType.STRING,
       "See {% jlink -f org.apache.accumulo.core.spi.compaction.DefaultCompactionPlanner %}.",
       "4.0.0"),
   COMPACTION_QUEUE_MAX_JOB_COUNT("compaction.default.queue.size", "10000", PropertyType.COUNT,
       "The default max size for compaction service priority queues."
-          + "This is the limit of how many jobs can be added to a queue at a single time",
+          + "This is the limit of how many jobs can be added to a queue at a single time.",
       "4.0"),
   COMPACTION_WARN_TIME(COMPACTION_PREFIX + "warn.time", "10m", PropertyType.TIMEDURATION,
       "When a compaction has not made progress for this time period, a warning will be logged.",

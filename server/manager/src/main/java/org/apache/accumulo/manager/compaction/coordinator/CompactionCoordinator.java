@@ -177,7 +177,7 @@ public class CompactionCoordinator
     this.eventCoordinator = eventCoordinator;
 
     this.jobQueues = new CompactionJobQueues(
-        ctx.getConfiguration().getCount(Property.COMPACTION_SERVICE_PRIORITY_QUEUE_SIZE));
+        ctx.getConfiguration().getCount(Property.COMPACTION_QUEUE_MAX_JOB_COUNT));
 
     this.queueMetrics = new QueueMetrics(jobQueues);
 

@@ -57,7 +57,7 @@ public class QueueMetrics implements MetricsProducer {
       var queueId = formatString(cgid.canonical());
 
       length =
-          Gauge.builder(METRICS_COMPACTOR_JOB_PRIORITY_QUEUE_LENGTH, queue, q -> q.getMaxSize())
+          Gauge.builder(METRICS_COMPACTOR_JOB_PRIORITY_QUEUE_LENGTH, queue, q -> q.getMaxJobs())
               .description("Length of priority queues")
               .tags(Tags.concat(getCommonTags(), "queue.id", queueId)).register(meterRegistry);
 

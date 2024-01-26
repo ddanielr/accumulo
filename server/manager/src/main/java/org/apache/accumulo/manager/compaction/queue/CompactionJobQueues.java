@@ -50,8 +50,8 @@ public class CompactionJobQueues {
 
   public void add(TabletMetadata tabletMetadata, Collection<CompactionJob> jobs) {
     if (jobs.size() == 1) {
-      var executorId = jobs.iterator().next().getGroup();
-      add(tabletMetadata, executorId, jobs);
+      var groupId = jobs.iterator().next().getGroup();
+      add(tabletMetadata, groupId, jobs);
     } else {
       jobs.stream().collect(Collectors.groupingBy(CompactionJob::getGroup))
           .forEach(((groupId, compactionJobs) -> add(tabletMetadata, groupId, compactionJobs)));
@@ -66,9 +66,9 @@ public class CompactionJobQueues {
     return priorityQueues.get(groupId);
   }
 
-  public long getQueueMaxSize(CompactorGroupId groupId) {
+  public long getQueueMaxJobs(CompactorGroupId groupId) {
     var prioQ = priorityQueues.get(groupId);
-    return prioQ == null ? 0 : prioQ.getMaxSize();
+    return prioQ == null ? 0 : prioQ.getMaxJobs();
   }
 
   public long getQueuedJobs(CompactorGroupId groupId) {

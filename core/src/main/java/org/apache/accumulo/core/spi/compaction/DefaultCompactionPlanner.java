@@ -129,25 +129,32 @@ public class DefaultCompactionPlanner implements CompactionPlanner {
   private static class GroupConfig {
     String name;
     String maxSize;
+    String maxJobs;
   }
 
   private static class CompactionGroup {
     final CompactorGroupId cgid;
     final Long maxSize;
+    final Long maxJobs;
 
-    public CompactionGroup(CompactorGroupId cgid, Long maxSize) {
+    public CompactionGroup(CompactorGroupId cgid, Long maxSize, Long maxJobs) {
       Preconditions.checkArgument(maxSize == null || maxSize > 0, "Invalid value for maxSize");
       this.cgid = Objects.requireNonNull(cgid, "Compaction ID is null");
       this.maxSize = maxSize;
+      this.maxJobs = maxJobs;
     }
 
     Long getMaxSize() {
       return maxSize;
     }
 
+    Long getMaxJobs() {
+      return maxJobs;
+    }
+
     @Override
     public String toString() {
-      return "[cgid=" + cgid + ", maxSize=" + maxSize + "]";
+      return "[cgid=" + cgid + ", maxSize=" + maxSize + ", maxJobs=" + maxJobs + "]";
     }
   }
 
@@ -191,10 +198,13 @@ public class DefaultCompactionPlanner implements CompactionPlanner {
         Long maxSize = groupConfig.maxSize == null ? null
             : ConfigurationTypeHelper.getFixedMemoryAsBytes(groupConfig.maxSize);
 
+        String maxJobs = groupConfig.maxJobs == null
+            ? Property.COMPACTION_QUEUE_MAX_JOB_COUNT.getDefaultValue() : groupConfig.maxJobs;
+
         CompactorGroupId cgid;
         String group = Objects.requireNonNull(groupConfig.name, "'name' must be specified");
         cgid = params.getGroupManager().getGroup(group);
-        tmpGroups.add(new CompactionGroup(cgid, maxSize));
+        tmpGroups.add(new CompactionGroup(cgid, maxSize, Long.parseLong(maxJobs)));
       }
     }
 

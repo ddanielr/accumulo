@@ -33,11 +33,6 @@ public interface CompactionJob {
   short getPriority();
 
   /**
-   * @return The group to run the job.
-   */
-  CompactorGroupId getGroup();
-
-  /**
    * @return The files to compact
    */
   Set<CompactableFile> getFiles();

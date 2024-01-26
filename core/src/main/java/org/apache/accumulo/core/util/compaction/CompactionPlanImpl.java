@@ -80,7 +80,7 @@ public class CompactionPlanImpl implements CompactionPlan {
 
       seenFiles.addAll(filesSet);
 
-      jobs.add(new CompactionJobImpl(priority, group, filesSet, kind,
+      jobs.add(new CompactionJobImpl(priority, filesSet, kind,
           Optional.of(filesSet.equals(allFiles))));
       return this;
     }

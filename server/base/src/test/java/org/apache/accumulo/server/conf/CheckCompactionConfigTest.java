@@ -52,7 +52,7 @@ public class CheckCompactionConfigTest extends WithTestNames {
     String inputString = ("compaction.service.cs1.planner="
         + "org.apache.accumulo.core.spi.compaction.DefaultCompactionPlanner \n"
         + "compaction.service.cs1.planner.opts.groups=\\\n"
-        + "[{'name':'small','maxSize':'16M'},{'name':'medium','maxSize':'128M'},\\\n"
+        + "[{'name':'small','maxSize':'16M', 'maxJobs': '72'},{'name':'medium','maxSize':'128M', 'maxJobs':'15'},\\\n"
         + "{'name':'large'}]").replaceAll("'", "\"");
 
     String filePath = writeToFileAndReturnPath(inputString);

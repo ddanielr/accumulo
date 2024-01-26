@@ -38,9 +38,9 @@ import org.apache.accumulo.core.util.compaction.CompactionJobPrioritizer;
 import com.google.common.base.Preconditions;
 
 /**
- * Priority Queue for {@link CompactionJob}s that supports a maximum size. When a job is added and
- * the queue is at maximum size the new job is compared to the lowest job with the lowest priority.
- * The new job will either replace the lowest priority one or be ignored.
+ * Priority Queue for {@link CompactionJob}s that supports a maximum job limit. When a job is added
+ * and the queue is at maximum size the new job is compared to the lowest job with the lowest
+ * priority. The new job will either replace the lowest priority one or be ignored.
  *
  * <p>
  * When jobs are added for tablet, any previous jobs that are queued for the tablet are removed.
@@ -94,7 +94,7 @@ public class CompactionJobPriorityQueue {
   // efficiently removing entries from anywhere in the queue. Efficient removal is needed for the
   // case where tablets decided to issues different compaction jobs than what is currently queued.
   private final TreeMap<CjpqKey,CompactionJobQueues.MetaJob> jobQueue;
-  private final int maxSize;
+  private final int maxJobs;
   private final AtomicLong rejectedJobs;
   private final AtomicLong dequeuedJobs;
 
@@ -106,9 +106,9 @@ public class CompactionJobPriorityQueue {
 
   private boolean closed = false;
 
-  public CompactionJobPriorityQueue(CompactorGroupId groupId, int maxSize) {
+  public CompactionJobPriorityQueue(CompactorGroupId groupId, int maxJobs) {
     this.jobQueue = new TreeMap<>();
-    this.maxSize = maxSize;
+    this.maxJobs = maxJobs;
     this.tabletJobs = new HashMap<>();
     this.groupId = groupId;
     this.rejectedJobs = new AtomicLong(0);
@@ -140,8 +140,8 @@ public class CompactionJobPriorityQueue {
     return true;
   }
 
-  public long getMaxSize() {
-    return maxSize;
+  public long getMaxJobs() {
+    return maxJobs;
   }
 
   public long getRejectedJobs() {
@@ -196,7 +196,7 @@ public class CompactionJobPriorityQueue {
   }
 
   private CjpqKey addJobToQueue(TabletMetadata tabletMetadata, CompactionJob job) {
-    if (jobQueue.size() >= maxSize) {
+    if (jobQueue.size() >= maxJobs) {
       var lastEntry = jobQueue.lastKey();
       if (job.getPriority() <= lastEntry.job.getPriority()) {
         // the queue is full and this job has a lower or same priority than the lowest job in the

@@ -37,7 +37,6 @@ import org.apache.accumulo.core.spi.compaction.CompactorGroupId;
 public class CompactionJobImpl implements CompactionJob {
 
   private final short priority;
-  private final CompactorGroupId group;
   private final Set<CompactableFile> files;
   private final CompactionKind kind;
   // Tracks if a job selected all the tablet's files that existed at the time the job was created.
@@ -49,10 +48,9 @@ public class CompactionJobImpl implements CompactionJob {
    *        to start compaction. After a job is running, its not used. So when a job object is
    *        recreated for a running external compaction this parameter can be empty.
    */
-  public CompactionJobImpl(short priority, CompactorGroupId group,
+  public CompactionJobImpl(short priority,
       Collection<CompactableFile> files, CompactionKind kind, Optional<Boolean> jobSelectedAll) {
     this.priority = priority;
-    this.group = Objects.requireNonNull(group);
     this.files = Set.copyOf(files);
     this.kind = Objects.requireNonNull(kind);
     this.jobSelectedAll = Objects.requireNonNull(jobSelectedAll);
@@ -61,14 +59,6 @@ public class CompactionJobImpl implements CompactionJob {
   @Override
   public short getPriority() {
     return priority;
-  }
-
-  /**
-   * @return The group to run the job.
-   */
-  @Override
-  public CompactorGroupId getGroup() {
-    return group;
   }
 
   /**
@@ -110,7 +100,7 @@ public class CompactionJobImpl implements CompactionJob {
 
   @Override
   public String toString() {
-    return "CompactionJob [priority=" + priority + ", group=" + group + ", files=" + files
+    return "CompactionJob [priority=" + priority + ", files=" + files
         + ", kind=" + kind + "]";
   }
 
