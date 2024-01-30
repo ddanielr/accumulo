@@ -95,6 +95,7 @@ import org.apache.accumulo.core.tabletserver.thrift.TExternalCompactionJob;
 import org.apache.accumulo.core.util.Retry;
 import org.apache.accumulo.core.util.UtilWaitThread;
 import org.apache.accumulo.core.util.cache.Caches.CacheName;
+import org.apache.accumulo.core.util.compaction.CompactionServicesConfig;
 import org.apache.accumulo.core.util.compaction.CompactorGroupIdImpl;
 import org.apache.accumulo.core.util.compaction.ExternalCompactionUtil;
 import org.apache.accumulo.core.util.compaction.RunningCompaction;
@@ -177,8 +178,10 @@ public class CompactionCoordinator
     this.security = security;
     this.eventCoordinator = eventCoordinator;
 
+    var compactionServices = new CompactionServicesConfig(ctx.getConfiguration());
     this.jobQueues = new CompactionJobQueues(
-        ctx.getConfiguration().getCount(Property.MANAGER_COMPACTION_SERVICE_PRIORITY_QUEUE_SIZE));
+        ctx.getConfiguration().getCount(Property.MANAGER_COMPACTION_SERVICE_PRIORITY_QUEUE_SIZE),
+        compactionServices.getGroups());
 
     this.queueMetrics = new QueueMetrics(jobQueues);
 

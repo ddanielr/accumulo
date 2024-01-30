@@ -18,10 +18,18 @@
  */
 package org.apache.accumulo.core.util.compaction;
 
+import static org.apache.accumulo.core.util.LazySingletons.GSON;
+
+import java.lang.reflect.Field;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import org.apache.accumulo.core.client.PluginEnvironment;
 import org.apache.accumulo.core.conf.AccumuloConfiguration;
@@ -29,6 +37,10 @@ import org.apache.accumulo.core.conf.ConfigurationTypeHelper;
 import org.apache.accumulo.core.conf.Property;
 
 import com.google.common.collect.Sets;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParseException;
 
 /**
  * This class serves to configure compaction services from an {@link AccumuloConfiguration} object.
@@ -36,7 +48,14 @@ import com.google.common.collect.Sets;
  */
 public class CompactionServicesConfig {
 
+  private static class GroupConfig {
+    String name;
+    String maxSize;
+    String maxJobs;
+  }
+
   private final Map<String,String> planners = new HashMap<>();
+  private final Map<String,Integer> groups = new HashMap<>();
   private final Map<String,String> plannerPrefixes = new HashMap<>();
   private final Map<String,Long> rateLimits = new HashMap<>();
   private final Map<String,Map<String,String>> options = new HashMap<>();
@@ -79,6 +98,29 @@ public class CompactionServicesConfig {
           plannerPrefixes.put(tokens[0], prefix);
           planners.put(tokens[0], val);
         } else if (tokens.length == 4 && tokens[1].equals("planner") && tokens[2].equals("opts")) {
+          if (tokens[3].equals("groups")) {
+            // Generate a list of fields from the desired object.
+            final List<String> fields =
+                Arrays.stream(CompactionServicesConfig.GroupConfig.class.getDeclaredFields())
+                    .map(Field::getName).collect(Collectors.toList());
+
+            for (JsonElement element : GSON.get().fromJson(val, JsonArray.class)) {
+              validateConfig(element, fields, CompactionServicesConfig.GroupConfig.class.getName());
+              GroupConfig groupConfig =
+                  GSON.get().fromJson(element, CompactionServicesConfig.GroupConfig.class);
+
+              String maxJobs = groupConfig.maxJobs == null
+                  ? Property.MANAGER_COMPACTION_SERVICE_PRIORITY_QUEUE_SIZE.getDefaultValue()
+                  : groupConfig.maxJobs;
+              String group = Objects.requireNonNull(groupConfig.name, "'name' must be specified");
+              if (groups.get(group) != null) {
+                throw new IllegalArgumentException(
+                    "Duplicate group name " + group + " used across compaction services");
+              } else {
+                groups.put(group, Integer.parseInt(maxJobs));
+              }
+            }
+          }
           options.computeIfAbsent(tokens[0], k -> new HashMap<>()).put(tokens[3], val);
         } else if (tokens.length == 3 && tokens[1].equals("rate") && tokens[2].equals("limit")) {
           var eprop = Property.getPropertyByKey(prop);
@@ -117,6 +159,24 @@ public class CompactionServicesConfig {
 
   public Map<String,String> getPlanners() {
     return planners;
+  }
+
+  public Map<String,Integer> getGroups() {
+    return groups;
+  }
+
+  private void validateConfig(JsonElement json, List<String> fields, String className) {
+
+    JsonObject jsonObject = GSON.get().fromJson(json, JsonObject.class);
+
+    List<String> objectProperties = new ArrayList<>(jsonObject.keySet());
+    HashSet<String> classFieldNames = new HashSet<>(fields);
+
+    if (!classFieldNames.containsAll(objectProperties)) {
+      objectProperties.removeAll(classFieldNames);
+      throw new JsonParseException(
+          "Invalid fields: " + objectProperties + " provided for class: " + className);
+    }
   }
 
   public String getPlannerPrefix(String service) {
