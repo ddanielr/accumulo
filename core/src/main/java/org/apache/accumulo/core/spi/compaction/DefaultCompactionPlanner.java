@@ -193,7 +193,9 @@ public class DefaultCompactionPlanner implements CompactionPlanner {
 
         CompactorGroupId cgid;
         String group = Objects.requireNonNull(groupConfig.name, "'name' must be specified");
+
         cgid = params.getGroupManager().getGroup(group);
+
         tmpGroups.add(new CompactionGroup(cgid, maxSize));
       }
     }

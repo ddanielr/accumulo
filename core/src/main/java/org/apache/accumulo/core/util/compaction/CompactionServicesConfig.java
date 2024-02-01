@@ -115,7 +115,7 @@ public class CompactionServicesConfig {
               String group = Objects.requireNonNull(groupConfig.name, "'name' must be specified");
               if (groups.get(group) != null) {
                 throw new IllegalArgumentException(
-                    "Duplicate group name " + group + " used across compaction services");
+                    "Duplicate group name \"" + group + "\" used across compaction services. Duplicate defined in \"" + prefix + prop +"\"");
               } else {
                 groups.put(group, Integer.parseInt(maxJobs));
               }

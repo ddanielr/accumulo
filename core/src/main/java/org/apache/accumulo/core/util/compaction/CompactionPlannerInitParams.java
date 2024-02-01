@@ -65,6 +65,8 @@ public class CompactionPlannerInitParams implements CompactionPlanner.InitParame
   public GroupManager getGroupManager() {
     return new GroupManager() {
 
+
+      // Register the groups with the co-ordinator service
       @Override
       public CompactorGroupId getGroup(String name) {
         var cgid = CompactorGroupIdImpl.groupId(name);

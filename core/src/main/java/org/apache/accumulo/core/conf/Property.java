@@ -65,7 +65,7 @@ public enum Property {
   COMPACTION_SERVICE_ROOT_MAX_OPEN(COMPACTION_SERVICE_PREFIX + "root.planner.opts.maxOpen", "30",
       PropertyType.COUNT, "The maximum number of files a compaction will open.", "4.0.0"),
   COMPACTION_SERVICE_ROOT_GROUPS(COMPACTION_SERVICE_PREFIX + "root.planner.opts.groups",
-      "[{'name':'accumulo_meta'}]".replaceAll("'", "\""), PropertyType.STRING,
+      "[{'name':'accumulo_root'}]".replaceAll("'", "\""), PropertyType.STRING,
       "See {% jlink -f org.apache.accumulo.core.spi.compaction.DefaultCompactionPlanner %}.",
       "4.0.0"),
   COMPACTION_SERVICE_META_PLANNER(COMPACTION_SERVICE_PREFIX + "meta.planner",
