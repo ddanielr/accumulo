@@ -69,6 +69,8 @@ public class CompactionJobGenerator {
 
   public CompactionJobGenerator(PluginEnvironment env,
       Map<FateId,Map<String,String>> executionHints) {
+    // This gets replaced with the CompactionServiceFactory vs individual planners.
+
     servicesConfig = new CompactionServicesConfig(env.getConfiguration());
     serviceIds = servicesConfig.getPlanners().keySet().stream().map(CompactionServiceId::of)
         .collect(Collectors.toUnmodifiableSet());
@@ -161,6 +163,9 @@ public class CompactionJobGenerator {
   private Collection<CompactionJob> planCompactions(CompactionServiceId serviceId,
       CompactionKind kind, TabletMetadata tablet, Map<String,String> executionHints) {
 
+    // This would get returned from the factory? no reason to attempt to pull this from the
+    // dispatcher
+
     if (!servicesConfig.getPlanners().containsKey(serviceId.canonical())) {
       var cacheKey = new Pair<>(tablet.getTableId(), serviceId);
       var last = unknownCompactionServiceErrorCache.getIfPresent(cacheKey);
@@ -177,6 +182,9 @@ public class CompactionJobGenerator {
 
       return Set.of();
     }
+
+    // Replace with a getPlanner for service(CompactionServiceId ?)
+    // Or this gets a compactionService with a "Plan" option.
 
     CompactionPlanner planner =
         planners.computeIfAbsent(serviceId, sid -> createPlanner(tablet.getTableId(), serviceId));
@@ -285,6 +293,9 @@ public class CompactionJobGenerator {
 
     return planner.makePlan(params).getJobs();
   }
+
+  // This is the current loader used by the compaction Job Generator for the compaction Planner.
+  // This would be replaced with the CompactionServiceFactory iirc.
 
   private CompactionPlanner createPlanner(TableId tableId, CompactionServiceId serviceId) {
 

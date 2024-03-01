@@ -35,7 +35,7 @@ import org.apache.accumulo.core.client.admin.CompactionConfig;
  * The following schema is supported for configuration options.
  *
  * <p>
- * {@code table.compaction.dispatcher.opts.service[.user[.<user type>]|selector|system|chop]=
+ * {@code table.compaction.dispatcher.opts.service[.user[.<user type>]|selector|system]=
  * <service>}
  *
  * <p>
@@ -52,9 +52,9 @@ import org.apache.accumulo.core.client.admin.CompactionConfig;
  * <p>
  * Compactions started using the client API are called user compactions and can set execution hints
  * using {@link CompactionConfig#setExecutionHints(Map)}. Hints of the form
- * {@code compaction_type=<user type>} can be used by this dispatcher. For example the following
- * will use service cs2 when the hint {@code compaction_type=urgent} is seen, service cs3 when hint
- * {@code compaction_type=trifling}, everything else uses cs9.
+ * {@code compaction_type=<user type>} can be used by this dispatcher. For example, the following
+ * will use service cs2 when the hint {@code compaction_type=urgent} is seen, and use service cs3
+ * when the hint is set to {@code compaction_type=trifling}, while everything else uses cs9.
  *
  * <p>
  * {@code
