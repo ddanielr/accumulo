@@ -42,6 +42,7 @@ import org.apache.accumulo.core.spi.compaction.CompactionJob;
 import org.apache.accumulo.core.spi.compaction.CompactionKind;
 import org.apache.accumulo.core.spi.compaction.CompactionPlan;
 import org.apache.accumulo.core.spi.compaction.CompactionPlanner;
+import org.apache.accumulo.core.spi.compaction.CompactionServiceFactory;
 import org.apache.accumulo.core.spi.compaction.CompactionServiceId;
 import org.apache.accumulo.core.spi.compaction.CompactionServices;
 import org.apache.accumulo.core.spi.compaction.ProvisionalCompactionPlanner;
@@ -50,8 +51,6 @@ import org.apache.accumulo.core.util.cache.Caches;
 import org.apache.accumulo.core.util.cache.Caches.CacheName;
 import org.apache.accumulo.core.util.compaction.CompactionJobImpl;
 import org.apache.accumulo.core.util.compaction.CompactionPlanImpl;
-import org.apache.accumulo.core.util.compaction.CompactionPlannerInitParams;
-import org.apache.accumulo.core.util.compaction.CompactionServicesConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -60,21 +59,32 @@ import com.github.benmanes.caffeine.cache.Caffeine;
 
 public class CompactionJobGenerator {
   private static final Logger log = LoggerFactory.getLogger(CompactionJobGenerator.class);
-  private final CompactionServicesConfig servicesConfig;
   private final Map<CompactionServiceId,CompactionPlanner> planners = new HashMap<>();
   private final Cache<TableId,CompactionDispatcher> dispatchers;
   private final Set<CompactionServiceId> serviceIds;
+  private final CompactionServiceFactory csf;
   private final PluginEnvironment env;
   private final Map<FateId,Map<String,String>> allExecutionHints;
   private final Cache<Pair<TableId,CompactionServiceId>,Long> unknownCompactionServiceErrorCache;
 
   public CompactionJobGenerator(PluginEnvironment env,
       Map<FateId,Map<String,String>> executionHints) {
-    // This gets replaced with the CompactionServiceFactory vs individual planners.
 
-    servicesConfig = new CompactionServicesConfig(env.getConfiguration());
-    serviceIds = servicesConfig.getPlanners().keySet().stream().map(CompactionServiceId::of)
-        .collect(Collectors.toUnmodifiableSet());
+    // This gets replaced with the CompactionServiceFactory vs individual planners.
+    String compactionFactoryName =
+        env.getConfiguration().get(Property.COMPACTION_SERVICE_FACTORY.getKey());
+    Set<CompactionServiceId> csids = new HashSet<>();
+    CompactionServiceFactory tempCSF = null;
+    try {
+      tempCSF = env.instantiate(compactionFactoryName, CompactionServiceFactory.class);
+      tempCSF.init(env);
+      csids.addAll(
+          tempCSF.getCompactionServiceIds().stream().collect(Collectors.toUnmodifiableSet()));
+    } catch (Exception e) {
+      log.error("Failed to instantiate the compaction factory: {}", compactionFactoryName, e);
+    }
+    serviceIds = csids;
+    csf = tempCSF;
 
     dispatchers = Caches.getInstance().createNewBuilder(CacheName.COMPACTION_DISPATCHERS, false)
         .maximumSize(10).build();
@@ -164,10 +174,7 @@ public class CompactionJobGenerator {
   private Collection<CompactionJob> planCompactions(CompactionServiceId serviceId,
       CompactionKind kind, TabletMetadata tablet, Map<String,String> executionHints) {
 
-    // This would get returned from the factory? no reason to attempt to pull this from the
-    // dispatcher
-
-    if (!servicesConfig.getPlanners().containsKey(serviceId.canonical())) {
+    if (csf.forService(serviceId).getClass().equals(ProvisionalCompactionPlanner.class)) {
       var cacheKey = new Pair<>(tablet.getTableId(), serviceId);
       var last = unknownCompactionServiceErrorCache.getIfPresent(cacheKey);
       if (last == null) {
@@ -188,7 +195,7 @@ public class CompactionJobGenerator {
     // Or this gets a compactionService with a "Plan" option.
 
     CompactionPlanner planner =
-        planners.computeIfAbsent(serviceId, sid -> createPlanner(tablet.getTableId(), serviceId));
+        planners.computeIfAbsent(serviceId, sid -> csf.forService(serviceId));
 
     // selecting indicator
     // selected files
@@ -293,30 +300,5 @@ public class CompactionJobGenerator {
     };
 
     return planner.makePlan(params).getJobs();
-  }
-
-  // This is the current loader used by the compaction Job Generator for the compaction Planner.
-  // This would be replaced with the CompactionServiceFactory iirc.
-
-  private CompactionPlanner createPlanner(TableId tableId, CompactionServiceId serviceId) {
-
-    CompactionPlanner planner;
-    String plannerClassName = null;
-    Map<String,String> options = null;
-    try {
-      plannerClassName = servicesConfig.getPlanners().get(serviceId.canonical());
-      options = servicesConfig.getOptions().get(serviceId.canonical());
-      planner = env.instantiate(tableId, plannerClassName, CompactionPlanner.class);
-      CompactionPlannerInitParams initParameters = new CompactionPlannerInitParams(serviceId,
-          servicesConfig.getPlannerPrefix(serviceId.canonical()),
-          servicesConfig.getOptions().get(serviceId.canonical()));
-      planner.init(initParameters);
-    } catch (Exception e) {
-      log.error(
-          "Failed to create compaction planner for {} using class:{} options:{}.  Compaction service will not start any new compactions until its configuration is fixed.",
-          serviceId, plannerClassName, options, e);
-      planner = new ProvisionalCompactionPlanner(serviceId);
-    }
-    return planner;
   }
 }
