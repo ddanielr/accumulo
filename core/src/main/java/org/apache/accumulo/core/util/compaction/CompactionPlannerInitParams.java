@@ -18,29 +18,19 @@
  */
 package org.apache.accumulo.core.util.compaction;
 
-import java.util.HashSet;
 import java.util.Map;
-import java.util.Set;
 
 import org.apache.accumulo.core.spi.compaction.CompactionPlanner;
-import org.apache.accumulo.core.spi.compaction.CompactionServiceId;
 import org.apache.accumulo.core.spi.compaction.CompactorGroupId;
-import org.apache.accumulo.core.spi.compaction.GroupManager;
-
-import com.google.common.base.Preconditions;
 
 public class CompactionPlannerInitParams implements CompactionPlanner.InitParameters {
   private final Map<String,String> plannerOpts;
-  private final Set<CompactorGroupId> requestedGroups;
-  private final CompactionServiceId serviceId;
-  private final String prefix;
+  private final Map<CompactorGroupId,String> groups;
 
-  public CompactionPlannerInitParams(CompactionServiceId serviceId, String prefix,
-      Map<String,String> plannerOpts) {
-    this.serviceId = serviceId;
+  public CompactionPlannerInitParams(Map<String,String> plannerOpts,
+      Map<CompactorGroupId,String> groups) {
     this.plannerOpts = plannerOpts;
-    this.requestedGroups = new HashSet<>();
-    this.prefix = prefix;
+    this.groups = groups;
   }
 
   @Override
@@ -49,26 +39,7 @@ public class CompactionPlannerInitParams implements CompactionPlanner.InitParame
   }
 
   @Override
-  public String getFullyQualifiedOption(String key) {
-    return prefix + serviceId + ".planner.opts." + key;
-  }
-
-  @Override
-  public GroupManager getGroupManager() {
-    return new GroupManager() {
-
-      @Override
-      public CompactorGroupId getGroup(String name) {
-        var cgid = CompactorGroupId.of(name);
-        Preconditions.checkArgument(!getRequestedGroups().contains(cgid),
-            "Duplicate compactor group for group: " + name);
-        getRequestedGroups().add(cgid);
-        return cgid;
-      }
-    };
-  }
-
-  public Set<CompactorGroupId> getRequestedGroups() {
-    return requestedGroups;
+  public Map<CompactorGroupId,String> getGroups() {
+    return groups;
   }
 }

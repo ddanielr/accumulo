@@ -41,6 +41,8 @@ public interface CompactionServiceFactory {
   // Use this for a top level groups pull from the compaction-coordinator
   Set<CompactionGroupConfig> getCompactionGroupConfigs();
 
+  Set<CompactionServiceId> getCompactionServiceIds();
+
   /**
    * Return the appropriate CompactionPlanner.
    *
