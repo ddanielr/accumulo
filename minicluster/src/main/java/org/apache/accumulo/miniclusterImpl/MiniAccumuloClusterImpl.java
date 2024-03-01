@@ -702,7 +702,7 @@ public class MiniAccumuloClusterImpl implements AccumuloCluster {
       try {
         CompactionPlanner cp = senv.instantiate(plannerClass, CompactionPlanner.class);
         var initParams = new CompactionPlannerInitParams(CompactionServiceId.of(serviceId),
-            csc.getPlannerPrefix(serviceId), csc.getOptions().get(serviceId), senv);
+            csc.getPlannerPrefix(serviceId), csc.getOptions().get(serviceId));
         cp.init(initParams);
         initParams.getRequestedGroups().forEach(gid -> groupNames.add(gid.canonical()));
       } catch (Exception e) {

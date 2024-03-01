@@ -110,8 +110,7 @@ public class CheckCompactionConfig implements KeywordExecutable {
       CompactionPlanner planner = plannerClass.getDeclaredConstructor().newInstance();
 
       var initParams = new CompactionPlannerInitParams(CompactionServiceId.of(serviceId),
-          servicesConfig.getPlannerPrefix(serviceId), servicesConfig.getOptions().get(serviceId),
-          senv);
+          servicesConfig.getPlannerPrefix(serviceId), servicesConfig.getOptions().get(serviceId));
 
       planner.init(initParams);
 
