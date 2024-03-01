@@ -63,8 +63,7 @@ public enum Property {
           + "Additional options can be defined using the `compaction.service.<service>.opts.<option>` property.",
       "3.1.0"),
 
-  // TODO: Switch these to using COMPACTION_SERVICE_PREFIX
-  COMPACTION_SERVICE_FACTORY(COMPACTION_PREFIX + "factory", "", PropertyType.CLASSNAME,
+  COMPACTION_SERVICE_FACTORY(COMPACTION_SERVICE_PREFIX + "factory", "", PropertyType.CLASSNAME,
       "Compaction Service Factory class to use for generating compaction services.", "4.0.0"),
   COMPACTION_SERVICE_FACTORY_CONFIG(COMPACTION_SERVICE_FACTORY + ".config",
       "{ 'meta': { 'maxOpenFilesPerJob': '30', 'groups': [{ 'group': 'accumulo_meta_small', 'maxSize': '128M', 'maxJobs': '1000'}, { 'group': 'accumulo_meta_large', 'maxJobs': '1000'}]}, 'default': { 'maxOpenFilesPerJob': '30', 'groups': [{ 'group': 'user_small', 'maxSize': '128M', 'maxJobs': '1000' }, { 'group': 'user_large', 'maxJobs': '1000'}]}}"
@@ -74,15 +73,12 @@ public enum Property {
       COMPACTION_SERVICE_PREFIX + DEFAULT_COMPACTION_SERVICE_NAME + ".planner",
       RatioBasedCompactionPlanner.class.getName(), PropertyType.CLASSNAME,
       "Planner for default compaction service.", "4.0.0"),
-  COMPACTION_SERVICE_DEFAULT_MAX_OPEN(COMPACTION_SERVICE_DEFAULT_PLANNER + ".opts.maxOpen", "10",
+  COMPACTION_SERVICE_DEFAULT_MAX_OPEN(COMPACTION_SERVICE_PREFIX + ".maxOpen", "10",
       PropertyType.COUNT, "The maximum number of files a compaction will open.", "4.0.0"),
   COMPACTION_SERVICE_DEFAULT_GROUPS(COMPACTION_SERVICE_DEFAULT_PLANNER + ".opts.groups",
       ("[{'group':'default'}]").replaceAll("'", "\""), PropertyType.JSON,
       "See {% jlink -f org.apache.accumulo.core.spi.compaction.RatioBasedCompactionPlanner %}.",
       "4.0.0"),
-
-  COMPACTION_DEFAULT_MAX_OPEN(COMPACTION_PREFIX + "maxOpen", "10", PropertyType.COUNT,
-      "The maximum number of files a compaction will open.", "4.0.0"),
 
   COMPACTION_WARN_TIME(COMPACTION_PREFIX + "warn.time", "10m", PropertyType.TIMEDURATION,
       "When a compaction has not made progress for this time period, a warning will be logged.",
