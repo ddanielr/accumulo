@@ -18,21 +18,17 @@
  */
 package org.apache.accumulo.core.spi.compaction;
 
-import static org.apache.accumulo.core.util.LazySingletons.GSON;
-
-import java.lang.reflect.Field;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import org.apache.accumulo.core.client.admin.compaction.CompactableFile;
 import org.apache.accumulo.core.conf.ConfigurationTypeHelper;
@@ -43,10 +39,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.google.common.base.Preconditions;
-import com.google.gson.JsonArray;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParseException;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
@@ -126,11 +118,6 @@ public class RatioBasedCompactionPlanner implements CompactionPlanner {
 
   private final static Logger log = LoggerFactory.getLogger(RatioBasedCompactionPlanner.class);
 
-  private static class GroupConfig {
-    String group;
-    String maxSize;
-  }
-
   private static class CompactionGroup {
     final CompactorGroupId cgid;
     final Long maxSize;
@@ -175,27 +162,11 @@ public class RatioBasedCompactionPlanner implements CompactionPlanner {
   @Override
   public void init(InitParameters params) {
     List<CompactionGroup> tmpGroups = new ArrayList<>();
-    String values;
 
-    if (params.getOptions().containsKey("groups") && !params.getOptions().get("groups").isBlank()) {
-      values = params.getOptions().get("groups");
-
-      // Generate a list of fields from the desired object.
-      final List<String> groupFields = Arrays.stream(GroupConfig.class.getDeclaredFields())
-          .map(Field::getName).collect(Collectors.toList());
-
-      for (JsonElement element : GSON.get().fromJson(values, JsonArray.class)) {
-        validateConfig(element, groupFields, GroupConfig.class.getName());
-        GroupConfig groupConfig = GSON.get().fromJson(element, GroupConfig.class);
-
-        Long maxSize = groupConfig.maxSize == null ? null
-            : ConfigurationTypeHelper.getFixedMemoryAsBytes(groupConfig.maxSize);
-
-        CompactorGroupId cgid;
-        String group = Objects.requireNonNull(groupConfig.group, "'group' must be specified");
-        cgid = params.getGroupManager().getGroup(group);
-        tmpGroups.add(new CompactionGroup(cgid, maxSize));
-      }
+    for (Map.Entry<CompactorGroupId,String> entry : params.getGroups().entrySet()) {
+      Long maxSize = entry.getValue() == null ? null
+          : ConfigurationTypeHelper.getFixedMemoryAsBytes(entry.getValue());
+      tmpGroups.add(new CompactionGroup(entry.getKey(), maxSize));
     }
 
     if (tmpGroups.size() < 1) {
@@ -228,24 +199,10 @@ public class RatioBasedCompactionPlanner implements CompactionPlanner {
 
     String maxOpen = params.getOptions().get("maxOpen");
     if (maxOpen == null) {
-      maxOpen = Property.COMPACTION_SERVICE_DEFAULT_MAX_OPEN.getDefaultValue();
+      maxOpen = "10";
       log.trace("default maxOpen not set, defaulting to {}", maxOpen);
     }
     this.maxFilesToCompact = Integer.parseInt(maxOpen);
-  }
-
-  private void validateConfig(JsonElement json, List<String> fields, String className) {
-
-    JsonObject jsonObject = GSON.get().fromJson(json, JsonObject.class);
-
-    List<String> objectProperties = new ArrayList<>(jsonObject.keySet());
-    HashSet<String> classFieldNames = new HashSet<>(fields);
-
-    if (!classFieldNames.containsAll(objectProperties)) {
-      objectProperties.removeAll(classFieldNames);
-      throw new JsonParseException(
-          "Invalid fields: " + objectProperties + " provided for class: " + className);
-    }
   }
 
   @Override

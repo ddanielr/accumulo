@@ -1,0 +1,66 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+package org.apache.accumulo.core.spi.compaction;
+
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import java.util.HashMap;
+import java.util.Map;
+
+import org.apache.accumulo.core.conf.DefaultConfiguration;
+import org.apache.accumulo.core.conf.Property;
+import org.apache.accumulo.core.conf.SiteConfiguration;
+import org.apache.accumulo.core.data.TableId;
+import org.apache.accumulo.core.spi.common.ServiceEnvironment;
+import org.apache.accumulo.core.util.ConfigurationImpl;
+import org.easymock.EasyMock;
+import org.junit.jupiter.api.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+public class SimpleCompactionServiceFactoryTest {
+
+  private static final ServiceEnvironment.Configuration defaultConf =
+      new ConfigurationImpl(DefaultConfiguration.getInstance());
+
+  private static final Logger log =
+      LoggerFactory.getLogger(SimpleCompactionServiceFactoryTest.class);
+
+  @Test
+  public void testSimpleImplementation() {
+    Map<String,String> overrides = new HashMap<>();
+    overrides.put(Property.COMPACTION_SERVICE_FACTORY.getKey(),
+        Property.COMPACTION_SERVICE_FACTORY.getDefaultValue());
+    overrides.put(Property.COMPACTION_SERVICE_FACTORY_CONFIG.getKey(),
+        Property.COMPACTION_SERVICE_FACTORY_CONFIG.getDefaultValue());
+    var conf = new ConfigurationImpl(SiteConfiguration.empty().withOverrides(overrides).build());
+    var testCSF = new SimpleCompactionServiceFactory();
+
+    ServiceEnvironment senv = EasyMock.createMock(ServiceEnvironment.class);
+    EasyMock.expect(senv.getConfiguration()).andReturn(conf).anyTimes();
+    EasyMock.expect(senv.getConfiguration(TableId.of("42"))).andReturn(conf).anyTimes();
+    EasyMock.replay(senv);
+    CompactionServiceFactory csf = null;
+    assertTrue(testCSF.getClass().getName()
+        .equals(conf.get(Property.COMPACTION_SERVICE_FACTORY.getKey())));
+    csf = testCSF;
+    csf.init(senv);
+  }
+
+}

@@ -84,13 +84,10 @@ import org.apache.accumulo.core.manager.thrift.ManagerGoalState;
 import org.apache.accumulo.core.manager.thrift.ManagerMonitorInfo;
 import org.apache.accumulo.core.rpc.clients.ThriftClientTypes;
 import org.apache.accumulo.core.spi.common.ServiceEnvironment;
-import org.apache.accumulo.core.spi.compaction.CompactionPlanner;
-import org.apache.accumulo.core.spi.compaction.CompactionServiceId;
+import org.apache.accumulo.core.spi.compaction.CompactionServiceFactory;
 import org.apache.accumulo.core.trace.TraceUtil;
 import org.apache.accumulo.core.util.ConfigurationImpl;
 import org.apache.accumulo.core.util.Pair;
-import org.apache.accumulo.core.util.compaction.CompactionPlannerInitParams;
-import org.apache.accumulo.core.util.compaction.CompactionServicesConfig;
 import org.apache.accumulo.manager.state.SetGoalState;
 import org.apache.accumulo.minicluster.MiniAccumuloCluster;
 import org.apache.accumulo.minicluster.ServerType;
@@ -662,7 +659,7 @@ public class MiniAccumuloClusterImpl implements AccumuloCluster {
 
     Set<String> groupNames = new HashSet<>();
     AccumuloConfiguration aconf = new ConfigurationCopy(config.getSiteConfig());
-    CompactionServicesConfig csc = new CompactionServicesConfig(aconf);
+    var compactionServiceFactoryName = aconf.get(Property.COMPACTION_SERVICE_FACTORY);
 
     ServiceEnvironment senv = new ServiceEnvironment() {
 
@@ -695,20 +692,14 @@ public class MiniAccumuloClusterImpl implements AccumuloCluster {
 
     };
 
-    for (var entry : csc.getPlanners().entrySet()) {
-      String serviceId = entry.getKey();
-      String plannerClass = entry.getValue();
-
-      try {
-        CompactionPlanner cp = senv.instantiate(plannerClass, CompactionPlanner.class);
-        var initParams = new CompactionPlannerInitParams(CompactionServiceId.of(serviceId),
-            csc.getPlannerPrefix(serviceId), csc.getOptions().get(serviceId));
-        cp.init(initParams);
-        initParams.getRequestedGroups().forEach(gid -> groupNames.add(gid.canonical()));
-      } catch (Exception e) {
-        log.error("For compaction service {}, failed to get compactor groups from planner {}.",
-            serviceId, plannerClass, e);
-      }
+    try {
+      CompactionServiceFactory csf =
+          senv.instantiate(compactionServiceFactoryName, CompactionServiceFactory.class);
+      csf.init(senv);
+      csf.getCompactionGroupConfigs().forEach(cgc -> groupNames.add(cgc.getGroupId().canonical()));
+    } catch (Exception e) {
+      log.error("Failed to get compactor groups from compaction factory {}.",
+          compactionServiceFactoryName, e);
     }
     return groupNames;
   }
