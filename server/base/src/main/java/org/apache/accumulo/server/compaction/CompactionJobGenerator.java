@@ -46,6 +46,8 @@ import org.apache.accumulo.core.spi.compaction.CompactionPlan;
 import org.apache.accumulo.core.spi.compaction.CompactionPlanner;
 import org.apache.accumulo.core.spi.compaction.CompactionServiceId;
 import org.apache.accumulo.core.spi.compaction.CompactionServices;
+import org.apache.accumulo.core.spi.compaction.ProvisionalCompactionPlanner;
+import org.apache.accumulo.core.util.Pair;
 import org.apache.accumulo.core.util.cache.Caches;
 import org.apache.accumulo.core.util.cache.Caches.CacheName;
 import org.apache.accumulo.core.util.compaction.CompactionJobImpl;
@@ -315,7 +317,7 @@ public class CompactionJobGenerator {
       planner = env.instantiate(tableId, plannerClassName, CompactionPlanner.class);
       CompactionPlannerInitParams initParameters = new CompactionPlannerInitParams(serviceId,
           servicesConfig.getPlannerPrefix(serviceId.canonical()),
-          servicesConfig.getOptions().get(serviceId.canonical()), (ServiceEnvironment) env);
+          servicesConfig.getOptions().get(serviceId.canonical()));
       planner.init(initParameters);
     } catch (Exception e) {
       PLANNING_INIT_ERROR_LOG.trace(
