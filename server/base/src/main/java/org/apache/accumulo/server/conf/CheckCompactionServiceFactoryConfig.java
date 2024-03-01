@@ -18,22 +18,17 @@
  */
 package org.apache.accumulo.server.conf;
 
-import static org.apache.accumulo.core.Constants.DEFAULT_COMPACTION_SERVICE_NAME;
-
 import java.io.FileNotFoundException;
 import java.nio.file.Path;
-import java.util.Set;
 
 import org.apache.accumulo.core.cli.Help;
 import org.apache.accumulo.core.conf.AccumuloConfiguration;
+import org.apache.accumulo.core.conf.Property;
 import org.apache.accumulo.core.conf.SiteConfiguration;
 import org.apache.accumulo.core.data.TableId;
 import org.apache.accumulo.core.spi.common.ServiceEnvironment;
-import org.apache.accumulo.core.spi.compaction.CompactionPlanner;
-import org.apache.accumulo.core.spi.compaction.CompactionServiceId;
+import org.apache.accumulo.core.spi.compaction.CompactionServiceFactory;
 import org.apache.accumulo.core.util.ConfigurationImpl;
-import org.apache.accumulo.core.util.compaction.CompactionPlannerInitParams;
-import org.apache.accumulo.core.util.compaction.CompactionServicesConfig;
 import org.apache.accumulo.start.spi.KeywordExecutable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -51,28 +46,30 @@ import com.google.auto.service.AutoService;
  * describing why the given properties are incorrect.
  */
 @AutoService(KeywordExecutable.class)
-public class CheckCompactionConfig implements KeywordExecutable {
+public class CheckCompactionServiceFactoryConfig implements KeywordExecutable {
 
-  private final static Logger log = LoggerFactory.getLogger(CheckCompactionConfig.class);
+  private final static Logger log =
+      LoggerFactory.getLogger(CheckCompactionServiceFactoryConfig.class);
 
   static class Opts extends Help {
-    @Parameter(description = "<path> Local path to file containing compaction configuration",
+    @Parameter(
+        description = "<path> Local path to file containing compaction factory configuration",
         required = true)
     String filePath;
   }
 
   @Override
   public String keyword() {
-    return "check-compaction-config";
+    return "check-compaction-service-factory-config";
   }
 
   @Override
   public String description() {
-    return "Verifies compaction config within a given file";
+    return "Verifies compaction service factory config within a given file";
   }
 
   public static void main(String[] args) throws Exception {
-    new CheckCompactionConfig().execute(args);
+    new CheckCompactionServiceFactoryConfig().execute(args);
   }
 
   @Override
@@ -90,34 +87,14 @@ public class CheckCompactionConfig implements KeywordExecutable {
     }
 
     AccumuloConfiguration config = SiteConfiguration.fromFile(path.toFile()).build();
-    var servicesConfig = new CompactionServicesConfig(config);
     ServiceEnvironment senv = createServiceEnvironment(config);
+    var factoryClassName = config.get(Property.COMPACTION_SERVICE_FACTORY);
 
-    Set<String> defaultService = Set.of(DEFAULT_COMPACTION_SERVICE_NAME);
-    if (servicesConfig.getPlanners().keySet().equals(defaultService)) {
-      log.warn("Only the default compaction service was created - {}", defaultService);
-      return;
-    }
+    Class<? extends CompactionServiceFactory> factoryClass =
+        Class.forName(factoryClassName).asSubclass(CompactionServiceFactory.class);
+    CompactionServiceFactory factory = factoryClass.getDeclaredConstructor().newInstance();
 
-    for (var entry : servicesConfig.getPlanners().entrySet()) {
-      String serviceId = entry.getKey();
-      String plannerClassName = entry.getValue();
-
-      log.info("Service id: {}, planner class:{}", serviceId, plannerClassName);
-
-      Class<? extends CompactionPlanner> plannerClass =
-          Class.forName(plannerClassName).asSubclass(CompactionPlanner.class);
-      CompactionPlanner planner = plannerClass.getDeclaredConstructor().newInstance();
-
-      var initParams = new CompactionPlannerInitParams(CompactionServiceId.of(serviceId),
-          servicesConfig.getPlannerPrefix(serviceId), servicesConfig.getOptions().get(serviceId));
-
-      planner.init(initParams);
-
-      initParams.getRequestedGroups().forEach(
-          (groupId -> log.info("Compaction service '{}' requested with compactor group '{}'",
-              serviceId, groupId)));
-    }
+    factory.init(senv);
 
     log.info("Properties file has passed all checks.");
   }

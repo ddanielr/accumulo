@@ -104,6 +104,8 @@ public class ServerContext extends ClientContext {
   private final Supplier<CryptoServiceFactory> cryptoFactorySupplier;
   private final Supplier<LowMemoryDetector> lowMemoryDetector;
 
+  // private final Supplier<CompactionServiceFactory> compactionServiceFactory;
+
   public ServerContext(SiteConfiguration siteConfig) {
     this(new ServerInfo(siteConfig));
   }
@@ -129,6 +131,8 @@ public class ServerContext extends ClientContext {
         memoize(() -> new AuditedSecurityOperation(this, SecurityOperation.getAuthorizor(this),
             SecurityOperation.getAuthenticator(this), SecurityOperation.getPermHandler(this)));
     lowMemoryDetector = memoize(() -> new LowMemoryDetector());
+
+    // compactionServiceFactory = memoize(() -> new CompactionServiceFactory());
   }
 
   /**
@@ -458,5 +462,9 @@ public class ServerContext extends ClientContext {
   public LowMemoryDetector getLowMemoryDetector() {
     return lowMemoryDetector.get();
   }
+
+  // public CompactionServiceFactory getCompactionServiceFactory() {
+  // return CompactionServiceFactory.get();
+  // }
 
 }
