@@ -19,6 +19,7 @@
 package org.apache.accumulo.core.conf;
 
 import static org.apache.accumulo.core.Constants.DEFAULT_COMPACTION_SERVICE_NAME;
+import static org.apache.accumulo.core.Constants.DEFAULT_RESOURCE_GROUP_NAME;
 
 import java.lang.annotation.Annotation;
 import java.util.Arrays;
@@ -35,7 +36,6 @@ import org.apache.accumulo.core.file.rfile.RFile;
 import org.apache.accumulo.core.iterators.IteratorUtil.IteratorScope;
 import org.apache.accumulo.core.iteratorsImpl.system.DeletingIterator;
 import org.apache.accumulo.core.metadata.AccumuloTable;
-import org.apache.accumulo.core.spi.compaction.RatioBasedCompactionPlanner;
 import org.apache.accumulo.core.spi.compaction.SimpleCompactionDispatcher;
 import org.apache.accumulo.core.spi.fs.RandomVolumeChooser;
 import org.apache.accumulo.core.spi.scan.ScanDispatcher;
@@ -66,20 +66,10 @@ public enum Property {
   COMPACTION_SERVICE_FACTORY(COMPACTION_SERVICE_PREFIX + "factory", "", PropertyType.CLASSNAME,
       "Compaction Service Factory class to use for generating compaction services.", "4.0.0"),
   COMPACTION_SERVICE_FACTORY_CONFIG(COMPACTION_SERVICE_FACTORY + ".config",
-      "{ 'meta': { 'maxOpenFilesPerJob': '30', 'groups': [{ 'group': 'accumulo_meta_small', 'maxSize': '128M', 'maxJobs': '1000'}, { 'group': 'accumulo_meta_large', 'maxJobs': '1000'}]}, 'default': { 'maxOpenFilesPerJob': '30', 'groups': [{ 'group': 'user_small', 'maxSize': '128M', 'maxJobs': '1000' }, { 'group': 'user_large', 'maxJobs': '1000'}]}}"
-          .replaceAll("'", "\""),
+      "{ \"" + DEFAULT_COMPACTION_SERVICE_NAME
+          + "\": { \"maxOpenFilesPerJob\": \"30\", \"groups\": [{ \"group\": \""
+          + DEFAULT_RESOURCE_GROUP_NAME + "\", \"maxSize\": \"128M\", \"maxJobs\": \"1000\"}]}}",
       PropertyType.JSON, "Compaction Service Factory config.", "4.0.0"),
-  COMPACTION_SERVICE_DEFAULT_PLANNER(
-      COMPACTION_SERVICE_PREFIX + DEFAULT_COMPACTION_SERVICE_NAME + ".planner",
-      RatioBasedCompactionPlanner.class.getName(), PropertyType.CLASSNAME,
-      "Planner for default compaction service.", "4.0.0"),
-  COMPACTION_SERVICE_DEFAULT_MAX_OPEN(COMPACTION_SERVICE_PREFIX + ".maxOpen", "10",
-      PropertyType.COUNT, "The maximum number of files a compaction will open.", "4.0.0"),
-  COMPACTION_SERVICE_DEFAULT_GROUPS(COMPACTION_SERVICE_DEFAULT_PLANNER + ".opts.groups",
-      ("[{'group':'default'}]").replaceAll("'", "\""), PropertyType.JSON,
-      "See {% jlink -f org.apache.accumulo.core.spi.compaction.RatioBasedCompactionPlanner %}.",
-      "4.0.0"),
-
   COMPACTION_WARN_TIME(COMPACTION_PREFIX + "warn.time", "10m", PropertyType.TIMEDURATION,
       "When a compaction has not made progress for this time period, a warning will be logged.",
       "3.1.0"),

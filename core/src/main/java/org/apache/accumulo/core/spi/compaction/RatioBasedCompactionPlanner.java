@@ -199,7 +199,7 @@ public class RatioBasedCompactionPlanner implements CompactionPlanner {
 
     String maxOpen = params.getOptions().get("maxOpen");
     if (maxOpen == null) {
-      maxOpen = Property.COMPACTION_SERVICE_DEFAULT_MAX_OPEN.getDefaultValue();
+      maxOpen = "10";
       log.trace("default maxOpen not set, defaulting to {}", maxOpen);
     }
     this.maxFilesToCompact = Integer.parseInt(maxOpen);
