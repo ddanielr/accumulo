@@ -22,7 +22,6 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
-import org.apache.accumulo.core.spi.common.ServiceEnvironment;
 import org.apache.accumulo.core.spi.compaction.CompactionPlanner;
 import org.apache.accumulo.core.spi.compaction.CompactionServiceId;
 import org.apache.accumulo.core.spi.compaction.CompactorGroupId;
@@ -33,22 +32,15 @@ import com.google.common.base.Preconditions;
 public class CompactionPlannerInitParams implements CompactionPlanner.InitParameters {
   private final Map<String,String> plannerOpts;
   private final Set<CompactorGroupId> requestedGroups;
-  private final ServiceEnvironment senv;
   private final CompactionServiceId serviceId;
   private final String prefix;
 
   public CompactionPlannerInitParams(CompactionServiceId serviceId, String prefix,
-      Map<String,String> plannerOpts, ServiceEnvironment senv) {
+      Map<String,String> plannerOpts) {
     this.serviceId = serviceId;
     this.plannerOpts = plannerOpts;
     this.requestedGroups = new HashSet<>();
-    this.senv = senv;
     this.prefix = prefix;
-  }
-
-  @Override
-  public ServiceEnvironment getServiceEnvironment() {
-    return senv;
   }
 
   @Override
