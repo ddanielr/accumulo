@@ -170,7 +170,7 @@ public class MiniAccumuloConfigImpl {
           Property.COMPACTION_SERVICE_FACTORY.getDefaultValue());
 
       mergeProp(Property.COMPACTION_SERVICE_FACTORY_CONFIG.getKey(),
-          Property.COMPACTION_SERVICE_FACTORY.getDefaultValue());
+          Property.COMPACTION_SERVICE_FACTORY_CONFIG.getDefaultValue());
 
       if (isUseCredentialProvider()) {
         updateConfigForCredentialProvider();
