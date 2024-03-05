@@ -19,6 +19,7 @@
 package org.apache.accumulo.manager.compaction.queue;
 
 import java.util.Collection;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentHashMap.KeySetView;
 import java.util.stream.Collectors;
@@ -44,10 +45,12 @@ public class CompactionJobQueues {
   private final ConcurrentHashMap<CompactorGroupId,CompactionJobPriorityQueue> priorityQueues =
       new ConcurrentHashMap<>();
 
-  private final int queueSize;
+  private final int defaultMaxJobs;
+  private final Map<CompactorGroupId,Integer> maxJobs;
 
-  public CompactionJobQueues(int queueSize) {
-    this.queueSize = queueSize;
+  public CompactionJobQueues(Map<CompactorGroupId,Integer> maxJobs, Integer defaultMaxJobs) {
+    this.defaultMaxJobs = defaultMaxJobs;
+    this.maxJobs = maxJobs;
   }
 
   public void add(TabletMetadata tabletMetadata, Collection<CompactionJob> jobs) {
@@ -152,16 +155,17 @@ public class CompactionJobQueues {
           jobs.stream().map(job -> "#files:" + job.getFiles().size() + ",prio:" + job.getPriority()
               + ",kind:" + job.getKind()).collect(Collectors.toList()));
     }
+    var queueLength = maxJobs.getOrDefault(groupId, defaultMaxJobs);
 
     var pq = priorityQueues.computeIfAbsent(groupId,
-        gid -> new CompactionJobPriorityQueue(gid, queueSize));
+        gid -> new CompactionJobPriorityQueue(gid, queueLength));
     while (pq.add(tabletMetadata, jobs) < 0) {
       // When entering this loop its expected the queue is closed
       Preconditions.checkState(pq.isClosed());
       // This loop handles race condition where poll() closes empty priority queues. The queue could
       // be closed after its obtained from the map and before add is called.
       pq = priorityQueues.computeIfAbsent(groupId,
-          gid -> new CompactionJobPriorityQueue(gid, queueSize));
+          gid -> new CompactionJobPriorityQueue(gid, queueLength));
     }
   }
 }

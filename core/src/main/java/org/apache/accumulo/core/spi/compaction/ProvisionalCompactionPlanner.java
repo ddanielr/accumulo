@@ -16,14 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.accumulo.server.compaction;
+package org.apache.accumulo.core.spi.compaction;
 
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
-import org.apache.accumulo.core.spi.compaction.CompactionPlan;
-import org.apache.accumulo.core.spi.compaction.CompactionPlanner;
-import org.apache.accumulo.core.spi.compaction.CompactionServiceId;
 import org.slf4j.LoggerFactory;
 
 /**
@@ -33,7 +30,7 @@ import org.slf4j.LoggerFactory;
 public class ProvisionalCompactionPlanner implements CompactionPlanner {
 
   private final CompactionServiceId serviceId;
-  private AtomicLong lastWarnNanoTime = new AtomicLong(System.nanoTime());
+  private final AtomicLong lastWarnNanoTime = new AtomicLong(System.nanoTime());
 
   public ProvisionalCompactionPlanner(CompactionServiceId serviceId) {
     this.serviceId = serviceId;

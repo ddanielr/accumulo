@@ -16,30 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.accumulo.core.util.compaction;
+package org.apache.accumulo.core.compaction;
 
-import java.util.Map;
+public class CompactionServiceFactoryLoader {
 
-import org.apache.accumulo.core.spi.compaction.CompactionPlanner;
-import org.apache.accumulo.core.spi.compaction.CompactorGroupId;
-
-public class CompactionPlannerInitParams implements CompactionPlanner.InitParameters {
-  private final Map<String,String> plannerOpts;
-  private final Map<CompactorGroupId,String> groups;
-
-  public CompactionPlannerInitParams(Map<String,String> plannerOpts,
-      Map<CompactorGroupId,String> groups) {
-    this.plannerOpts = plannerOpts;
-    this.groups = groups;
-  }
-
-  @Override
-  public Map<String,String> getOptions() {
-    return plannerOpts;
-  }
-
-  @Override
-  public Map<CompactorGroupId,String> getGroups() {
-    return groups;
-  }
 }
