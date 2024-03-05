@@ -25,6 +25,7 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.Executors;
@@ -275,11 +276,14 @@ public class CompactionJobQueuesTest {
   public void testAddPollRaceCondition() throws Exception {
 
     final int numToAdd = 100_000;
-
-    CompactionJobQueues jobQueues = new CompactionJobQueues(numToAdd + 1);
+    HashMap<CompactorGroupId,Integer> maxJobs = new HashMap<>();
     CompactorGroupId[] groups =
         Stream.of("G1", "G2", "G3").map(CompactorGroupId::of).toArray(CompactorGroupId[]::new);
 
+    for (CompactorGroupId cgid : groups) {
+      maxJobs.put(cgid, 100_000);
+    }
+    CompactionJobQueues jobQueues = new CompactionJobQueues(maxJobs, numToAdd + 1);
     var executor = Executors.newFixedThreadPool(groups.length);
 
     List<Future<Integer>> futures = new ArrayList<>();

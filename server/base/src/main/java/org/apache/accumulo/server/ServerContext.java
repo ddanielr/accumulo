@@ -279,6 +279,8 @@ public class ServerContext extends ClientContext {
     return cryptoFactorySupplier.get();
   }
 
+  // Add in the loader for the compaction service factory
+
   @Override
   public Ample getAmple() {
     return new ServerAmpleImpl(this);
