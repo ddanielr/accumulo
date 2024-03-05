@@ -18,11 +18,15 @@
  */
 package org.apache.accumulo.test.compaction;
 
+import static org.apache.accumulo.core.Constants.DEFAULT_COMPACTION_SERVICE_NAME;
+import static org.apache.accumulo.core.Constants.DEFAULT_RESOURCE_GROUP_NAME;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -62,7 +66,6 @@ import org.apache.accumulo.core.metadata.schema.TabletMetadata.ColumnType;
 import org.apache.accumulo.core.metadata.schema.TabletsMetadata;
 import org.apache.accumulo.core.rpc.ThriftUtil;
 import org.apache.accumulo.core.rpc.clients.ThriftClientTypes;
-import org.apache.accumulo.core.spi.compaction.RatioBasedCompactionPlanner;
 import org.apache.accumulo.core.spi.compaction.SimpleCompactionDispatcher;
 import org.apache.accumulo.core.trace.TraceUtil;
 import org.apache.accumulo.core.util.UtilWaitThread;
@@ -72,6 +75,7 @@ import org.apache.accumulo.server.ServerContext;
 import org.apache.accumulo.test.compaction.ExternalCompaction_1_IT.TestFilter;
 import org.apache.accumulo.test.util.Wait;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.RawLocalFileSystem;
 import org.apache.hadoop.io.Text;
 import org.apache.thrift.TException;
@@ -195,38 +199,19 @@ public class ExternalCompactionTestUtils {
     cfg.setClientProps(clProps);
 
     // configure the compaction services to use the queues
-    cfg.setProperty(Property.COMPACTION_SERVICE_PREFIX.getKey() + "cs1.planner",
-        RatioBasedCompactionPlanner.class.getName());
-    cfg.setProperty(Property.COMPACTION_SERVICE_PREFIX.getKey() + "cs1.planner.opts.groups",
-        "[{'group':'" + GROUP1 + "'}]");
-    cfg.setProperty(Property.COMPACTION_SERVICE_PREFIX.getKey() + "cs2.planner",
-        RatioBasedCompactionPlanner.class.getName());
-    cfg.setProperty(Property.COMPACTION_SERVICE_PREFIX.getKey() + "cs2.planner.opts.groups",
-        "[{'group':'" + GROUP2 + "'}]");
-    cfg.setProperty(Property.COMPACTION_SERVICE_PREFIX.getKey() + "cs3.planner",
-        RatioBasedCompactionPlanner.class.getName());
-    cfg.setProperty(Property.COMPACTION_SERVICE_PREFIX.getKey() + "cs3.planner.opts.groups",
-        "[{'group':'" + GROUP3 + "'}]");
-    cfg.setProperty(Property.COMPACTION_SERVICE_PREFIX.getKey() + "cs4.planner",
-        RatioBasedCompactionPlanner.class.getName());
-    cfg.setProperty(Property.COMPACTION_SERVICE_PREFIX.getKey() + "cs4.planner.opts.groups",
-        "[{'group':'" + GROUP4 + "'}]");
-    cfg.setProperty(Property.COMPACTION_SERVICE_PREFIX.getKey() + "cs5.planner",
-        RatioBasedCompactionPlanner.class.getName());
-    cfg.setProperty(Property.COMPACTION_SERVICE_PREFIX.getKey() + "cs5.planner.opts.groups",
-        "[{'group':'" + GROUP5 + "'}]");
-    cfg.setProperty(Property.COMPACTION_SERVICE_PREFIX.getKey() + "cs6.planner",
-        RatioBasedCompactionPlanner.class.getName());
-    cfg.setProperty(Property.COMPACTION_SERVICE_PREFIX.getKey() + "cs6.planner.opts.groups",
-        "[{'group':'" + GROUP6 + "'}]");
-    cfg.setProperty(Property.COMPACTION_SERVICE_PREFIX.getKey() + "cs7.planner",
-        RatioBasedCompactionPlanner.class.getName());
-    cfg.setProperty(Property.COMPACTION_SERVICE_PREFIX.getKey() + "cs7.planner.opts.groups",
-        "[{'group':'" + GROUP7 + "'}]");
-    cfg.setProperty(Property.COMPACTION_SERVICE_PREFIX.getKey() + "cs8.planner",
-        RatioBasedCompactionPlanner.class.getName());
-    cfg.setProperty(Property.COMPACTION_SERVICE_PREFIX.getKey() + "cs8.planner.opts.groups",
-        "[{'group':'" + GROUP8 + "'}]");
+    cfg.setProperty(Property.COMPACTION_SERVICE_FACTORY_CONFIG.getKey(), "{ \""
+        + DEFAULT_COMPACTION_SERVICE_NAME
+        + "\": { \"maxOpenFilesPerJob\": \"30\", \"groups\": [{ \"group\": \""
+        + DEFAULT_RESOURCE_GROUP_NAME + "\", \"maxSize\": \"128M\", \"maxJobs\": \"1000\"}]},"
+        + "\"cs1\" : { \"maxOpenFilesPerJob\": \"30\", \"groups\": [{ \"group\": \"" + GROUP1
+        + "\"}]}, \"cs2\" : { \"maxOpenFilesPerJob\": \"30\", \"groups\": [{ \"group\": \"" + GROUP2
+        + "\"}]}, \"cs3\" : { \"maxOpenFilesPerJob\": \"30\", \"groups\": [{ \"group\": \"" + GROUP3
+        + "\"}]}, \"cs4\" : { \"maxOpenFilesPerJob\": \"30\", \"groups\": [{ \"group\": \"" + GROUP4
+        + "\"}]}, \"cs5\" : { \"maxOpenFilesPerJob\": \"30\", \"groups\": [{ \"group\": \"" + GROUP5
+        + "\"}]}, \"cs6\" : { \"maxOpenFilesPerJob\": \"30\", \"groups\": [{ \"group\": \"" + GROUP6
+        + "\"}]}, \"cs7\" : { \"maxOpenFilesPerJob\": \"30\", \"groups\": [{ \"group\": \"" + GROUP7
+        + "\"}]}, \"cs8\" : { \"maxOpenFilesPerJob\": \"30\", \"groups\": [{ \"group\": \"" + GROUP8
+        + "\"}]}}");
     cfg.setProperty(Property.COMPACTION_COORDINATOR_FINALIZER_COMPLETION_CHECK_INTERVAL, "5s");
     cfg.setProperty(Property.COMPACTION_COORDINATOR_DEAD_COMPACTOR_CHECK_INTERVAL, "5s");
     cfg.setProperty(Property.COMPACTION_COORDINATOR_TSERVER_COMPACTION_CHECK_INTERVAL, "3s");
@@ -382,6 +367,23 @@ public class ExternalCompactionTestUtils {
       }
 
       assertTrue(count > 0);
+    }
+  }
+
+  public static long getFileSizes(AccumuloClient client, String tableName) {
+    var tableId = TableId.of(client.tableOperations().tableIdMap().get(tableName));
+
+    try (var tabletsMeta =
+        TabletsMetadata.builder(client).forTable(tableId).fetch(ColumnType.FILES).build()) {
+      return tabletsMeta.stream().flatMap(tm -> tm.getFiles().stream()).mapToLong(stf -> {
+        try {
+          return FileSystem.getLocal(new Configuration()).getFileStatus(stf.getPath()).getLen();
+        } catch (IOException e) {
+          throw new UncheckedIOException(e);
+        }
+      }
+
+      ).sum();
     }
   }
 }
