@@ -18,7 +18,6 @@
  */
 package org.apache.accumulo.manager.compaction.coordinator;
 
-import static java.util.concurrent.TimeUnit.MINUTES;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.accumulo.core.metadata.schema.TabletMetadata.ColumnType.COMPACTED;
 import static org.apache.accumulo.core.metadata.schema.TabletMetadata.ColumnType.ECOMP;
@@ -34,6 +33,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -49,6 +49,7 @@ import java.util.stream.Collectors;
 
 import org.apache.accumulo.core.Constants;
 import org.apache.accumulo.core.client.AccumuloSecurityException;
+import org.apache.accumulo.core.client.PluginEnvironment;
 import org.apache.accumulo.core.client.TableDeletedException;
 import org.apache.accumulo.core.client.TableNotFoundException;
 import org.apache.accumulo.core.client.admin.CompactionConfig;
@@ -90,6 +91,7 @@ import org.apache.accumulo.core.metrics.MetricsProducer;
 import org.apache.accumulo.core.securityImpl.thrift.TCredentials;
 import org.apache.accumulo.core.spi.compaction.CompactionJob;
 import org.apache.accumulo.core.spi.compaction.CompactionKind;
+import org.apache.accumulo.core.spi.compaction.CompactionServiceFactory;
 import org.apache.accumulo.core.spi.compaction.CompactorGroupId;
 import org.apache.accumulo.core.tabletserver.thrift.InputFile;
 import org.apache.accumulo.core.tabletserver.thrift.IteratorConfig;
@@ -110,6 +112,7 @@ import org.apache.accumulo.manager.compaction.coordinator.commit.CompactionCommi
 import org.apache.accumulo.manager.compaction.coordinator.commit.RenameCompactionFile;
 import org.apache.accumulo.manager.compaction.queue.CompactionJobQueues;
 import org.apache.accumulo.server.ServerContext;
+import org.apache.accumulo.server.ServiceEnvironmentImpl;
 import org.apache.accumulo.server.compaction.CompactionConfigStorage;
 import org.apache.accumulo.server.compaction.CompactionPluginUtils;
 import org.apache.accumulo.server.security.SecurityOperation;
@@ -175,8 +178,26 @@ public class CompactionCoordinator
     this.schedExecutor = this.ctx.getScheduledExecutor();
     this.security = security;
 
-    this.jobQueues = new CompactionJobQueues(
-        ctx.getConfiguration().getCount(Property.MANAGER_COMPACTION_SERVICE_PRIORITY_QUEUE_SIZE));
+    Integer defaultMaxJobs = this.ctx.getConfiguration()
+        .getCount(Property.MANAGER_COMPACTION_SERVICE_PRIORITY_QUEUE_SIZE);
+    String compactionFactoryName =
+        this.ctx.getConfiguration().get(Property.COMPACTION_SERVICE_FACTORY.getKey());
+
+    HashMap<CompactorGroupId,Integer> maxJobs = new HashMap<>();
+    PluginEnvironment env = new ServiceEnvironmentImpl(this.ctx);
+
+    try {
+      CompactionServiceFactory compactionServiceFactory =
+          env.instantiate(compactionFactoryName, CompactionServiceFactory.class);
+      compactionServiceFactory.init(env);
+      compactionServiceFactory.getCompactionGroupConfigs()
+          .forEach(config -> maxJobs.put(config.getGroupId(), config.getMaxJobs()));
+    } catch (Exception e) {
+      throw new IllegalStateException(
+          "Failed to initalize Compaction Factory: " + compactionFactoryName);
+    }
+
+    this.jobQueues = new CompactionJobQueues(maxJobs, defaultMaxJobs);
 
     this.queueMetrics = new QueueMetrics(jobQueues);
 
