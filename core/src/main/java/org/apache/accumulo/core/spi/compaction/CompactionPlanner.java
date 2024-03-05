@@ -50,8 +50,6 @@ public interface CompactionPlanner {
      *         identifier for the compaction service. Each compaction service has a single planner.
      */
     Map<String,String> getOptions();
-
-    Map<CompactorGroupId,String> getGroups();
   }
 
   public void init(InitParameters params);

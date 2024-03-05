@@ -18,8 +18,6 @@
  */
 package org.apache.accumulo.test.compaction;
 
-import static org.apache.accumulo.core.util.LazySingletons.GSON;
-import static org.apache.accumulo.core.util.LazySingletons.RANDOM;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -27,9 +25,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.EnumSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -50,7 +46,6 @@ import org.apache.accumulo.core.client.TableNotFoundException;
 import org.apache.accumulo.core.client.admin.CompactionConfig;
 import org.apache.accumulo.core.client.admin.NewTableConfiguration;
 import org.apache.accumulo.core.client.admin.PluginConfig;
-import org.apache.accumulo.core.client.admin.compaction.CompactableFile;
 import org.apache.accumulo.core.client.admin.compaction.CompressionConfigurer;
 import org.apache.accumulo.core.client.admin.compaction.TooManyDeletesSelector;
 import org.apache.accumulo.core.client.summary.SummarizerConfiguration;
@@ -65,10 +60,6 @@ import org.apache.accumulo.core.iterators.user.RegExFilter;
 import org.apache.accumulo.core.metadata.StoredTabletFile;
 import org.apache.accumulo.core.metadata.schema.TabletMetadata.ColumnType;
 import org.apache.accumulo.core.metadata.schema.TabletsMetadata;
-import org.apache.accumulo.core.spi.compaction.CompactionKind;
-import org.apache.accumulo.core.spi.compaction.CompactionPlan;
-import org.apache.accumulo.core.spi.compaction.CompactionPlanner;
-import org.apache.accumulo.core.spi.compaction.CompactorGroupId;
 import org.apache.accumulo.harness.MiniClusterConfigurationCallback;
 import org.apache.accumulo.harness.SharedMiniClusterBase;
 import org.apache.accumulo.minicluster.ServerType;
@@ -84,104 +75,22 @@ import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.google.gson.JsonArray;
-import com.google.gson.JsonElement;
-
 public class CompactionExecutorIT extends SharedMiniClusterBase {
   public static final List<String> compactionGroups = new LinkedList<>();
   public static final Logger log = LoggerFactory.getLogger(CompactionExecutorIT.class);
 
-  public static class TestPlanner implements CompactionPlanner {
-
-    private static class GroupConfig {
-      String group;
-    }
-
-    private int filesPerCompaction;
-    private List<CompactorGroupId> groupIds;
-    private EnumSet<CompactionKind> kindsToProcess = EnumSet.noneOf(CompactionKind.class);
-
-    @Override
-    public void init(InitParameters params) {
-      var groups = params.getOptions().get("groups");
-      this.filesPerCompaction = Integer.parseInt(params.getOptions().get("filesPerCompaction"));
-      this.groupIds = new ArrayList<>();
-      for (String kind : params.getOptions().get("process").split(",")) {
-        kindsToProcess.add(CompactionKind.valueOf(kind.toUpperCase()));
-      }
-
-      for (JsonElement element : GSON.get().fromJson(groups, JsonArray.class)) {
-        GroupConfig groupConfig = GSON.get().fromJson(element, GroupConfig.class);
-        var cgid = params.getGroupManager().getGroup(groupConfig.group);
-        groupIds.add(cgid);
-      }
-
-    }
-
-    static String getFirstChar(CompactableFile cf) {
-      return cf.getFileName().substring(0, 1);
-    }
-
-    @Override
-    public CompactionPlan makePlan(PlanningParameters params) {
-      if (Boolean.parseBoolean(params.getExecutionHints().getOrDefault("compact_all", "false"))) {
-        return params
-            .createPlanBuilder().addJob((short) 1,
-                groupIds.get(RANDOM.get().nextInt(groupIds.size())), params.getCandidates())
-            .build();
-      }
-
-      if (kindsToProcess.contains(params.getKind())) {
-        var planBuilder = params.createPlanBuilder();
-
-        // Group files by first char, like F for flush files or C for compaction produced files.
-        // This prevents F and C files from compacting together, which makes it easy to reason about
-        // the number of expected files produced by compactions from known number of F files.
-        params.getCandidates().stream().collect(Collectors.groupingBy(TestPlanner::getFirstChar))
-            .values().forEach(files -> {
-              for (int i = filesPerCompaction; i <= files.size(); i += filesPerCompaction) {
-                planBuilder.addJob((short) 1, groupIds.get(RANDOM.get().nextInt(groupIds.size())),
-                    files.subList(i - filesPerCompaction, i));
-              }
-            });
-
-        return planBuilder.build();
-      } else {
-        return params.createPlanBuilder().build();
-      }
-    }
-  }
-
   public static class CompactionExecutorITConfig implements MiniClusterConfigurationCallback {
     @Override
     public void configureMiniCluster(MiniAccumuloConfigImpl cfg, Configuration conf) {
-      var csp = Property.COMPACTION_SERVICE_PREFIX.getKey();
-      cfg.setProperty(csp + "cs1.planner", TestPlanner.class.getName());
-      cfg.setProperty(csp + "cs1.planner.opts.groups",
-          "[{'group':'e1'},{'group':'e2'},{'group':'e3'}]");
-      cfg.setProperty(csp + "cs1.planner.opts.filesPerCompaction", "5");
-      cfg.setProperty(csp + "cs1.planner.opts.process", "SYSTEM");
-
-      cfg.setProperty(csp + "cs2.planner", TestPlanner.class.getName());
-      cfg.setProperty(csp + "cs2.planner.opts.groups", "[{'group':'f1'},{'group':'f2'}]");
-      cfg.setProperty(csp + "cs2.planner.opts.filesPerCompaction", "7");
-      cfg.setProperty(csp + "cs2.planner.opts.process", "SYSTEM");
-
-      cfg.setProperty(csp + "cs3.planner", TestPlanner.class.getName());
-      cfg.setProperty(csp + "cs3.planner.opts.groups", "[{'group':'g1'}]");
-      cfg.setProperty(csp + "cs3.planner.opts.filesPerCompaction", "3");
-      cfg.setProperty(csp + "cs3.planner.opts.process", "USER");
-
-      cfg.setProperty(csp + "cs4.planner", TestPlanner.class.getName());
-      cfg.setProperty(csp + "cs4.planner.opts.groups", "[{'group':'h1'},{'group':'h2'}]");
-      cfg.setProperty(csp + "cs4.planner.opts.filesPerCompaction", "11");
-      cfg.setProperty(csp + "cs4.planner.opts.process", "USER");
-
-      // this is meant to be dynamically reconfigured
-      cfg.setProperty(csp + "recfg.planner", TestPlanner.class.getName());
-      cfg.setProperty(csp + "recfg.planner.opts.groups", "[{'group':'i1'},{'group':'i2'}]");
-      cfg.setProperty(csp + "recfg.planner.opts.filesPerCompaction", "11");
-      cfg.setProperty(csp + "recfg.planner.opts.process", "SYSTEM");
+      cfg.setProperty(Property.COMPACTION_SERVICE_FACTORY.getKey(),
+          ExternalCompactionTestUtils.TestCompactionServiceFactory.class.getName());
+      cfg.setProperty(Property.COMPACTION_SERVICE_FACTORY_CONFIG.getKey(),
+          "{\"default\" : {  \"filesPerCompaction\" : \"5\", \"process\" : \"USER,SYSTEM\", \"groups\": [{\"group\": \"default\"}]}, \"cs1\" : { \"filesPerCompaction\" : \"5\","
+              + "\"process\" : \"SYSTEM\", \"groups\" : [{\"group\" : \"e1\"}, {\"group\" : \"e2\"}, {\"group\" : \"e3\"}]},"
+              + "\"cs2\" : { \"filesPerCompaction\" : \"7\", \"process\" : \"SYSTEM\", \"groups\" : [{\"group\" : \"f1\"}, {\"group\" : \"f2\"}]},"
+              + "\"cs3\" : { \"filesPerCompaction\" : \"3\", \"process\" : \"USER\", \"groups\" : [{\"group\" : \"g1\"}]},"
+              + "\"cs4\" : { \"filesPerCompaction\" : \"11\", \"process\" : \"USER\", \"groups\" : [{\"group\" : \"h1\"}, {\"group\" : \"h2\"}]},"
+              + "\"recfg\" : { \"filesPerCompaction\" : \"11\", \"process\" : \"SYSTEM\", \"groups\" : [{\"group\" : \"i1\"}, {\"group\" : \"i2\"}]}}");
 
       Stream.of("e1", "e2", "e3", "f1", "f2", "g1", "h1", "h2", "i1", "i2")
           .forEach(s -> cfg.getClusterServerConfiguration().addCompactorResourceGroup(s, 0));
@@ -249,12 +158,13 @@ public class CompactionExecutorIT extends SharedMiniClusterBase {
 
       assertEquals(2, getFiles(client, "rctt").size());
 
-      client.instanceOperations().setProperty(
-          Property.COMPACTION_SERVICE_PREFIX.getKey() + "recfg.planner.opts.filesPerCompaction",
-          "5");
-      client.instanceOperations().setProperty(
-          Property.COMPACTION_SERVICE_PREFIX.getKey() + "recfg.planner.opts.groups",
-          "[{'group':'group1'}]");
+      client.instanceOperations().setProperty(Property.COMPACTION_SERVICE_FACTORY_CONFIG.getKey(),
+          "{\"cs1\": { \"filesPerCompaction\": \"5\", \"process\" : \"SYSTEM\", \"groups\": [{\"group\": \"e1\"}, {\"group\": \"e2\"}, {\"group\": \"e3\"}]},"
+              + "\"cs2\": { \"filesPerCompaction\": \"7\", \"process\" : \"SYSTEM\", \"groups\": [{\"group\": \"f1\"}, {\"group\": \"f2\"}]},"
+              + "\"cs3\": { \"filesPerCompaction\": \"3\", \"process\" : \"USER\", \"groups\": [{\"group\": \"g1\"}]},"
+              + "\"cs4\": { \"filesPerCompaction\": \"11\", \"process\" : \"USER\", \"groups\": [{\"group\": \"h1\"}, {\"group\": \"h2\"}]},"
+              + "\"recfg\": { \"filesPerCompaction\": \"5\", \"process\" : \"SYSTEM\", \"groups\": [{\"group\": \"group1\"}]}}");
+
       getCluster().getConfig().getClusterServerConfiguration().addCompactorResourceGroup("group1",
           1);
       compactionGroups.add("group1");
@@ -273,17 +183,12 @@ public class CompactionExecutorIT extends SharedMiniClusterBase {
   @Test
   public void testAddCompactionService() throws Exception {
     try (AccumuloClient client = Accumulo.newClient().from(getClientProps()).build()) {
-      client.instanceOperations().setProperty(
-          Property.COMPACTION_SERVICE_PREFIX.getKey() + "newcs.planner.opts.filesPerCompaction",
-          "7");
-      client.instanceOperations().setProperty(
-          Property.COMPACTION_SERVICE_PREFIX.getKey() + "newcs.planner.opts.process", "SYSTEM");
-      client.instanceOperations().setProperty(
-          Property.COMPACTION_SERVICE_PREFIX.getKey() + "newcs.planner.opts.groups",
-          "[{'group':'add1'},{'group':'add2'}, {'group':'add3'}]");
-      client.instanceOperations().setProperty(
-          Property.COMPACTION_SERVICE_PREFIX.getKey() + "newcs.planner",
-          TestPlanner.class.getName());
+      client.instanceOperations().setProperty(Property.COMPACTION_SERVICE_FACTORY_CONFIG.getKey(),
+          "{\"cs1\": { \"filesPerCompaction\": \"5\", \"process\" : \"SYSTEM\", \"groups\": [{\"group\": \"e1\"}, {\"group\": \"e2\"}, {\"group\": \"e3\"}]},"
+              + "\"cs2\": { \"filesPerCompaction\": \"7\", \"process\" : \"SYSTEM\", \"groups\": [{\"group\": \"f1\"}, {\"group\": \"f2\"}]},"
+              + "\"cs3\": { \"filesPerCompaction\": \"3\", \"process\" : \"USER\", \"groups\": [{\"group\": \"g1\"}]},"
+              + "\"cs4\": { \"filesPerCompaction\": \"11\", \"process\" : \"USER\", \"groups\": [{\"group\": \"h1\"}, {\"group\": \"h2\"}]},"
+              + "\"newcs\": { \"filesPerCompaction\": \"7\", \"process\" : \"SYSTEM\", \"groups\": [{\"group\": \"add1\"}, {\"group\": \"add2\"}, {\"group\": \"add3\"}]}}");
 
       Stream.of("add1", "add2", "add3").forEach(s -> {
         getCluster().getConfig().getClusterServerConfiguration().addCompactorResourceGroup(s, 1);

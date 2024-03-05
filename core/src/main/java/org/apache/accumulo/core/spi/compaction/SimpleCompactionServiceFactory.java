@@ -51,8 +51,6 @@ public class SimpleCompactionServiceFactory implements CompactionServiceFactory 
   private PluginEnvironment env;
   private final String plannerClassName = RatioBasedCompactionPlanner.class.getName();
   private final Map<CompactionServiceId,Map<String,String>> serviceOpts = new HashMap<>();
-  private final Map<CompactionServiceId,Map<CompactorGroupId,String>> serviceGroups =
-      new HashMap<>();
   private final Map<CompactorGroupId,CompactionGroupConfig> compactionGroups = new HashMap<>();
 
   private static class ServiceConfig {
@@ -86,7 +84,6 @@ public class SimpleCompactionServiceFactory implements CompactionServiceFactory 
     // Find each service in the map and validate its fields
     for (Map.Entry<String,JsonElement> entry : entrySet) {
       Map<String,String> options = new HashMap<>();
-      Map<CompactorGroupId,String> groupSet = new HashMap<>();
       CompactionServiceId csid = CompactionServiceId.of(entry.getKey());
       Preconditions.checkArgument(!serviceOpts.containsKey(csid),
           "Duplicate compaction service definition for service: " + entry.getKey());
@@ -114,16 +111,18 @@ public class SimpleCompactionServiceFactory implements CompactionServiceFactory 
               "Duplicate compaction group definition on service :" + csid);
         }
         compactionGroups.put(cgid, new CompactionGroupConfig(cgid, maxJobs));
-        groupSet.put(cgid, groupConfig.maxSize);
       }
+      options.put("groups", GSON.get().toJson(groups));
       serviceOpts.put(csid, options);
-      serviceGroups.put(csid, groupSet);
     }
 
     // TODO:
     // if changes are detected to services,
     // then the compactionGroups and compactionServices objects
     // should be wiped.
+    // Should that happen internal to the Factory? Or should the factory be reinstantiated to reload
+    // compaction services?
+
   }
 
   private void validateConfig(JsonElement json, List<String> fields, String className) {
@@ -157,8 +156,7 @@ public class SimpleCompactionServiceFactory implements CompactionServiceFactory 
       return new ProvisionalCompactionPlanner(serviceId);
     }
     var options = serviceOpts.get(serviceId);
-    var groups = serviceGroups.get(serviceId);
-    var initParams = new CompactionPlannerInitParams(options, groups);
+    var initParams = new CompactionPlannerInitParams(options);
 
     CompactionPlanner planner;
     try {

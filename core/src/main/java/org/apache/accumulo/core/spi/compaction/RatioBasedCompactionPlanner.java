@@ -18,6 +18,8 @@
  */
 package org.apache.accumulo.core.spi.compaction;
 
+import static org.apache.accumulo.core.util.LazySingletons.GSON;
+
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
@@ -26,7 +28,6 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
@@ -39,6 +40,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.google.common.base.Preconditions;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
@@ -118,6 +121,12 @@ public class RatioBasedCompactionPlanner implements CompactionPlanner {
 
   private final static Logger log = LoggerFactory.getLogger(RatioBasedCompactionPlanner.class);
 
+  private static class GroupConfig {
+    String group;
+    String maxJobs;
+    String maxSize;
+  }
+
   private static class CompactionGroup {
     final CompactorGroupId cgid;
     final Long maxSize;
@@ -163,10 +172,13 @@ public class RatioBasedCompactionPlanner implements CompactionPlanner {
   public void init(InitParameters params) {
     List<CompactionGroup> tmpGroups = new ArrayList<>();
 
-    for (Map.Entry<CompactorGroupId,String> entry : params.getGroups().entrySet()) {
-      Long maxSize = entry.getValue() == null ? null
-          : ConfigurationTypeHelper.getFixedMemoryAsBytes(entry.getValue());
-      tmpGroups.add(new CompactionGroup(entry.getKey(), maxSize));
+    for (JsonElement element : GSON.get().fromJson(params.getOptions().get("groups"),
+        JsonArray.class)) {
+      GroupConfig groupConfig = GSON.get().fromJson(element, GroupConfig.class);
+
+      Long maxSize = groupConfig.maxSize == null ? null
+          : ConfigurationTypeHelper.getFixedMemoryAsBytes(groupConfig.maxSize);
+      tmpGroups.add(new CompactionGroup(CompactorGroupId.of(groupConfig.group), maxSize));
     }
 
     if (tmpGroups.size() < 1) {

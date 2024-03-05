@@ -28,6 +28,7 @@ import static org.apache.accumulo.test.compaction.ExternalCompactionTestUtils.MA
 import static org.apache.accumulo.test.compaction.ExternalCompactionTestUtils.assertNoCompactionMetadata;
 import static org.apache.accumulo.test.compaction.ExternalCompactionTestUtils.compact;
 import static org.apache.accumulo.test.compaction.ExternalCompactionTestUtils.createTable;
+import static org.apache.accumulo.test.compaction.ExternalCompactionTestUtils.getFileSizes;
 import static org.apache.accumulo.test.compaction.ExternalCompactionTestUtils.row;
 import static org.apache.accumulo.test.compaction.ExternalCompactionTestUtils.verify;
 import static org.apache.accumulo.test.compaction.ExternalCompactionTestUtils.writeData;
@@ -510,7 +511,7 @@ public class ExternalCompaction_1_IT extends SharedMiniClusterBase {
       client.tableOperations().flush(tableName, null, null, true);
 
       // without compression, expect file to be large
-      long sizes = CompactionExecutorIT.getFileSizes(client, tableName);
+      long sizes = getFileSizes(client, tableName);
       assertTrue(sizes > data.length * 10 && sizes < data.length * 11,
           "Unexpected files sizes : " + sizes);
 
@@ -522,7 +523,7 @@ public class ExternalCompaction_1_IT extends SharedMiniClusterBase {
       assertNoCompactionMetadata(getCluster().getServerContext(), tableName);
 
       // after compacting with compression, expect small file
-      sizes = CompactionExecutorIT.getFileSizes(client, tableName);
+      sizes = getFileSizes(client, tableName);
       assertTrue(sizes < data.length,
           "Unexpected files sizes: data: " + data.length + ", file:" + sizes);
 
@@ -530,7 +531,7 @@ public class ExternalCompaction_1_IT extends SharedMiniClusterBase {
       assertNoCompactionMetadata(getCluster().getServerContext(), tableName);
 
       // after compacting without compression, expect big files again
-      sizes = CompactionExecutorIT.getFileSizes(client, tableName);
+      sizes = getFileSizes(client, tableName);
       assertTrue(sizes > data.length * 10 && sizes < data.length * 11,
           "Unexpected files sizes : " + sizes);
 
@@ -573,7 +574,7 @@ public class ExternalCompaction_1_IT extends SharedMiniClusterBase {
       client.tableOperations().flush(tableName, null, null, true);
 
       // without compression, expect file to be large
-      long sizes = CompactionExecutorIT.getFileSizes(client, tableName);
+      long sizes = getFileSizes(client, tableName);
       assertTrue(sizes > data.length * 10 && sizes < data.length * 11,
           "Unexpected files sizes : " + sizes);
 
@@ -581,7 +582,7 @@ public class ExternalCompaction_1_IT extends SharedMiniClusterBase {
       assertNoCompactionMetadata(getCluster().getServerContext(), tableName);
 
       // after compacting with compression, expect small file
-      sizes = CompactionExecutorIT.getFileSizes(client, tableName);
+      sizes = getFileSizes(client, tableName);
       assertTrue(sizes < data.length,
           "Unexpected files sizes: data: " + data.length + ", file:" + sizes);
 
