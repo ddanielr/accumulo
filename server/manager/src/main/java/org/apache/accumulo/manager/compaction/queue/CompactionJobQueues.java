@@ -23,6 +23,7 @@ import java.util.Collections;
 import java.util.EnumMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentHashMap.KeySetView;
 import java.util.concurrent.atomic.AtomicLong;
@@ -48,7 +49,8 @@ public class CompactionJobQueues {
   private final ConcurrentHashMap<CompactorGroupId,CompactionJobPriorityQueue> priorityQueues =
       new ConcurrentHashMap<>();
 
-  private final int queueSize;
+  private final int defaultMaxJobs;
+  private final Map<CompactorGroupId,Integer> maxJobs;
 
   private final Map<DataLevel,AtomicLong> currentGenerations;
 
@@ -185,10 +187,19 @@ public class CompactionJobQueues {
           jobs.stream().map(job -> "#files:" + job.getFiles().size() + ",prio:" + job.getPriority()
               + ",kind:" + job.getKind()).collect(Collectors.toList()));
     }
+    var queueLength = maxJobs.getOrDefault(groupId, defaultMaxJobs);
 
     var pq = priorityQueues.computeIfAbsent(groupId,
         gid -> new CompactionJobPriorityQueue(gid, queueSize));
     pq.add(tabletMetadata, jobs,
         currentGenerations.get(DataLevel.of(tabletMetadata.getTableId())).get());
+    while (pq.add(tabletMetadata, jobs) < 0) {
+      // When entering this loop its expected the queue is closed
+      Preconditions.checkState(pq.isClosed());
+      // This loop handles race condition where poll() closes empty priority queues. The queue could
+      // be closed after its obtained from the map and before add is called.
+      pq = priorityQueues.computeIfAbsent(groupId,
+          gid -> new CompactionJobPriorityQueue(gid, queueSize));
+    }
   }
 }
