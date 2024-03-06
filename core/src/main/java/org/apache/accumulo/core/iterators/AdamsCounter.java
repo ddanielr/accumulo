@@ -30,15 +30,12 @@ import org.apache.accumulo.core.data.Value;
 import org.apache.hadoop.io.Text;
 
 public class AdamsCounter implements SortedKeyValueIterator<Key,Value> {
+
   private SortedKeyValueIterator<Key,Value> source;
   private Key key;
   private Value value;
 
   private Text currentRow = new Text();
-
-  public AdamsCounter(SortedKeyValueIterator<Key,Value> source) {
-    this.source = source;
-  }
 
   @Override
   public void init(SortedKeyValueIterator<Key,Value> source, Map<String,String> options,
