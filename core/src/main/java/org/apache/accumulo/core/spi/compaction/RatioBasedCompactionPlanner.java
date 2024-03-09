@@ -180,7 +180,7 @@ public class RatioBasedCompactionPlanner implements CompactionPlanner {
 
     if (groups.stream().filter(g -> g.getMaxSize() == null).count() > 1) {
       throw new IllegalArgumentException(
-          "Can only have one group w/o a maxSize. " + params.getOptions().get("groups"));
+          "Can only have one group w/o a maxSize. " + params.getGroups());
     }
 
     // use the add method on the Set interface to check for duplicate maxSizes
@@ -188,7 +188,7 @@ public class RatioBasedCompactionPlanner implements CompactionPlanner {
     groups.forEach(g -> {
       if (!maxSizes.add(g.getMaxSize())) {
         throw new IllegalArgumentException(
-            "Duplicate maxSize set in groups. " + params.getOptions().get("groups"));
+            "Duplicate maxSize set in groups. " + params.getGroups());
       }
     });
 

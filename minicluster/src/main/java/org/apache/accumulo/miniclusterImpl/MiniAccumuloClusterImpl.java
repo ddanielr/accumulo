@@ -793,6 +793,7 @@ public class MiniAccumuloClusterImpl implements AccumuloCluster {
       CompactionServiceFactory csf =
           senv.instantiate(compactionServiceFactoryName, CompactionServiceFactory.class);
       csf.init(senv);
+      var groups = csf.getCompactionGroupConfigs();
       csf.getCompactionGroupConfigs().forEach(cgc -> groupNames.add(cgc.getGroupId().canonical()));
     } catch (Exception e) {
       log.error("Failed to get compactor groups from compaction factory {}.",
