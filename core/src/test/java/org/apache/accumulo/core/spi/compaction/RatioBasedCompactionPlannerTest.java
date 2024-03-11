@@ -641,7 +641,6 @@ public class RatioBasedCompactionPlannerTest {
     options.put("groups",
         "[{\"group\": \"small\", \"maxSize\": \"32M\"}, {\"group\": \"medium\", \"maxSize\": \"128M\"},"
             + "{\"group\": \"large\", \"maxSize\":\"512M\"}]");
-    Map<CompactorGroupId,String> groups = new HashMap<>();
 
     Map<String,String> overrides = new HashMap<>();
     overrides.put(Property.TABLE_FILE_MAX.getKey(), "7");
