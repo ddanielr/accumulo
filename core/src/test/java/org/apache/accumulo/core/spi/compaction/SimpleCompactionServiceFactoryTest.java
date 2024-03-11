@@ -18,8 +18,11 @@
  */
 package org.apache.accumulo.core.spi.compaction;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
 import java.util.HashMap;
 import java.util.Map;
+
 import org.apache.accumulo.core.conf.DefaultConfiguration;
 import org.apache.accumulo.core.conf.Property;
 import org.apache.accumulo.core.conf.SiteConfiguration;
@@ -27,7 +30,6 @@ import org.apache.accumulo.core.data.TableId;
 import org.apache.accumulo.core.spi.common.ServiceEnvironment;
 import org.apache.accumulo.core.util.ConfigurationImpl;
 import org.easymock.EasyMock;
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -53,7 +55,10 @@ public class SimpleCompactionServiceFactoryTest {
     ServiceEnvironment senv = EasyMock.createMock(ServiceEnvironment.class);
     EasyMock.expect(senv.getConfiguration()).andReturn(conf).anyTimes();
     EasyMock.expect(senv.getConfiguration(TableId.of("42"))).andReturn(conf).anyTimes();
-    EasyMock.expect(senv.instantiate(RatioBasedCompactionPlanner.class.getName(), CompactionPlanner.class)).andReturn(new RatioBasedCompactionPlanner()).anyTimes();
+    EasyMock
+        .expect(
+            senv.instantiate(RatioBasedCompactionPlanner.class.getName(), CompactionPlanner.class))
+        .andReturn(new RatioBasedCompactionPlanner()).anyTimes();
     EasyMock.replay(senv);
     CompactionServiceFactory csf = null;
     assertEquals(testCSF.getClass().getName(),
