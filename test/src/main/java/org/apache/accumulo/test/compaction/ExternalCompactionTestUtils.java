@@ -35,10 +35,10 @@ import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -67,7 +67,6 @@ import org.apache.accumulo.core.compaction.thrift.TCompactionState;
 import org.apache.accumulo.core.compaction.thrift.TExternalCompaction;
 import org.apache.accumulo.core.compaction.thrift.TExternalCompactionList;
 import org.apache.accumulo.core.conf.ClientProperty;
-import org.apache.accumulo.core.conf.ConfigurationTypeHelper;
 import org.apache.accumulo.core.conf.Property;
 import org.apache.accumulo.core.data.Key;
 import org.apache.accumulo.core.data.Mutation;
@@ -418,68 +417,31 @@ public class ExternalCompactionTestUtils {
 
   public static class TestPlanner implements CompactionPlanner {
 
-    private static class CompactionGroup {
-      final CompactorGroupId cgid;
-      final Long maxSize;
-
-      public CompactionGroup(CompactorGroupId cgid, Long maxSize) {
-        Preconditions.checkArgument(maxSize == null || maxSize > 0, "Invalid value for maxSize");
-        this.cgid = Objects.requireNonNull(cgid, "Compaction ID is null");
-        this.maxSize = maxSize;
-      }
-
-      Long getMaxSize() {
-        return maxSize;
-      }
-
-      @Override
-      public String toString() {
-        return "[cgid=" + cgid + ", maxSize=" + maxSize + "]";
-      }
-    }
-
     private int filesPerCompaction;
-    private List<CompactorGroupId> groupIds;
+    private List<CompactorGroupId> groupIds = new LinkedList<>();
     private EnumSet<CompactionKind> kindsToProcess = EnumSet.noneOf(CompactionKind.class);
-    private List<CompactionGroup> groups;
+
+    private static class GroupConfig {
+      String group;
+    }
 
     @Override
     public void init(InitParameters params) {
-      List<CompactionGroup> tmpGroups = new ArrayList<>();
 
-      for (Map.Entry<CompactorGroupId,String> entry : params.getGroups().entrySet()) {
-        Long maxSize = entry.getValue() == null ? null
-            : ConfigurationTypeHelper.getFixedMemoryAsBytes(entry.getValue());
-        tmpGroups.add(new CompactionGroup(entry.getKey(), maxSize));
-      }
-
-      if (tmpGroups.size() < 1) {
-        throw new IllegalStateException("No defined compactor groups for this planner");
-      }
-
-      tmpGroups.sort(Comparator.comparing(CompactionGroup::getMaxSize,
-          Comparator.nullsLast(Comparator.naturalOrder())));
-
-      groups = List.copyOf(tmpGroups);
-
-      if (groups.stream().filter(g -> g.getMaxSize() == null).count() > 1) {
-        throw new IllegalArgumentException(
-            "Can only have one group w/o a maxSize. " + params.getOptions().get("groups"));
-      }
-
-      // use the add method on the Set interface to check for duplicate maxSizes
-      Set<Long> maxSizes = new HashSet<>();
-      groups.forEach(g -> {
-        if (!maxSizes.add(g.getMaxSize())) {
-          throw new IllegalArgumentException(
-              "Duplicate maxSize set in groups. " + params.getOptions().get("groups"));
-        }
-      });
       this.filesPerCompaction = Integer.parseInt(params.getOptions().get("filesPerCompaction"));
       for (String kind : params.getOptions().get("process").split(",")) {
         kindsToProcess.add(CompactionKind.valueOf(kind.toUpperCase()));
       }
-      groups.forEach(group -> groupIds.add(group.cgid));
+
+      for (JsonElement element : GSON.get().fromJson(params.getOptions().get("groups"),
+          JsonArray.class)) {
+        var groupConfig = GSON.get().fromJson(element, GroupConfig.class);
+        var cgid = CompactorGroupId.of(groupConfig.group);
+        if (groupIds.contains(cgid)) {
+          throw new IllegalStateException("Duplicate group defined");
+        }
+        groupIds.add(cgid);
+      }
     }
 
     static String getFirstChar(CompactableFile cf) {
@@ -523,8 +485,7 @@ public class ExternalCompactionTestUtils {
     private PluginEnvironment env;
     private final String plannerClassName = TestPlanner.class.getName();
     private final Map<CompactionServiceId,Map<String,String>> serviceOpts = new HashMap<>();
-    private final Map<CompactionServiceId,Map<CompactorGroupId,String>> serviceGroups =
-        new HashMap<>();
+    private final Map<CompactionServiceId,CompactorGroupId> serviceGroups = new HashMap<>();
     private final Map<CompactorGroupId,CompactionGroupConfig> compactionGroups = new HashMap<>();
 
     private static class ServiceConfig {
@@ -535,8 +496,6 @@ public class ExternalCompactionTestUtils {
 
     private static class GroupConfig {
       String group;
-      String maxJobs;
-      String maxSize;
     }
 
     @Override
@@ -578,8 +537,6 @@ public class ExternalCompactionTestUtils {
           GroupConfig groupConfig = GSON.get().fromJson(element, GroupConfig.class);
 
           String groupName = Objects.requireNonNull(groupConfig.group, "'group' must be specified");
-          Integer maxJobs =
-              Integer.valueOf(groupConfig.maxJobs == null ? defaultQueueSize : groupConfig.maxJobs);
 
           var cgid = CompactorGroupId.of(groupName);
           // Check if the compaction service has been defined before
@@ -587,11 +544,12 @@ public class ExternalCompactionTestUtils {
             throw new IllegalArgumentException(
                 "Duplicate compaction group definition on service :" + csid);
           }
-          compactionGroups.put(cgid, new CompactionGroupConfig(cgid, maxJobs));
-          groupSet.put(cgid, groupConfig.maxSize);
+          compactionGroups.put(cgid,
+              new CompactionGroupConfig(cgid, Integer.parseInt(defaultQueueSize)));
+          options.put("groups", GSON.get().toJson(groups));
+          serviceGroups.put(csid, cgid);
         }
         serviceOpts.put(csid, options);
-        serviceGroups.put(csid, groupSet);
       }
 
       // TODO:
@@ -631,8 +589,7 @@ public class ExternalCompactionTestUtils {
         return new ProvisionalCompactionPlanner(serviceId);
       }
       var options = serviceOpts.get(serviceId);
-      var groups = serviceGroups.get(serviceId);
-      var initParams = new CompactionPlannerInitParams(options, groups);
+      var initParams = new CompactionPlannerInitParams(options);
 
       CompactionPlanner planner;
       try {

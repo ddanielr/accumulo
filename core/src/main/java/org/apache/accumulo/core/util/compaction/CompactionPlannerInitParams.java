@@ -21,25 +21,16 @@ package org.apache.accumulo.core.util.compaction;
 import java.util.Map;
 
 import org.apache.accumulo.core.spi.compaction.CompactionPlanner;
-import org.apache.accumulo.core.spi.compaction.CompactorGroupId;
 
 public class CompactionPlannerInitParams implements CompactionPlanner.InitParameters {
   private final Map<String,String> plannerOpts;
-  private final Map<CompactorGroupId,String> groups;
 
-  public CompactionPlannerInitParams(Map<String,String> plannerOpts,
-      Map<CompactorGroupId,String> groups) {
+  public CompactionPlannerInitParams(Map<String,String> plannerOpts) {
     this.plannerOpts = plannerOpts;
-    this.groups = groups;
   }
 
   @Override
   public Map<String,String> getOptions() {
     return plannerOpts;
-  }
-
-  @Override
-  public Map<CompactorGroupId,String> getGroups() {
-    return groups;
   }
 }
