@@ -202,11 +202,12 @@ public class CompactionExecutorIT extends SharedMiniClusterBase {
       cfg.setProperty(Property.COMPACTION_SERVICE_FACTORY.getKey(),
           ExternalCompactionTestUtils.TestCompactionServiceFactory.class.getName());
       cfg.setProperty(Property.COMPACTION_SERVICE_FACTORY_CONFIG.getKey(),
-          "{\"cs1\": { \"filesPerCompaction\": \"5\", \"process\" : \"SYSTEM\", \"groups\": [{\"group\": \"e1\"}, {\"group\": \"e2\"}, {\"group\": \"e3\"}]},"
-              + "\"cs2\": { \"filesPerCompaction\": \"7\", \"process\" : \"SYSTEM\", \"groups\": [{\"group\": \"f1\"}, {\"group\": \"f2\"}]},"
-              + "\"cs3\": { \"filesPerCompaction\": \"3\", \"process\" : \"USER\", \"groups\": [{\"group\": \"g1\"}]},"
-              + "\"cs4\": { \"filesPerCompaction\": \"11\", \"process\" : \"USER\", \"groups\": [{\"group\": \"h1\"}, {\"group\": \"h2\"}]},"
-              + "\"recfg\": { \"filesPerCompaction\": \"11\", \"process\" : \"SYSTEM\", \"groups\": [{\"group\": \"i1\"}, {\"group\": \"i2\"}]}}");
+          "{\"default\" : {  \"filesPerCompaction\" : \"5\", \"process\" : \"USER,SYSTEM\", \"groups\": [{\"group\": \"default\"}]}, \"cs1\" : { \"filesPerCompaction\" : \"5\","
+              + "\"process\" : \"SYSTEM\", \"groups\" : [{\"group\" : \"e1\"}, {\"group\" : \"e2\"}, {\"group\" : \"e3\"}]},"
+              + "\"cs2\" : { \"filesPerCompaction\" : \"7\", \"process\" : \"SYSTEM\", \"groups\" : [{\"group\" : \"f1\"}, {\"group\" : \"f2\"}]},"
+              + "\"cs3\" : { \"filesPerCompaction\" : \"3\", \"process\" : \"USER\", \"groups\" : [{\"group\" : \"g1\"}]},"
+              + "\"cs4\" : { \"filesPerCompaction\" : \"11\", \"process\" : \"USER\", \"groups\" : [{\"group\" : \"h1\"}, {\"group\" : \"h2\"}]},"
+              + "\"recfg\" : { \"filesPerCompaction\" : \"11\", \"process\" : \"SYSTEM\", \"groups\" : [{\"group\" : \"i1\"}, {\"group\" : \"i2\"}]}}");
 
       Stream.of("e1", "e2", "e3", "f1", "f2", "g1", "h1", "h2", "i1", "i2")
           .forEach(s -> cfg.getClusterServerConfiguration().addCompactorResourceGroup(s, 0));

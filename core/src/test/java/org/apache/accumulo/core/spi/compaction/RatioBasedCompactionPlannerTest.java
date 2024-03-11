@@ -869,7 +869,7 @@ public class RatioBasedCompactionPlannerTest {
     EasyMock.expect(senv.getConfiguration()).andReturn(conf).anyTimes();
     EasyMock.replay(senv);
 
-    return new CompactionPlannerInitParams(options, groups);
+    return new CompactionPlannerInitParams(options);
   }
 
   private static RatioBasedCompactionPlanner createPlanner(Configuration conf,
