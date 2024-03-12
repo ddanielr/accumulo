@@ -19,7 +19,8 @@
 package org.apache.accumulo.core.spi.compaction;
 
 import static org.apache.accumulo.core.conf.Property.COMPACTION_SERVICE_FACTORY_CONFIG;
-import static org.apache.accumulo.core.conf.Property.MANAGER_COMPACTION_SERVICE_PRIORITY_QUEUE_SIZE;
+import static org.apache.accumulo.core.conf.Property.MANAGER_COMPACTION_SERVICE_PRIORITY_QUEUE_INITIAL_SIZE;
+
 import static org.apache.accumulo.core.util.LazySingletons.GSON;
 
 import java.lang.reflect.Field;
@@ -69,7 +70,7 @@ public class SimpleCompactionServiceFactory implements CompactionServiceFactory 
     this.env = env;
     var config = env.getConfiguration();
     String factoryConfig = config.get(COMPACTION_SERVICE_FACTORY_CONFIG.getKey());
-    String defaultQueueSize = config.get(MANAGER_COMPACTION_SERVICE_PRIORITY_QUEUE_SIZE.getKey());
+    String defaultQueueSize = config.get(MANAGER_COMPACTION_SERVICE_PRIORITY_QUEUE_INITIAL_SIZE.getKey());
 
     // Generate a list of fields from the desired object.
     final List<String> serviceFields = Arrays.stream(ServiceConfig.class.getDeclaredFields())

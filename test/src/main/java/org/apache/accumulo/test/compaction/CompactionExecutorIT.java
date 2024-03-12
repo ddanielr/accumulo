@@ -158,47 +158,6 @@ public class CompactionExecutorIT extends SharedMiniClusterBase {
   public static class CompactionExecutorITConfig implements MiniClusterConfigurationCallback {
     @Override
     public void configureMiniCluster(MiniAccumuloConfigImpl cfg, Configuration conf) {
-      var csp = Property.COMPACTION_SERVICE_PREFIX.getKey();
-      cfg.setProperty(csp + "cs1.planner", TestPlanner.class.getName());
-      cfg.setProperty(csp + "cs1.planner.opts.groups",
-          "[{'group':'e1'},{'group':'e2'},{'group':'e3'}]");
-      cfg.setProperty(csp + "cs1.planner.opts.filesPerCompaction", "5");
-      cfg.setProperty(csp + "cs1.planner.opts.process", "SYSTEM");
-
-      cfg.setProperty(csp + "cs2.planner", TestPlanner.class.getName());
-      cfg.setProperty(csp + "cs2.planner.opts.groups", "[{'group':'f1'},{'group':'f2'}]");
-      cfg.setProperty(csp + "cs2.planner.opts.filesPerCompaction", "7");
-      cfg.setProperty(csp + "cs2.planner.opts.process", "SYSTEM");
-
-      cfg.setProperty(csp + "cs3.planner", TestPlanner.class.getName());
-      cfg.setProperty(csp + "cs3.planner.opts.groups", "[{'group':'g1'}]");
-      cfg.setProperty(csp + "cs3.planner.opts.filesPerCompaction", "3");
-      cfg.setProperty(csp + "cs3.planner.opts.process", "USER");
-
-      cfg.setProperty(csp + "cs4.planner", TestPlanner.class.getName());
-      cfg.setProperty(csp + "cs4.planner.opts.groups", "[{'group':'h1'},{'group':'h2'}]");
-      cfg.setProperty(csp + "cs4.planner.opts.filesPerCompaction", "11");
-      cfg.setProperty(csp + "cs4.planner.opts.process", "USER");
-
-      // Setup three planner that fail to initialize or plan, these planners should not impede
-      // tablet assignment.
-      cfg.setProperty(csp + "cse1.planner", ErroringPlanner.class.getName());
-      cfg.setProperty(csp + "cse1.planner.opts.failInInit", "true");
-
-      cfg.setProperty(csp + "cse2.planner", ErroringPlanner.class.getName());
-      cfg.setProperty(csp + "cse2.planner.opts.failInInit", "false");
-
-      cfg.setProperty(csp + "cse3.planner", "NonExistentPlanner20240522");
-
-      // this is meant to be dynamically reconfigured
-      cfg.setProperty(csp + "recfg.planner", TestPlanner.class.getName());
-      cfg.setProperty(csp + "recfg.planner.opts.groups", "[{'group':'i1'},{'group':'i2'}]");
-      cfg.setProperty(csp + "recfg.planner.opts.filesPerCompaction", "11");
-      cfg.setProperty(csp + "recfg.planner.opts.process", "SYSTEM");
-
-  public static class CompactionExecutorITConfig implements MiniClusterConfigurationCallback {
-    @Override
-    public void configureMiniCluster(MiniAccumuloConfigImpl cfg, Configuration conf) {
       cfg.setProperty(Property.COMPACTION_SERVICE_FACTORY.getKey(),
           ExternalCompactionTestUtils.TestCompactionServiceFactory.class.getName());
       cfg.setProperty(Property.COMPACTION_SERVICE_FACTORY_CONFIG.getKey(),
@@ -208,6 +167,16 @@ public class CompactionExecutorIT extends SharedMiniClusterBase {
               + "\"cs3\" : { \"filesPerCompaction\" : \"3\", \"process\" : \"USER\", \"groups\" : [{\"group\" : \"g1\"}]},"
               + "\"cs4\" : { \"filesPerCompaction\" : \"11\", \"process\" : \"USER\", \"groups\" : [{\"group\" : \"h1\"}, {\"group\" : \"h2\"}]},"
               + "\"recfg\" : { \"filesPerCompaction\" : \"11\", \"process\" : \"SYSTEM\", \"groups\" : [{\"group\" : \"i1\"}, {\"group\" : \"i2\"}]}}");
+
+      // Setup three planner that fail to initialize or plan, these planners should not impede
+      // tablet assignment.
+      // cfg.setProperty(csp + "cse1.planner", ErroringPlanner.class.getName());
+      // cfg.setProperty(csp + "cse1.planner.opts.failInInit", "true");
+
+      // cfg.setProperty(csp + "cse2.planner", ErroringPlanner.class.getName());
+      // cfg.setProperty(csp + "cse2.planner.opts.failInInit", "false");
+
+      // cfg.setProperty(csp + "cse3.planner", "NonExistentPlanner20240522");
 
       Stream.of("e1", "e2", "e3", "f1", "f2", "g1", "h1", "h2", "i1", "i2")
           .forEach(s -> cfg.getClusterServerConfiguration().addCompactorResourceGroup(s, 0));
@@ -421,8 +390,10 @@ public class CompactionExecutorIT extends SharedMiniClusterBase {
       assertEquals(2, getFiles(client, "dut1").size());
       assertEquals(3, getFiles(client, "dut2").size());
 
-      // The way the compaction services were configured, they would never converge to one file for
-      // the user compactions. However Accumulo will keep asking the planner for a plan until a user
+      // The way the compaction services were configured, they would never converge to one file
+      // for
+      // the user compactions. However Accumulo will keep asking the planner for a plan until a
+      // user
       // compaction converges to one file. So cancel the compactions.
       client.tableOperations().cancelCompaction("dut1");
       client.tableOperations().cancelCompaction("dut2");

@@ -99,7 +99,6 @@ import org.apache.accumulo.core.metrics.MetricsProducer;
 import org.apache.accumulo.core.securityImpl.thrift.TCredentials;
 import org.apache.accumulo.core.spi.compaction.CompactionJob;
 import org.apache.accumulo.core.spi.compaction.CompactionKind;
-import org.apache.accumulo.core.spi.compaction.CompactionServiceFactory;
 import org.apache.accumulo.core.spi.compaction.CompactorGroupId;
 import org.apache.accumulo.core.tabletserver.thrift.InputFile;
 import org.apache.accumulo.core.tabletserver.thrift.IteratorConfig;
@@ -202,11 +201,9 @@ public class CompactionCoordinator
     this.jobQueueInitialSize = ctx.getConfiguration()
         .getCount(Property.MANAGER_COMPACTION_SERVICE_PRIORITY_QUEUE_INITIAL_SIZE);
 
-
     PluginEnvironment env = new ServiceEnvironmentImpl(this.ctx);
 
     this.jobQueues = new CompactionJobQueues(jobQueueInitialSize);
-
 
     this.queueMetrics = new QueueMetrics(jobQueues);
 

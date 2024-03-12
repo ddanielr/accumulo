@@ -23,7 +23,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import java.util.HashMap;
 import java.util.Map;
 
-import org.apache.accumulo.core.conf.DefaultConfiguration;
 import org.apache.accumulo.core.conf.Property;
 import org.apache.accumulo.core.conf.SiteConfiguration;
 import org.apache.accumulo.core.data.TableId;
@@ -31,16 +30,8 @@ import org.apache.accumulo.core.spi.common.ServiceEnvironment;
 import org.apache.accumulo.core.util.ConfigurationImpl;
 import org.easymock.EasyMock;
 import org.junit.jupiter.api.Test;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public class SimpleCompactionServiceFactoryTest {
-
-  private static final ServiceEnvironment.Configuration defaultConf =
-      new ConfigurationImpl(DefaultConfiguration.getInstance());
-
-  private static final Logger log =
-      LoggerFactory.getLogger(SimpleCompactionServiceFactoryTest.class);
 
   @Test
   public void testSimpleImplementation() throws ReflectiveOperationException {
@@ -69,6 +60,8 @@ public class SimpleCompactionServiceFactoryTest {
     var planner = csf.forService(CompactionServiceId.of("default"));
     assertEquals(planner.getClass().getName(), RatioBasedCompactionPlanner.class.getName());
 
+    planner = csf.forService(CompactionServiceId.of("Unknown"));
+    assertEquals(planner.getClass().getName(), ProvisionalCompactionPlanner.class.getName());
   }
 
 }

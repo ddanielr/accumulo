@@ -54,7 +54,6 @@ import org.apache.accumulo.core.util.cache.Caches.CacheName;
 import org.apache.accumulo.core.util.compaction.CompactionJobImpl;
 import org.apache.accumulo.core.util.compaction.CompactionPlanImpl;
 import org.apache.accumulo.core.util.compaction.CompactionPlannerInitParams;
-import org.apache.accumulo.core.util.compaction.CompactionServicesConfig;
 import org.apache.accumulo.core.util.time.SteadyTime;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -80,7 +79,7 @@ public class CompactionJobGenerator {
   private final SteadyTime steadyTime;
 
   public CompactionJobGenerator(PluginEnvironment env,
-    Map<FateId,Map<String,String>> executionHints, SteadyTime steadyTime) {
+      Map<FateId,Map<String,String>> executionHints, SteadyTime steadyTime) {
 
     // This gets replaced with the CompactionServiceFactory vs individual planners.
     String compactionFactoryName =
