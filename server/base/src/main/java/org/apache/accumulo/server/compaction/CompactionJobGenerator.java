@@ -69,18 +69,18 @@ public class CompactionJobGenerator {
   public CompactionJobGenerator(PluginEnvironment env,
       Map<FateId,Map<String,String>> executionHints) {
 
-    // This gets replaced with the CompactionServiceFactory vs individual planners.
     String compactionFactoryName =
         env.getConfiguration().get(Property.COMPACTION_SERVICE_FACTORY.getKey());
-    Set<CompactionServiceId> csids = new HashSet<>();
-    CompactionServiceFactory tempCSF = null;
+    Set<CompactionServiceId> csids;
+    CompactionServiceFactory tempCSF;
     try {
       tempCSF = env.instantiate(compactionFactoryName, CompactionServiceFactory.class);
       tempCSF.init(env);
-      csids.addAll(
+      csids = new HashSet<>(
           tempCSF.getCompactionServiceIds().stream().collect(Collectors.toUnmodifiableSet()));
     } catch (Exception e) {
       log.error("Failed to instantiate the compaction factory: {}", compactionFactoryName, e);
+      throw new RuntimeException(e);
     }
     serviceIds = csids;
     csf = tempCSF;
@@ -190,9 +190,6 @@ public class CompactionJobGenerator {
 
       return Set.of();
     }
-
-    // Replace with a getPlanner for service(CompactionServiceId ?)
-    // Or this gets a compactionService with a "Plan" option.
 
     CompactionPlanner planner =
         planners.computeIfAbsent(serviceId, sid -> csf.forService(serviceId));

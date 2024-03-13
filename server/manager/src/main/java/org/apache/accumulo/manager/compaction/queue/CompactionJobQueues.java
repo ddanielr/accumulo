@@ -84,6 +84,11 @@ public class CompactionJobQueues {
         .forEach(pq -> pq.removeOlderGenerations(level, currentGenerations.get(level).get()));
   }
 
+  // public setQueueConfigs(Map<> queue) {
+  // Update the maxJobs map then also query priorityQueues
+  // and if the queue exists, delete it.
+  // }
+
   public void add(TabletMetadata tabletMetadata, Collection<CompactionJob> jobs) {
     if (jobs.size() == 1) {
       var executorId = jobs.iterator().next().getGroup();
@@ -187,6 +192,9 @@ public class CompactionJobQueues {
               + ",kind:" + job.getKind()).collect(Collectors.toList()));
     }
     var queueLength = maxJobs.getOrDefault(groupId, defaultMaxJobs);
+
+    // Add null check and drop if the compaction queue isn't "known" in our config
+    // log.debug statement
 
     var pq = priorityQueues.computeIfAbsent(groupId,
         gid -> new CompactionJobPriorityQueue(gid, queueLength));

@@ -43,13 +43,19 @@ public interface CompactionPlanner {
   public interface InitParameters {
 
     /**
-     * @return The configured options. For example if the system properties
-     *         {@code compaction.service.s1.planner.opts.p1=abc} and
+     * @return The configured options. Allows extension of the planner information that's presented
+     *         by the factory. {@code compaction.service.s1.planner.opts.p1=abc} and
      *         {@code compaction.service.s1.planner.opts.p9=123} were set, then this map would
      *         contain {@code p1=abc} and {@code p9=123}. In this example {@code s1} is the
      *         identifier for the compaction service. Each compaction service has a single planner.
      */
     Map<String,String> getOptions();
+
+    /**
+     *
+     * Allows the specification of specific group settings for each group that is defined
+     */
+    Map<CompactorGroupId,Map<String,String>> getGroupOptions();
   }
 
   public void init(InitParameters params);

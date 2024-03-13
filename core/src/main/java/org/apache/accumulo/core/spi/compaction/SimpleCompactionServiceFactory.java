@@ -117,11 +117,8 @@ public class SimpleCompactionServiceFactory implements CompactionServiceFactory 
     }
 
     // TODO:
-    // if changes are detected to services,
-    // then the compactionGroups and compactionServices objects
-    // should be wiped.
-    // Should that happen internal to the Factory? Or should the factory be reinstantiated to reload
-    // compaction services?
+    // Factory should be reinstantiated to reload
+    // compaction services
 
   }
 
