@@ -147,11 +147,13 @@ public class RatioBasedCompactionPlannerTest {
   @Test
   public void testRunningCompaction() {
     Map<String,String> options = new HashMap<>();
-    options.put("groups",
-        "[{\"group\": \"small\", \"maxSize\": \"32M\"}, {\"group\": \"medium\", \"maxSize\": \"128M\"},"
-            + "{\"group\": \"large\", \"maxSize\": \"512M\"}, {\"group\": \"huge\"}]");
+    Map<CompactorGroupId,Map<String,String>> groupOptions = new HashMap<>();
+    groupOptions.put(CompactorGroupId.of("small"), Map.of("maxSize", "32M"));
+    groupOptions.put(CompactorGroupId.of("medium"), Map.of("maxSize", "128M"));
+    groupOptions.put(CompactorGroupId.of("large"), Map.of("maxSize", "512M"));
+    groupOptions.put(CompactorGroupId.of("huge"), Map.of());
 
-    var planner = createPlanner(defaultConf, options);
+    var planner = createPlanner(defaultConf, options, groupOptions);
 
     var all = createCFs("F1", "3M", "F2", "3M", "F3", "11M", "F4", "12M", "F5", "13M");
     var candidates = createCFs("F3", "11M", "F4", "12M", "F5", "13M");
@@ -184,11 +186,13 @@ public class RatioBasedCompactionPlannerTest {
     options.put("maxOpen", "15");
     ConfigurationImpl config = new ConfigurationImpl(aconf);
 
-    options.put("groups",
-        "[{\"group\": \"small\", \"maxSize\": \"32M\"}, {\"group\": \"medium\", \"maxSize\": \"128M\"},"
-            + "{\"group\": \"large\", \"maxSize\": \"512M\"}, {\"group\": \"huge\"}]");
+    Map<CompactorGroupId,Map<String,String>> groupOptions = new HashMap<>();
+    groupOptions.put(CompactorGroupId.of("small"), Map.of("maxSize", "32M"));
+    groupOptions.put(CompactorGroupId.of("medium"), Map.of("maxSize", "128M"));
+    groupOptions.put(CompactorGroupId.of("large"), Map.of("maxSize", "512M"));
+    groupOptions.put(CompactorGroupId.of("huge"), Map.of());
 
-    var planner = createPlanner(config, options);
+    var planner = createPlanner(config, options, groupOptions);
     var all = createCFs("F1", "3M", "F2", "3M", "F3", "11M", "F4", "12M", "F5", "13M");
     var candidates = createCFs("F3", "11M", "F4", "12M", "F5", "13M");
     var compacting =
@@ -255,11 +259,12 @@ public class RatioBasedCompactionPlannerTest {
   @Test
   public void testMaxSize() {
     Map<String,String> options = new HashMap<>();
-    options.put("groups",
-        "[{\"group\": \"small\", \"maxSize\": \"32M\"}, {\"group\": \"medium\", \"maxSize\": \"128M\"},"
-            + "{\"group\": \"large\", \"maxSize\": \"512M\"}]");
+    Map<CompactorGroupId,Map<String,String>> groupOptions = new HashMap<>();
+    groupOptions.put(CompactorGroupId.of("small"), Map.of("maxSize", "32M"));
+    groupOptions.put(CompactorGroupId.of("medium"), Map.of("maxSize", "128M"));
+    groupOptions.put(CompactorGroupId.of("large"), Map.of("maxSize", "512M"));
 
-    var planner = createPlanner(defaultConf, options);
+    var planner = createPlanner(defaultConf, options, groupOptions);
     var all = createCFs("F1", "128M", "F2", "129M", "F3", "130M", "F4", "131M", "F5", "132M");
     var params = createPlanningParams(all, all, Set.of(), 2, CompactionKind.SYSTEM);
     var plan = planner.makePlan(params);
@@ -282,12 +287,13 @@ public class RatioBasedCompactionPlannerTest {
     // This test validates that when a tablet has many files that multiple compaction jobs can be
     // issued at the same time.
     Map<String,String> options = new HashMap<>();
-    options.put("groups",
-        "[{\"group\": \"small\", \"maxSize\": \"32M\"}, {\"group\": \"medium\", \"maxSize\": \"128M\"},"
-            + "{\"group\": \"large\", \"maxSize\": \"512M\"}]");
+    Map<CompactorGroupId,Map<String,String>> groupOptions = new HashMap<>();
+    groupOptions.put(CompactorGroupId.of("small"), Map.of("maxSize", "32M"));
+    groupOptions.put(CompactorGroupId.of("medium"), Map.of("maxSize", "128M"));
+    groupOptions.put(CompactorGroupId.of("large"), Map.of("maxSize", "512M"));
 
     for (var kind : List.of(CompactionKind.USER, CompactionKind.SYSTEM)) {
-      var planner = createPlanner(defaultConf, options);
+      var planner = createPlanner(defaultConf, options, groupOptions);
       var all = IntStream.range(0, 990).mapToObj(i -> createCF("F" + i, 1000)).collect(toSet());
       // simulate 10 larger files, these should not compact at the same time as the smaller files.
       // Its more optimal to wait for all of the smaller files to compact and them compact the
@@ -318,11 +324,12 @@ public class RatioBasedCompactionPlannerTest {
   public void testMultipleCompactionsAndLargeCompactionRatio() {
 
     Map<String,String> options = new HashMap<>();
-    options.put("groups",
-        "[{\"group\": \"small\", \"maxSize\": \"32M\"}, {\"group\": \"medium\", \"maxSize\": \"128M\"},"
-            + "{\"group\": \"large\", \"maxSize\": \"512M\"}]");
+    Map<CompactorGroupId,Map<String,String>> groupOptions = new HashMap<>();
+    groupOptions.put(CompactorGroupId.of("small"), Map.of("maxSize", "32M"));
+    groupOptions.put(CompactorGroupId.of("medium"), Map.of("maxSize", "128M"));
+    groupOptions.put(CompactorGroupId.of("large"), Map.of("maxSize", "512M"));
 
-    var planner = createPlanner(defaultConf, options);
+    var planner = createPlanner(defaultConf, options, groupOptions);
     var all = IntStream.range(0, 65).mapToObj(i -> createCF("F" + i, i + 1)).collect(toSet());
     // This compaction ratio would not cause a system compaction, how a user compaction must compact
     // all of the files so it should generate some compactions.
@@ -356,12 +363,13 @@ public class RatioBasedCompactionPlannerTest {
     // compaction ratio.
 
     Map<String,String> options = new HashMap<>();
-    options.put("groups",
-        "[{\"group\": \"small\", \"maxSize\": \"32M\"}, {\"group\": \"medium\", \"maxSize\": \"128M\"},"
-            + "{\"group\": \"large\", \"maxSize\": \"512M\"}]");
+    Map<CompactorGroupId,Map<String,String>> groupOptions = new HashMap<>();
+    groupOptions.put(CompactorGroupId.of("small"), Map.of("maxSize", "32M"));
+    groupOptions.put(CompactorGroupId.of("medium"), Map.of("maxSize", "128M"));
+    groupOptions.put(CompactorGroupId.of("large"), Map.of("maxSize", "512M"));
 
     for (var kind : List.of(CompactionKind.USER, CompactionKind.SYSTEM)) {
-      var planner = createPlanner(defaultConf, options);
+      var planner = createPlanner(defaultConf, options, groupOptions);
       var all = IntStream.range(0, 990).mapToObj(i -> createCF("F" + i, 1000)).collect(toSet());
       // simulate 10 larger files, these should not compact at the same time as the smaller files.
       // Its more optimal to wait for all of the smaller files to compact and them compact the
@@ -400,11 +408,12 @@ public class RatioBasedCompactionPlannerTest {
   public void testUserCompactionDoesNotWaitOnSystemCompaction() {
     // this test ensures user compactions do not wait on system compactions to complete
     Map<String,String> options = new HashMap<>();
-    options.put("groups",
-        "[{\"group\": \"small\", \"maxSize\": \"32M\"}, {\"group\": \"medium\", \"maxSize\": \"128M\"},"
-            + "{\"group\": \"large\", \"maxSize\": \"512M\"}]");
+    Map<CompactorGroupId,Map<String,String>> groupOptions = new HashMap<>();
+    groupOptions.put(CompactorGroupId.of("small"), Map.of("maxSize", "32M"));
+    groupOptions.put(CompactorGroupId.of("medium"), Map.of("maxSize", "128M"));
+    groupOptions.put(CompactorGroupId.of("large"), Map.of("maxSize", "512M"));
 
-    var planner = createPlanner(defaultConf, options);
+    var planner = createPlanner(defaultConf, options, groupOptions);
     var all = createCFs("F1", "1M", "F2", "1M", "F3", "1M", "F4", "3M", "F5", "3M", "F6", "3M",
         "F7", "20M");
     var candidates = createCFs("F4", "3M", "F5", "3M", "F6", "3M", "F7", "20M");
@@ -448,9 +457,11 @@ public class RatioBasedCompactionPlannerTest {
 
     Map<String,String> options = new HashMap<>();
 
-    options.put("groups",
-        "[{\"group\": \"small\", \"maxSize\": \"32M\"}, {\"group\": \"midsize\"}]");
-    planner.init(getInitParams(defaultConf, options));
+    Map<CompactorGroupId,Map<String,String>> groupOptions = new HashMap<>();
+    groupOptions.put(CompactorGroupId.of("small"), Map.of("maxSize", "32M"));
+    groupOptions.put(CompactorGroupId.of("midsize"), Map.of());
+
+    planner.init(getInitParams(defaultConf, options, groupOptions));
 
     var all = createCFs("F1", "1M", "F2", "1M", "F3", "1M", "F4", "1M");
     var params = createPlanningParams(all, all, Set.of(), 2, CompactionKind.SYSTEM);
@@ -523,11 +534,14 @@ public class RatioBasedCompactionPlannerTest {
     Map<String,String> options = new HashMap<>();
     options.put("maxOpen", "10");
 
-    options.put("groups", "[{\"group\": \"small\", \"maxSize\": \"32M\"}, {\"group\": \"medium\"},"
-        + "{\"group\": \"large\"}]");
+    Map<CompactorGroupId,Map<String,String>> groupOptions = new HashMap<>();
+    groupOptions.put(CompactorGroupId.of("small"), Map.of("maxSize", "32M"));
+    groupOptions.put(CompactorGroupId.of("medium"), Map.of());
+    groupOptions.put(CompactorGroupId.of("large"), Map.of());
 
     var e = assertThrows(IllegalArgumentException.class,
-        () -> planner.init(getInitParams(defaultConf, options)), "Failed to throw error");
+        () -> planner.init(getInitParams(defaultConf, options, groupOptions)),
+        "Failed to throw error");
     assertTrue(e.getMessage().contains("Can only have one group w/o a maxSize"),
         "Error message didn't contain maxSize");
   }
@@ -541,12 +555,15 @@ public class RatioBasedCompactionPlannerTest {
 
     Map<String,String> options = new HashMap<>();
     options.put("maxOpen", "10");
-    options.put("groups",
-        "[{\"group\": \"small\", \"maxSize\": \"32M\"}, {\"group\": \"medium\", \"maxSize\": \"32M\"},"
-            + "{\"group\": \"large\"}]");
+
+    Map<CompactorGroupId,Map<String,String>> groupOptions = new HashMap<>();
+    groupOptions.put(CompactorGroupId.of("small"), Map.of("maxSize", "32M"));
+    groupOptions.put(CompactorGroupId.of("medium"), Map.of("maxSize", "32M"));
+    groupOptions.put(CompactorGroupId.of("large"), Map.of());
 
     var e = assertThrows(IllegalArgumentException.class,
-        () -> planner.init(getInitParams(defaultConf, options)), "Failed to throw error");
+        () -> planner.init(getInitParams(defaultConf, options, groupOptions)),
+        "Failed to throw error");
     assertTrue(e.getMessage().contains("Duplicate maxSize set in groups"),
         "Error message didn't contain maxSize");
   }
@@ -559,16 +576,18 @@ public class RatioBasedCompactionPlannerTest {
 
     Map<String,String> options = new HashMap<>();
     options.put("maxOpen", "10");
-    options.put("groups",
-        "[{\"group\": \"small\", \"maxSize\": \"32M\"}, {\"group\": \"medium\", \"maxSize\": \"128M\"},"
-            + "{\"group\": \"large\"}]");
+
+    Map<CompactorGroupId,Map<String,String>> groupOptions = new HashMap<>();
+    groupOptions.put(CompactorGroupId.of("small"), Map.of("maxSize", "32M"));
+    groupOptions.put(CompactorGroupId.of("medium"), Map.of("maxSize", "128M"));
+    groupOptions.put(CompactorGroupId.of("large"), Map.of());
 
     Map<String,String> overrides = new HashMap<>();
     overrides.put(Property.TABLE_FILE_MAX.getKey(), "7");
     var conf = new ConfigurationImpl(SiteConfiguration.empty().withOverrides(overrides).build());
 
     // For this case need to compact three files and the highest ratio that achieves that is 1.8
-    var planner = createPlanner(conf, options);
+    var planner = createPlanner(conf, options, groupOptions);
     var all = createCFs(1000, 1.1, 1.9, 1.8, 1.6, 1.3, 1.4, 1.3, 1.2, 1.1);
     var params = createPlanningParams(all, all, Set.of(), 3, CompactionKind.SYSTEM, conf);
     var plan = planner.makePlan(params);
@@ -638,16 +657,18 @@ public class RatioBasedCompactionPlannerTest {
 
     Map<String,String> options = new HashMap<>();
     options.put("maxOpen", "10");
-    options.put("groups",
-        "[{\"group\": \"small\", \"maxSize\": \"32M\"}, {\"group\": \"medium\", \"maxSize\": \"128M\"},"
-            + "{\"group\": \"large\", \"maxSize\":\"512M\"}]");
+
+    Map<CompactorGroupId,Map<String,String>> groupOptions = new HashMap<>();
+    groupOptions.put(CompactorGroupId.of("small"), Map.of("maxSize", "32M"));
+    groupOptions.put(CompactorGroupId.of("medium"), Map.of("maxSize", "128M"));
+    groupOptions.put(CompactorGroupId.of("large"), Map.of("maxSize", "512M"));
 
     Map<String,String> overrides = new HashMap<>();
     overrides.put(Property.TABLE_FILE_MAX.getKey(), "7");
     var conf = new ConfigurationImpl(SiteConfiguration.empty().withOverrides(overrides).build());
 
     // ensure that when a compaction would be over the max size limit that it is not planned
-    var planner = createPlanner(conf, options);
+    var planner = createPlanner(conf, options, groupOptions);
     var all = createCFs(1_000_000_000, 2, 2, 2, 2, 2, 2, 2);
     var params = createPlanningParams(all, all, Set.of(), 3, CompactionKind.SYSTEM, conf);
     var plan = planner.makePlan(params);
@@ -678,16 +699,17 @@ public class RatioBasedCompactionPlannerTest {
 
     Map<String,String> options = new HashMap<>();
     options.put("maxOpen", "10");
-    options.put("groups",
-        "[{\"group\": \"small\", \"maxSize\": \"32M\"}, {\"group\": \"medium\", \"maxSize\": \"128M\"},"
-            + "{\"group\": \"large\"}]");
+    Map<CompactorGroupId,Map<String,String>> groupOptions = new HashMap<>();
+    groupOptions.put(CompactorGroupId.of("small"), Map.of("maxSize", "32M"));
+    groupOptions.put(CompactorGroupId.of("medium"), Map.of("maxSize", "128M"));
+    groupOptions.put(CompactorGroupId.of("large"), Map.of());
 
     Map<String,String> overrides = new HashMap<>();
     overrides.put(Property.TABLE_FILE_MAX.getKey(), "0");
     overrides.put(Property.TSERV_SCAN_MAX_OPENFILES.getKey(), "5");
     var conf = new ConfigurationImpl(SiteConfiguration.empty().withOverrides(overrides).build());
 
-    var planner = createPlanner(conf, options);
+    var planner = createPlanner(conf, options, groupOptions);
     var all = createCFs(1000, 1.9, 1.8, 1.7, 1.6, 1.5, 1.4, 1.3, 1.2, 1.1);
     var params = createPlanningParams(all, all, Set.of(), 3, CompactionKind.SYSTEM, conf);
     var plan = planner.makePlan(params);
@@ -848,23 +870,20 @@ public class RatioBasedCompactionPlannerTest {
   }
 
   private static CompactionPlanner.InitParameters getInitParams(Configuration conf,
-      Map<String,String> options) {
-    // Maybe can use this in the factory to add compactor groups?
+      Map<String,String> options, Map<CompactorGroupId,Map<String,String>> groupOpts) {
     options.putIfAbsent("maxOpen", "15");
 
     ServiceEnvironment senv = EasyMock.createMock(ServiceEnvironment.class);
     EasyMock.expect(senv.getConfiguration()).andReturn(conf).anyTimes();
     EasyMock.replay(senv);
 
-    Map<CompactorGroupId,Map<String,String>> groupOpts = new HashMap<>();
-
     return new CompactionPlannerInitParams(options, groupOpts);
   }
 
   private static RatioBasedCompactionPlanner createPlanner(Configuration conf,
-      Map<String,String> options) {
+      Map<String,String> options, Map<CompactorGroupId,Map<String,String>> groupOpts) {
     RatioBasedCompactionPlanner planner = new RatioBasedCompactionPlanner();
-    var initParams = getInitParams(conf, options);
+    var initParams = getInitParams(conf, options, groupOpts);
     planner.init(initParams);
     return planner;
   }

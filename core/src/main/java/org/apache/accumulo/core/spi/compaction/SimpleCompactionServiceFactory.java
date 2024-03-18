@@ -27,6 +27,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -51,7 +52,8 @@ public class SimpleCompactionServiceFactory implements CompactionServiceFactory 
   private PluginEnvironment env;
   private final String plannerClassName = RatioBasedCompactionPlanner.class.getName();
   private final Map<CompactionServiceId,Map<String,String>> serviceOpts = new HashMap<>();
-  // I think this can be reworked with the compaction Service ID
+
+  private final Map<CompactionServiceId,List<CompactorGroupId>> groupsPerService = new HashMap<>();
   private final Map<CompactorGroupId,CompactionGroupConfig> compactionGroups = new HashMap<>();
 
   private static class ServiceConfig {
@@ -96,6 +98,7 @@ public class SimpleCompactionServiceFactory implements CompactionServiceFactory 
 
       options.put("maxOpen", serviceConfig.maxOpenFilesPerJob);
 
+      var groupList = new LinkedList<CompactorGroupId>();
       // validate the groups defined for the service
       for (JsonElement element : GSON.get().fromJson(groups, JsonArray.class)) {
         validateConfig(element, groupFields, GroupConfig.class.getName());
@@ -113,8 +116,10 @@ public class SimpleCompactionServiceFactory implements CompactionServiceFactory 
         }
         compactionGroups.put(cgid,
             new CompactionGroupConfig(cgid, maxJobs, Map.of("maxSize", groupConfig.maxSize)));
+        groupList.add(cgid);
       }
       serviceOpts.put(csid, options);
+      groupsPerService.put(csid, groupList);
     }
   }
 
@@ -149,7 +154,11 @@ public class SimpleCompactionServiceFactory implements CompactionServiceFactory 
       return new ProvisionalCompactionPlanner(serviceId);
     }
     var options = serviceOpts.get(serviceId);
+    var groups = groupsPerService.get(serviceId);
     var groupOpts = new HashMap<CompactorGroupId,Map<String,String>>();
+    for (CompactorGroupId cgid : groups) {
+      groupOpts.put(cgid, compactionGroups.get(cgid).getOptions());
+    }
     var initParams = new CompactionPlannerInitParams(options, groupOpts);
 
     CompactionPlanner planner;
