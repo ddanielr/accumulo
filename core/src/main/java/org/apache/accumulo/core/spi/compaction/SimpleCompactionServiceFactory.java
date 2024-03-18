@@ -153,7 +153,8 @@ public class SimpleCompactionServiceFactory implements CompactionServiceFactory 
       return new ProvisionalCompactionPlanner(serviceId);
     }
     var options = serviceOpts.get(serviceId);
-    var initParams = new CompactionPlannerInitParams(options);
+    var groupOpts = new HashMap<CompactorGroupId,Map<String,String>>();
+    var initParams = new CompactionPlannerInitParams(options, groupOpts);
 
     CompactionPlanner planner;
     try {

@@ -56,31 +56,33 @@ public class QueueMetrics implements MetricsProducer {
         CompactionJobPriorityQueue queue) {
       var queueId = formatString(cgid.canonical());
 
-      length =
-          Gauge.builder(METRICS_COMPACTOR_JOB_PRIORITY_QUEUE_LENGTH, queue, q -> q.getMaxSize())
-              .description("Length of priority queues")
-              .tags(Tags.concat(getCommonTags(), "queue.id", queueId)).register(meterRegistry);
+      length = Gauge
+          .builder(METRICS_COMPACTOR_JOB_PRIORITY_QUEUE_LENGTH, queue,
+              CompactionJobPriorityQueue::getMaxSize)
+          .description("Length of priority queues")
+          .tags(Tags.concat(getCommonTags(), "queue.id", queueId)).register(meterRegistry);
 
       jobsQueued = Gauge
-          .builder(METRICS_COMPACTOR_JOB_PRIORITY_QUEUE_JOBS_QUEUED, queue, q -> q.getQueuedJobs())
+          .builder(METRICS_COMPACTOR_JOB_PRIORITY_QUEUE_JOBS_QUEUED, queue,
+              CompactionJobPriorityQueue::getQueuedJobs)
           .description("Count of queued jobs")
           .tags(Tags.concat(getCommonTags(), "queue.id", queueId)).register(meterRegistry);
 
       jobsDequeued = Gauge
           .builder(METRICS_COMPACTOR_JOB_PRIORITY_QUEUE_JOBS_DEQUEUED, queue,
-              q -> q.getDequeuedJobs())
+              CompactionJobPriorityQueue::getDequeuedJobs)
           .description("Count of jobs dequeued")
           .tags(Tags.concat(getCommonTags(), "queue.id", queueId)).register(meterRegistry);
 
       jobsRejected = Gauge
           .builder(METRICS_COMPACTOR_JOB_PRIORITY_QUEUE_JOBS_REJECTED, queue,
-              q -> q.getRejectedJobs())
+              CompactionJobPriorityQueue::getRejectedJobs)
           .description("Count of rejected jobs")
           .tags(Tags.concat(getCommonTags(), "queue.id", queueId)).register(meterRegistry);
 
       jobsLowestPriority = Gauge
           .builder(METRICS_COMPACTOR_JOB_PRIORITY_QUEUE_JOBS_PRIORITY, queue,
-              q -> q.getLowestPriority())
+              CompactionJobPriorityQueue::getLowestPriority)
           .description("Lowest priority queued job")
           .tags(Tags.concat(getCommonTags(), "queue.id", queueId)).register(meterRegistry);
     }
