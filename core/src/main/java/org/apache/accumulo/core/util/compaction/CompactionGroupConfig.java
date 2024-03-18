@@ -18,6 +18,7 @@
  */
 package org.apache.accumulo.core.util.compaction;
 
+import java.util.Map;
 import java.util.Objects;
 
 import org.apache.accumulo.core.spi.compaction.CompactorGroupId;
@@ -28,6 +29,7 @@ public class CompactionGroupConfig {
 
   private final CompactorGroupId cgid;
   private final int maxJobs;
+  private final Map<String,String> options;
 
   /**
    * Defines the concept of a CompactionGroup for the compaction coordinator.
@@ -35,10 +37,11 @@ public class CompactionGroupConfig {
    * @param cgid ID of the compactor group
    * @param maxJobs Size of the priority queue assigned to this group
    */
-  public CompactionGroupConfig(CompactorGroupId cgid, Integer maxJobs) {
+  public CompactionGroupConfig(CompactorGroupId cgid, Integer maxJobs, Map<String,String> options) {
     Preconditions.checkArgument(maxJobs == null || maxJobs > 0, "Invalid value for maxJobs");
     this.cgid = Objects.requireNonNull(cgid, "Compaction Group ID is null");
     this.maxJobs = maxJobs;
+    this.options = options;
   }
 
   public CompactorGroupId getGroupId() {
@@ -47,5 +50,9 @@ public class CompactionGroupConfig {
 
   public int getMaxJobs() {
     return maxJobs;
+  }
+
+  public Map<String,String> getOptions() {
+    return options;
   }
 }

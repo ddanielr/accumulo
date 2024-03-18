@@ -51,6 +51,7 @@ public class SimpleCompactionServiceFactory implements CompactionServiceFactory 
   private PluginEnvironment env;
   private final String plannerClassName = RatioBasedCompactionPlanner.class.getName();
   private final Map<CompactionServiceId,Map<String,String>> serviceOpts = new HashMap<>();
+  // I think this can be reworked with the compaction Service ID
   private final Map<CompactorGroupId,CompactionGroupConfig> compactionGroups = new HashMap<>();
 
   private static class ServiceConfig {
@@ -110,16 +111,11 @@ public class SimpleCompactionServiceFactory implements CompactionServiceFactory 
           throw new IllegalArgumentException(
               "Duplicate compaction group definition on service :" + csid);
         }
-        compactionGroups.put(cgid, new CompactionGroupConfig(cgid, maxJobs));
+        compactionGroups.put(cgid,
+            new CompactionGroupConfig(cgid, maxJobs, Map.of("maxSize", groupConfig.maxSize)));
       }
-      options.put("groups", GSON.get().toJson(groups));
       serviceOpts.put(csid, options);
     }
-
-    // TODO:
-    // Factory should be reinstantiated to reload
-    // compaction services
-
   }
 
   private void validateConfig(JsonElement json, List<String> fields, String className) {

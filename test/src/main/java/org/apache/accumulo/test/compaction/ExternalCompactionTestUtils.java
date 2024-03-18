@@ -545,7 +545,7 @@ public class ExternalCompactionTestUtils {
                 "Duplicate compaction group definition on service :" + csid);
           }
           compactionGroups.put(cgid,
-              new CompactionGroupConfig(cgid, Integer.parseInt(defaultQueueSize)));
+              new CompactionGroupConfig(cgid, Integer.parseInt(defaultQueueSize), Map.of()));
           options.put("groups", GSON.get().toJson(groups));
           serviceGroups.put(csid, cgid);
         }
