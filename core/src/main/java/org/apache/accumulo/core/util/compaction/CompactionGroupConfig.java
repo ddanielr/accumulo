@@ -19,27 +19,40 @@
 package org.apache.accumulo.core.util.compaction;
 
 import java.util.Map;
+import java.util.Objects;
 
-import org.apache.accumulo.core.spi.compaction.CompactionPlanner;
 import org.apache.accumulo.core.spi.compaction.CompactorGroupId;
 
-public class CompactionPlannerInitParams implements CompactionPlanner.InitParameters {
-  private final Map<String,String> plannerOpts;
-  private final Map<CompactorGroupId,Map<String,String>> groupOpts;
+import com.google.common.base.Preconditions;
 
-  public CompactionPlannerInitParams(Map<String,String> plannerOpts,
-      Map<CompactorGroupId,Map<String,String>> groupOpts) {
-    this.plannerOpts = plannerOpts;
-    this.groupOpts = groupOpts;
+public class CompactionGroupConfig {
+
+  private final CompactorGroupId cgid;
+  private final int maxJobs;
+  private final Map<String,String> options;
+
+  /**
+   * Defines the concept of a CompactionGroup for the compaction coordinator.
+   *
+   * @param cgid ID of the compactor group
+   * @param maxJobs Size of the priority queue assigned to this group
+   */
+  public CompactionGroupConfig(CompactorGroupId cgid, Integer maxJobs, Map<String,String> options) {
+    Preconditions.checkArgument(maxJobs == null || maxJobs > 0, "Invalid value for maxJobs");
+    this.cgid = Objects.requireNonNull(cgid, "Compaction Group ID is null");
+    this.maxJobs = maxJobs;
+    this.options = options;
   }
 
-  @Override
+  public CompactorGroupId getGroupId() {
+    return cgid;
+  }
+
+  public int getMaxJobs() {
+    return maxJobs;
+  }
+
   public Map<String,String> getOptions() {
-    return plannerOpts;
-  }
-
-  @Override
-  public Map<CompactorGroupId,Map<String,String>> getGroupOptions() {
-    return groupOpts;
+    return options;
   }
 }

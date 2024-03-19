@@ -21,7 +21,9 @@ package org.apache.accumulo.manager.compaction.queue;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentHashMap.KeySetView;
 import java.util.concurrent.atomic.AtomicLong;
@@ -35,6 +37,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.Sets;
+import com.google.common.collect.Sets.SetView;
 
 public class CompactionJobQueues {
 
@@ -48,13 +52,15 @@ public class CompactionJobQueues {
   // analyze.
   private final ConcurrentHashMap<CompactorGroupId,CompactionJobPriorityQueue> priorityQueues =
       new ConcurrentHashMap<>();
-
-  private final int queueSize;
+  private final Map<CompactorGroupId,Integer> maxJobs;
+  private Integer defaultMaxJobs;
 
   private final Map<DataLevel,AtomicLong> currentGenerations;
 
-  public CompactionJobQueues(int queueSize) {
-    this.queueSize = queueSize;
+  public CompactionJobQueues(Map<CompactorGroupId,Integer> maxJobs, Integer defaultMaxJobs) {
+    this.maxJobs = maxJobs;
+    this.defaultMaxJobs = defaultMaxJobs;
+
     Map<DataLevel,AtomicLong> cg = new EnumMap<>(DataLevel.class);
     for (var level : DataLevel.values()) {
       cg.put(level, new AtomicLong());
@@ -82,6 +88,34 @@ public class CompactionJobQueues {
         .forEach(pq -> pq.removeOlderGenerations(level, currentGenerations.get(level).get()));
   }
 
+  public void setMaxJobs(Map<CompactorGroupId,Integer> queueSizes) {
+    Set<CompactorGroupId> currentQueues = new HashSet<>(getQueueIds());
+    log.debug("update - current compaction queues {}", currentQueues);
+
+    SetView<CompactorGroupId> oldQueues = Sets.difference(queueSizes.keySet(), currentQueues);
+    oldQueues.forEach(q -> {
+      log.debug("update - removing compaction queue: {}", q);
+      maxJobs.remove(q);
+      priorityQueues.remove(q);
+    });
+
+    // Add new queue sizes or update existing sizes and remove the old queue.
+
+    for (Map.Entry<CompactorGroupId,Integer> entry : queueSizes.entrySet()) {
+      if (!maxJobs.containsKey(entry.getKey())) {
+        maxJobs.put(entry.getKey(), entry.getValue());
+      } else if (!maxJobs.get(entry.getKey()).equals(entry.getValue())) {
+        log.debug("update - removing compaction queue: {} due to size change", entry.getKey());
+        maxJobs.put(entry.getKey(), entry.getValue());
+        priorityQueues.remove(entry.getKey());
+      }
+    }
+  }
+
+  public void setDefaultMaxJobs(Integer defaultMaxJobs) {
+    this.defaultMaxJobs = defaultMaxJobs;
+  }
+
   public void add(TabletMetadata tabletMetadata, Collection<CompactionJob> jobs) {
     if (jobs.size() == 1) {
       var executorId = jobs.iterator().next().getGroup();
@@ -98,31 +132,6 @@ public class CompactionJobQueues {
 
   public CompactionJobPriorityQueue getQueue(CompactorGroupId groupId) {
     return priorityQueues.get(groupId);
-  }
-
-  public long getQueueMaxSize(CompactorGroupId groupId) {
-    var prioQ = priorityQueues.get(groupId);
-    return prioQ == null ? 0 : prioQ.getMaxSize();
-  }
-
-  public long getQueuedJobs(CompactorGroupId groupId) {
-    var prioQ = priorityQueues.get(groupId);
-    return prioQ == null ? 0 : prioQ.getQueuedJobs();
-  }
-
-  public long getDequeuedJobs(CompactorGroupId groupId) {
-    var prioQ = priorityQueues.get(groupId);
-    return prioQ == null ? 0 : prioQ.getDequeuedJobs();
-  }
-
-  public long getRejectedJobs(CompactorGroupId groupId) {
-    var prioQ = priorityQueues.get(groupId);
-    return prioQ == null ? 0 : prioQ.getRejectedJobs();
-  }
-
-  public long getLowestPriority(CompactorGroupId groupId) {
-    var prioQ = priorityQueues.get(groupId);
-    return prioQ == null ? 0 : prioQ.getLowestPriority();
   }
 
   public long getQueueCount() {
@@ -184,9 +193,13 @@ public class CompactionJobQueues {
           jobs.stream().map(job -> "#files:" + job.getFiles().size() + ",prio:" + job.getPriority()
               + ",kind:" + job.getKind()).collect(Collectors.toList()));
     }
+    var queueLength = maxJobs.getOrDefault(groupId, defaultMaxJobs);
+
+    // Add null check and drop if the compaction queue isn't "known" in our config
+    // log.debug statement
 
     var pq = priorityQueues.computeIfAbsent(groupId,
-        gid -> new CompactionJobPriorityQueue(gid, queueSize));
+        gid -> new CompactionJobPriorityQueue(gid, queueLength));
     while (pq.add(tabletMetadata, jobs,
         currentGenerations.get(DataLevel.of(tabletMetadata.getTableId())).get()) < 0) {
       // When entering this loop its expected the queue is closed
@@ -194,7 +207,7 @@ public class CompactionJobQueues {
       // This loop handles race condition where poll() closes empty priority queues. The queue could
       // be closed after its obtained from the map and before add is called.
       pq = priorityQueues.computeIfAbsent(groupId,
-          gid -> new CompactionJobPriorityQueue(gid, queueSize));
+          gid -> new CompactionJobPriorityQueue(gid, queueLength));
     }
   }
 }
