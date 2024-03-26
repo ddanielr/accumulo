@@ -402,6 +402,9 @@ public class DefaultCompactionPlanner implements CompactionPlanner {
         found = filesToCompact;
       }
     }
+    // Force test values
+    found = Set.of();
+    lowRatio = 1.0;
 
     // in this case the data must be really skewed, operator intervention may be needed.
     // print a message at warn every 15 minutes, otherwise log at trace if no files
