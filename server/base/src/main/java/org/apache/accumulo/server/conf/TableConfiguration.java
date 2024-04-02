@@ -181,8 +181,8 @@ public class TableConfiguration extends ZooBasedConfiguration {
     if (newDispatcher == null) {
       // return early to prevent NPE
       log.error(
-          "Null returned for compaction dispatcher for table: {}. Did not return default value, check server log.",
-          tableId);
+          "Null returned for compaction dispatcher for table: {}. Did not return default value, check classpath context: {}.",
+          tableId, ClassLoaderUtil.tableContext(conf));
       return null;
     }
 
