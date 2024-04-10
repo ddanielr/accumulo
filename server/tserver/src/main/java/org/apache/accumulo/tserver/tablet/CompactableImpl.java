@@ -18,7 +18,6 @@
  */
 package org.apache.accumulo.tserver.tablet;
 
-import static java.util.concurrent.TimeUnit.MINUTES;
 import static org.apache.accumulo.tserver.TabletStatsKeeper.Operation.MAJOR;
 
 import java.io.IOException;
@@ -85,8 +84,6 @@ import org.slf4j.LoggerFactory;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Suppliers;
-import com.google.common.cache.Cache;
-import com.google.common.cache.CacheBuilder;
 import com.google.common.collect.Collections2;
 import com.google.common.collect.Sets;
 
@@ -104,8 +101,6 @@ public class CompactableImpl implements Compactable {
   }
 
   private static final Logger log = LoggerFactory.getLogger(CompactableImpl.class);
-
-  private final Cache<TableId,Long> maxCompactionDispatchErrorCache;
 
   private final Tablet tablet;
 
@@ -643,9 +638,6 @@ public class CompactableImpl implements Compactable {
     var dataFileSizes = tablet.getDatafileManager().getDatafileSizes();
 
     Map<ExternalCompactionId,String> extCompactionsToRemove = new HashMap<>();
-
-    maxCompactionDispatchErrorCache =
-        CacheBuilder.newBuilder().expireAfterWrite(5, MINUTES).build();
 
     // Memoize the supplier so it only calls tablet.getCompactionID() once, because the impl goes to
     // zookeeper. It's a supplier because it may not be needed.
@@ -1493,14 +1485,16 @@ public class CompactableImpl implements Compactable {
 
     try {
       var dispatcher = tablet.getTableConfiguration().getCompactionDispatcher();
-
       if (dispatcher == null) {
-        var last = maxCompactionDispatchErrorCache.getIfPresent(getTableId());
+        String expectedDispatcher =
+            tablet.getTableConfiguration().get(Property.TABLE_COMPACTION_DISPATCHER);
+        var cacheKey = new Pair<>(getTableId(), expectedDispatcher);
+        var last = manager.getDispatcherError(cacheKey);
         if (last == null) {
           log.error(
               "Failed to dispatch compaction for table {}. No dispatcher returned from classpath: {}, falling back to {} service.",
               getTableId(), classpath, CompactionServicesConfig.DEFAULT_SERVICE);
-          maxCompactionDispatchErrorCache.put(getTableId(), System.currentTimeMillis());
+          manager.putDispatcherError(cacheKey, System.currentTimeMillis());
         }
         return CompactionServicesConfig.DEFAULT_SERVICE;
       }

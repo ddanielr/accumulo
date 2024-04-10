@@ -86,6 +86,7 @@ public class CompactionManager {
 
   // use to limit logging of unknown compaction services
   private final Cache<Pair<TableId,CompactionServiceId>,Long> unknownCompactionServiceErrorCache;
+  private final Cache<Pair<TableId,String>,Long> maxCompactionDispatchErrorCache;
 
   static class ExtCompInfo {
     final KeyExtent extent;
@@ -212,6 +213,9 @@ public class CompactionManager {
     unknownCompactionServiceErrorCache =
         CacheBuilder.newBuilder().expireAfterWrite(5, MINUTES).build();
 
+    maxCompactionDispatchErrorCache =
+        CacheBuilder.newBuilder().expireAfterWrite(5, MINUTES).build();
+
     currentCfg.getPlanners().forEach((serviceName, plannerClassName) -> {
       try {
         tmpServices.put(CompactionServiceId.of(serviceName),
@@ -320,6 +324,14 @@ public class CompactionManager {
   public int getCompactionsRunning() {
     return services.values().stream().mapToInt(cs -> cs.getCompactionsRunning(CType.INTERNAL)).sum()
         + runningExternalCompactions.size();
+  }
+
+  public Long getDispatcherError(Pair<TableId,String> dispatcherPair) {
+    return maxCompactionDispatchErrorCache.getIfPresent(dispatcherPair);
+  }
+
+  public void putDispatcherError(Pair<TableId,String> dispatcherPair, Long lastError) {
+    maxCompactionDispatchErrorCache.put(dispatcherPair, lastError);
   }
 
   public int getCompactionsQueued() {
