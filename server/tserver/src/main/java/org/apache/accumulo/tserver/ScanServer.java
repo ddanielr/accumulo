@@ -375,7 +375,7 @@ public class ScanServer extends AbstractServer
     metricsInfo.addServiceTags(getApplicationName(), clientAddress);
 
     scanMetrics = new TabletServerScanMetrics();
-    scanServerMetrics = new ScanServerMetrics(tabletMetadataCache);
+    scanServerMetrics = new ScanServerMetrics(tabletMetadataCache, groupName);
 
     metricsInfo.addMetricsProducers(scanMetrics, scanServerMetrics);
     metricsInfo.init();

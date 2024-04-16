@@ -28,28 +28,36 @@ import com.github.benmanes.caffeine.cache.LoadingCache;
 
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Tag;
 import io.micrometer.core.instrument.Timer;
 import io.micrometer.core.instrument.binder.cache.CaffeineCacheMetrics;
 
 public class ScanServerMetrics implements MetricsProducer {
 
+  private final String resourceGroup;
   private Timer reservationTimer;
   private Counter busyCounter;
 
   private final LoadingCache<KeyExtent,TabletMetadata> tabletMetadataCache;
 
-  public ScanServerMetrics(final LoadingCache<KeyExtent,TabletMetadata> tabletMetadataCache) {
+  public ScanServerMetrics(final LoadingCache<KeyExtent,TabletMetadata> tabletMetadataCache,
+      String resourceGroup) {
     this.tabletMetadataCache = tabletMetadataCache;
+    this.resourceGroup = resourceGroup;
   }
 
   @Override
   public void registerMetrics(MeterRegistry registry) {
     reservationTimer = Timer.builder(MetricsProducer.METRICS_SSERVER_REGISTRATION_TIMER)
-        .description("Time to reserve a tablets files for scan").register(registry);
+        .description("Time to reserve a tablets files for scan")
+        .tag("resource.group", resourceGroup).register(registry);
+    // TODO this counter is a duplicate, already a metrics for this below the scan server... use
+    // that instead, but look into renaming existing one to indicate scan server
     busyCounter = Counter.builder(MetricsProducer.METRICS_SSERVER_BUSY_COUNTER)
+        .tag("resource.group", resourceGroup)
         .description("The number of scans where a busy timeout happened").register(registry);
     CaffeineCacheMetrics.monitor(registry, tabletMetadataCache,
-        METRICS_SSERVER_TABLET_METADATA_CACHE, List.of());
+        METRICS_SSERVER_TABLET_METADATA_CACHE, List.of(Tag.of("resource.group", resourceGroup)));
   }
 
   public Timer getReservationTimer() {
