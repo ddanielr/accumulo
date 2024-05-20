@@ -234,6 +234,10 @@ public final class LruBlockCacheConfiguration {
         + ", useEvictionThread: " + this.isUseEvictionThread();
   }
 
+  public String getType() {
+    return type.toString();
+  }
+
   public long getMaxSize() {
     return conf.getMaxSize(type);
   }
