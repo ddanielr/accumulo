@@ -21,6 +21,7 @@ package org.apache.accumulo.tserver.tablet;
 import static org.apache.accumulo.tserver.TabletStatsKeeper.Operation.MAJOR;
 
 import java.time.Duration;
+import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -61,7 +62,6 @@ import org.apache.accumulo.core.spi.compaction.CompactionJob;
 import org.apache.accumulo.core.spi.compaction.CompactionKind;
 import org.apache.accumulo.core.spi.compaction.CompactionServiceId;
 import org.apache.accumulo.core.spi.compaction.CompactionServices;
-import org.apache.accumulo.core.util.Pair;
 import org.apache.accumulo.core.util.compaction.CompactionExecutorIdImpl;
 import org.apache.accumulo.core.util.compaction.CompactionJobImpl;
 import org.apache.accumulo.core.util.compaction.CompactionServicesConfig;
@@ -517,25 +517,26 @@ public class CompactableImpl implements Compactable {
 
     // Memoize the supplier so it only calls tablet.getCompactionID() once, because the impl goes to
     // zookeeper. It's a supplier because it may not be needed.
-    Supplier<Optional<Pair<Long,CompactionConfig>>> tabletCompactionId = Suppliers.memoize(() -> {
-      try {
-        return Optional.of(tablet.getCompactionID());
-      } catch (NoNodeException nne) {
-        return Optional.empty();
-      }
-    });
+    Supplier<Optional<AbstractMap.SimpleEntry<Long,CompactionConfig>>> tabletCompactionId =
+        Suppliers.memoize(() -> {
+          try {
+            return Optional.of(tablet.getCompactionID());
+          } catch (NoNodeException nne) {
+            return Optional.empty();
+          }
+        });
 
-    var extSelInfo =
-        processExternalMetadata(extCompactions, () -> tabletCompactionId.get().map(Pair::getFirst),
-            dataFileSizes.keySet(), extCompactionsToRemove);
+    var extSelInfo = processExternalMetadata(extCompactions,
+        () -> tabletCompactionId.get().map(AbstractMap.SimpleEntry::getKey), dataFileSizes.keySet(),
+        extCompactionsToRemove);
 
     if (extSelInfo.isPresent()) {
       if (extSelInfo.orElseThrow().selectKind == CompactionKind.USER) {
         this.chelper = CompactableUtils.getHelper(extSelInfo.orElseThrow().selectKind, tablet,
-            tabletCompactionId.get().orElseThrow().getFirst(),
-            tabletCompactionId.get().orElseThrow().getSecond());
-        this.compactionConfig = tabletCompactionId.get().orElseThrow().getSecond();
-        this.compactionId = tabletCompactionId.get().orElseThrow().getFirst();
+            tabletCompactionId.get().orElseThrow().getKey(),
+            tabletCompactionId.get().orElseThrow().getValue());
+        this.compactionConfig = tabletCompactionId.get().orElseThrow().getValue();
+        this.compactionId = tabletCompactionId.get().orElseThrow().getKey();
       } else if (extSelInfo.orElseThrow().selectKind == CompactionKind.SELECTOR) {
         this.chelper =
             CompactableUtils.getHelper(extSelInfo.orElseThrow().selectKind, tablet, null, null);

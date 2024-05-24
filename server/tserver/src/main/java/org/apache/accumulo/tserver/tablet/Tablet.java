@@ -27,6 +27,7 @@ import java.io.DataInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.lang.ref.SoftReference;
+import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -692,7 +693,7 @@ public class Tablet extends TabletBase {
     return Long.parseLong(id);
   }
 
-  public Pair<Long,CompactionConfig> getCompactionID() throws NoNodeException {
+  public AbstractMap.SimpleEntry<Long,CompactionConfig> getCompactionID() throws NoNodeException {
     try {
       String zTablePath = Constants.ZROOT + "/" + tabletServer.getInstanceID() + Constants.ZTABLES
           + "/" + extent.tableId() + Constants.ZTABLE_COMPACT_ID;
@@ -723,7 +724,7 @@ public class Tablet extends TabletBase {
         overlappingConfig = new CompactionConfig(); // no config present, set to default
       }
 
-      return new Pair<>(compactID, overlappingConfig);
+      return new AbstractMap.SimpleEntry<>(compactID, overlappingConfig);
     } catch (InterruptedException | DecoderException | NumberFormatException e) {
       throw new RuntimeException("Exception on " + extent + " getting compaction ID", e);
     } catch (KeeperException ke) {

@@ -24,6 +24,7 @@ import static java.util.stream.Collectors.toList;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -101,7 +102,6 @@ import org.apache.accumulo.core.tabletserver.thrift.TabletStats;
 import org.apache.accumulo.core.trace.TraceUtil;
 import org.apache.accumulo.core.util.ByteBufferUtil;
 import org.apache.accumulo.core.util.Halt;
-import org.apache.accumulo.core.util.Pair;
 import org.apache.accumulo.core.util.threads.Threads;
 import org.apache.accumulo.server.ServerContext;
 import org.apache.accumulo.server.compaction.CompactionInfo;
@@ -1179,7 +1179,7 @@ public class TabletClientHandler implements TabletServerClientService.Iface,
     KeyExtent ke = new KeyExtent(TableId.of(tableId), ByteBufferUtil.toText(endRow),
         ByteBufferUtil.toText(startRow));
 
-    Pair<Long,CompactionConfig> compactionInfo = null;
+    AbstractMap.SimpleEntry<Long,CompactionConfig> compactionInfo = null;
 
     for (Tablet tablet : server.getOnlineTablets().values()) {
       if (ke.overlaps(tablet.getExtent())) {
@@ -1193,7 +1193,7 @@ public class TabletClientHandler implements TabletServerClientService.Iface,
             return;
           }
         }
-        tablet.compactAll(compactionInfo.getFirst(), compactionInfo.getSecond());
+        tablet.compactAll(compactionInfo.getKey(), compactionInfo.getValue());
       }
     }
   }
