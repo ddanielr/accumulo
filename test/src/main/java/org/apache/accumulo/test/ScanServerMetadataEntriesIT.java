@@ -172,6 +172,44 @@ public class ScanServerMetadataEntriesIT extends SharedMiniClusterBase {
   }
 
   @Test
+  public void testScanServerMetadataEntriesDeletionOnExit() throws Exception {
+
+    ServerContext ctx = getCluster().getServerContext();
+    try (AccumuloClient client = Accumulo.newClient().from(getClientProps()).build()) {
+      final String tableName = getUniqueNames(1)[0];
+
+      client.tableOperations().create(tableName);
+
+      // Make multiple files
+      final int fileCount = 3;
+      for (int i = 0; i < fileCount; i++) {
+        ingest(client, tableName, 10, 10, 0, "colf", true);
+      }
+
+      try (Scanner scanner = client.createScanner(tableName, Authorizations.EMPTY)) {
+        scanner.setRange(new Range());
+        scanner.setConsistencyLevel(ConsistencyLevel.EVENTUAL);
+        scanner.setBatchSize(10);
+
+        Iterator<Entry<Key,Value>> iter = scanner.iterator();
+        assertTrue(iter.hasNext());
+        assertNotNull(iter.next());
+
+        assertEquals(fileCount, ctx.getAmple().getScanServerFileReferences().count());
+
+      }
+      // Trigger Shutdown of scan server.
+      getCluster().getClusterControl().stop(ServerType.SCAN_SERVER);
+
+      while (getCluster().getProcesses().containsKey(ServerType.SCAN_SERVER)) {
+        Thread.sleep(1000);
+      }
+      assertFalse(ctx.getAmple().getScanServerFileReferences().findAny().isPresent(),
+          "Scan Server Refs are still present");
+    }
+  }
+
+  @Test
   public void testBatchScanServerMetadataEntries() throws Exception {
 
     ServerContext ctx = getCluster().getServerContext();
