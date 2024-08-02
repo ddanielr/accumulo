@@ -41,7 +41,6 @@ public interface CompactionPlanner {
    * @since 2.1.0
    */
   public interface InitParameters {
-    ServiceEnvironment getServiceEnvironment();
 
     /**
      * @return The configured options. For example if the system properties

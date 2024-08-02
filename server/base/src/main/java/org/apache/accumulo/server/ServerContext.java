@@ -110,6 +110,8 @@ public class ServerContext extends ClientContext {
   private final AtomicReference<ServiceLock> serverLock = new AtomicReference<>();
   private final Supplier<MetricsInfo> metricsInfoSupplier;
 
+  // private final Supplier<CompactionServiceFactory> compactionServiceFactory;
+
   public ServerContext(SiteConfiguration siteConfig) {
     this(new ServerInfo(siteConfig));
   }
@@ -136,6 +138,7 @@ public class ServerContext extends ClientContext {
             SecurityOperation.getAuthenticator(this), SecurityOperation.getPermHandler(this)));
     lowMemoryDetector = memoize(() -> new LowMemoryDetector());
     metricsInfoSupplier = memoize(() -> new MetricsInfoImpl(this));
+    // compactionServiceFactory = memoize(() -> new CompactionServiceFactory());
   }
 
   /**
@@ -490,4 +493,8 @@ public class ServerContext extends ClientContext {
     getMetricsInfo().close();
     super.close();
   }
+  // public CompactionServiceFactory getCompactionServiceFactory() {
+  // return CompactionServiceFactory.get();
+  // }
+
 }
