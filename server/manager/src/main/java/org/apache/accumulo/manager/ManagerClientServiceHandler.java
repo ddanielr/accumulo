@@ -140,7 +140,7 @@ public class ManagerClientServiceHandler implements ManagerClientService.Iface {
       throw new ThriftTableOperationException(tableId.canonical(), null, TableOperation.FLUSH,
           TableOperationExceptionType.OTHER, null);
     }
-    return Long.parseLong(new String(fid));
+    return Long.parseLong(new String(fid, UTF_8));
   }
 
   @Override
@@ -555,10 +555,13 @@ public class ManagerClientServiceHandler implements ManagerClientService.Iface {
     }
 
     try {
-      if (value == null || value.isEmpty()) {
+      if (op == TableOperation.REMOVE_PROPERTY) {
         PropUtil.removeProperties(manager.getContext(),
             TablePropKey.of(manager.getContext(), tableId), List.of(property));
-      } else {
+      } else if (op == TableOperation.SET_PROPERTY) {
+        if (value == null || value.isEmpty()) {
+          value = "";
+        }
         PropUtil.setProperties(manager.getContext(), TablePropKey.of(manager.getContext(), tableId),
             Map.of(property, value));
       }

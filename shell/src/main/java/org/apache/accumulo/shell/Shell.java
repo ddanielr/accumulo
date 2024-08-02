@@ -39,6 +39,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
 import java.util.TreeMap;
@@ -189,6 +190,7 @@ import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
  */
 @AutoService(KeywordExecutable.class)
 public class Shell extends ShellOptions implements KeywordExecutable {
+
   public static final Logger log = LoggerFactory.getLogger(Shell.class);
   private static final Logger audit = LoggerFactory.getLogger(Shell.class.getName() + ".audit");
 
@@ -231,6 +233,8 @@ public class Shell extends ShellOptions implements KeywordExecutable {
   private long authTimeout;
   private long lastUserActivity = System.nanoTime();
   private boolean logErrorsToConsole = false;
+  private boolean askAgain = false;
+  private boolean usedClientProps = false;
 
   static {
     // set the JLine output encoding to some reasonable default if it isn't already set
@@ -248,13 +252,44 @@ public class Shell extends ShellOptions implements KeywordExecutable {
     }
   }
 
-  // no arg constructor should do minimal work since its used in Main ServiceLoader
+  // no arg constructor should do minimal work since it's used in Main ServiceLoader
   public Shell() {}
 
   public Shell(LineReader reader) {
     this.reader = reader;
     this.terminal = reader.getTerminal();
     this.writer = terminal.writer();
+  }
+
+  // this is visible only for FateCommandTest, otherwise, should be private or inline
+  protected boolean authenticateUser(AccumuloClient client, AuthenticationToken token)
+      throws AccumuloException, AccumuloSecurityException {
+    return client.securityOperations().authenticateUser(client.whoami(), token);
+  }
+
+  private AuthenticationToken getAuthenticationToken(String principal, String authenticationString,
+      String passwordPrompt) {
+    AuthenticationToken token = null;
+    if (authenticationString == null
+        && clientProperties.containsKey(ClientProperty.AUTH_TOKEN.getKey())
+        && principal.equals(ClientProperty.AUTH_PRINCIPAL.getValue(clientProperties))) {
+      token = ClientProperty.getAuthenticationToken(clientProperties);
+      usedClientProps = true;
+    }
+    if (token == null || askAgain) {
+      usedClientProps = false;
+      // Read password if the user explicitly asked for it, or didn't specify anything at all
+      if (PasswordConverter.STDIN.equals(authenticationString) || authenticationString == null) {
+        authenticationString = reader.readLine(passwordPrompt, '*');
+      }
+      if (authenticationString == null) {
+        // User cancel, e.g. Ctrl-D pressed
+        throw new ParameterException("No password or token option supplied");
+      } else {
+        token = new PasswordToken(authenticationString);
+      }
+    }
+    return token;
   }
 
   /**
@@ -331,27 +366,13 @@ public class Shell extends ShellOptions implements KeywordExecutable {
         exitCode = 1;
         return false;
       }
-      String password = options.getPassword();
-      AuthenticationToken token = null;
-      if (password == null && clientProperties.containsKey(ClientProperty.AUTH_TOKEN.getKey())
-          && principal.equals(ClientProperty.AUTH_PRINCIPAL.getValue(clientProperties))) {
-        token = ClientProperty.getAuthenticationToken(clientProperties);
-      }
-      if (token == null) {
-        // Read password if the user explicitly asked for it, or didn't specify anything at all
-        if (PasswordConverter.STDIN.equals(password) || password == null) {
-          password = reader.readLine("Password: ", '*');
-        }
-        if (password == null) {
-          // User cancel, e.g. Ctrl-D pressed
-          throw new ParameterException("No password or token option supplied");
-        } else {
-          token = new PasswordToken(password);
-        }
-      }
+      String authenticationString = options.getPassword();
+      final AuthenticationToken token =
+          getAuthenticationToken(principal, authenticationString, "Password: ");
       try {
         this.setTableName("");
         accumuloClient = Accumulo.newClient().from(clientProperties).as(principal, token).build();
+        authenticateUser(accumuloClient, token);
         context = (ClientContext) accumuloClient;
       } catch (Exception e) {
         printException(e);
@@ -601,7 +622,7 @@ public class Shell extends ShellOptions implements KeywordExecutable {
         writer.println();
 
         String partialLine = uie.getPartialLine();
-        if (partialLine == null || "".equals(uie.getPartialLine().trim())) {
+        if (partialLine == null || partialLine.trim().isEmpty()) {
           // No content, actually exit
           return exitCode;
         }
@@ -732,16 +753,10 @@ public class Shell extends ShellOptions implements KeywordExecutable {
           writer.println("Shell has been idle for too long. Please re-authenticate.");
           boolean authFailed = true;
           do {
-            String pwd = readMaskedLine(
-                "Enter current password for '" + accumuloClient.whoami() + "': ", '*');
-            if (pwd == null) {
-              writer.println();
-              return;
-            } // user canceled
-
+            final AuthenticationToken authToken = getAuthenticationToken(accumuloClient.whoami(),
+                null, "Enter current password for '" + accumuloClient.whoami() + "': ");
             try {
-              authFailed = !accumuloClient.securityOperations()
-                  .authenticateUser(accumuloClient.whoami(), new PasswordToken(pwd));
+              authFailed = !authenticateUser(accumuloClient, authToken);
             } catch (Exception e) {
               ++exitCode;
               printException(e);
@@ -749,6 +764,12 @@ public class Shell extends ShellOptions implements KeywordExecutable {
 
             if (authFailed) {
               writer.print("Invalid password. ");
+              askAgain = true;
+            } else {
+              if (usedClientProps) {
+                writer.println(
+                    "User re-authenticated using value from accumulo-client.properties file");
+              }
             }
           } while (authFailed);
           lastUserActivity = System.nanoTime();
@@ -1188,7 +1209,7 @@ public class Shell extends ShellOptions implements KeywordExecutable {
       throws AccumuloException, AccumuloSecurityException {
     var newClient = Accumulo.newClient().from(clientProperties).as(principal, token).build();
     try {
-      newClient.securityOperations().authenticateUser(principal, token);
+      authenticateUser(newClient, token);
     } catch (AccumuloSecurityException e) {
       // new client can't authenticate; close and discard
       newClient.close();
@@ -1253,4 +1274,24 @@ public class Shell extends ShellOptions implements KeywordExecutable {
     return exit;
   }
 
+  /**
+   * Prompt user for yes/no using the shell prompt.
+   *
+   * @param prompt the string printed to user, with (yes|no)? appended as the prompt.
+   * @return true if user enters y | yes, false or null.
+   */
+  public Optional<Boolean> confirm(final String prompt) {
+    getWriter().flush();
+    String line;
+    Optional<Boolean> confirmed = Optional.empty();
+    try {
+      line = getReader().readLine(prompt + " (yes|no)? ");
+    } catch (EndOfFileException ignored) {
+      line = null;
+    }
+    if (line != null) {
+      confirmed = Optional.of(line.equalsIgnoreCase("y") || line.equalsIgnoreCase("yes"));
+    }
+    return confirmed;
+  }
 }

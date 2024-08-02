@@ -28,6 +28,7 @@ import java.util.concurrent.TimeUnit;
 
 import org.apache.accumulo.core.Constants;
 import org.apache.accumulo.core.clientImpl.thrift.ClientService;
+import org.apache.accumulo.core.conf.Property;
 import org.apache.accumulo.core.conf.SiteConfiguration;
 import org.apache.accumulo.core.fate.zookeeper.ServiceLock;
 import org.apache.accumulo.core.fate.zookeeper.ServiceLock.LockLossReason;
@@ -35,6 +36,7 @@ import org.apache.accumulo.core.fate.zookeeper.ServiceLock.LockWatcher;
 import org.apache.accumulo.core.fate.zookeeper.ZooReaderWriter;
 import org.apache.accumulo.core.fate.zookeeper.ZooUtil.NodeExistsPolicy;
 import org.apache.accumulo.core.master.thrift.TabletServerStatus;
+import org.apache.accumulo.core.metrics.MetricsInfo;
 import org.apache.accumulo.core.rpc.clients.ThriftClientTypes;
 import org.apache.accumulo.core.securityImpl.thrift.TCredentials;
 import org.apache.accumulo.core.tabletserver.thrift.TabletClientService;
@@ -120,10 +122,11 @@ public class ZombieTServer {
             TabletScanClientService.Processor.class, TabletScanClientService.Iface.class, tch,
             context));
 
-    ServerAddress serverPort =
-        TServerUtils.startTServer(context.getConfiguration(), ThriftServerType.CUSTOM_HS_HA,
-            muxProcessor, "ZombieTServer", "walking dead", 2, ThreadPools.DEFAULT_TIMEOUT_MILLISECS,
-            1000, 10 * 1024 * 1024, null, null, -1, HostAndPort.fromParts("0.0.0.0", port));
+    ServerAddress serverPort = TServerUtils.startTServer(context.getConfiguration(),
+        ThriftServerType.CUSTOM_HS_HA, muxProcessor, "ZombieTServer", "walking dead", 2,
+        ThreadPools.DEFAULT_TIMEOUT_MILLISECS, 1000, 10 * 1024 * 1024, null, null, -1,
+        context.getConfiguration().getCount(Property.RPC_BACKLOG), context.getMetricsInfo(), false,
+        HostAndPort.fromParts("0.0.0.0", port));
 
     String addressString = serverPort.address.toString();
     var zLockPath =
@@ -132,6 +135,10 @@ public class ZombieTServer {
     zoo.putPersistentData(zLockPath.toString(), new byte[] {}, NodeExistsPolicy.SKIP);
 
     ServiceLock zlock = new ServiceLock(zoo.getZooKeeper(), zLockPath, UUID.randomUUID());
+
+    MetricsInfo metricsInfo = context.getMetricsInfo();
+    metricsInfo.addServiceTags("zombie.server", serverPort.address);
+    metricsInfo.init();
 
     LockWatcher lw = new LockWatcher() {
 

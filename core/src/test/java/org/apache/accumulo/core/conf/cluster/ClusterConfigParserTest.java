@@ -21,10 +21,12 @@ package org.apache.accumulo.core.conf.cluster;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import java.io.BufferedReader;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.PrintStream;
@@ -71,6 +73,7 @@ public class ClusterConfigParserTest {
     assertFalse(contents.containsKey("compaction.compactor.q2"));
     assertFalse(contents.containsKey("tservers_per_host"));
     assertFalse(contents.containsKey("sservers_per_host"));
+    assertFalse(contents.containsKey("compactors_per_host"));
   }
 
   @Test
@@ -82,7 +85,7 @@ public class ClusterConfigParserTest {
     Map<String,String> contents =
         ClusterConfigParser.parseConfiguration(new File(configFile.toURI()).getAbsolutePath());
 
-    assertEquals(12, contents.size());
+    assertEquals(16, contents.size());
     assertTrue(contents.containsKey("manager"));
     assertEquals("localhost1 localhost2", contents.get("manager"));
     assertTrue(contents.containsKey("monitor"));
@@ -108,8 +111,16 @@ public class ClusterConfigParserTest {
     assertEquals("burstyvm1 burstyvm2", contents.get("sserver.cheap"));
     assertTrue(contents.containsKey("tservers_per_host"));
     assertEquals("2", contents.get("tservers_per_host"));
-    assertTrue(contents.containsKey("sservers_per_host"));
-    assertEquals("1", contents.get("sservers_per_host"));
+    assertTrue(contents.containsKey("sservers_per_host.default"));
+    assertEquals("1", contents.get("sservers_per_host.default"));
+    assertTrue(contents.containsKey("sservers_per_host.highmem"));
+    assertEquals("2", contents.get("sservers_per_host.highmem"));
+    assertTrue(contents.containsKey("sservers_per_host.cheap"));
+    assertEquals("3", contents.get("sservers_per_host.cheap"));
+    assertTrue(contents.containsKey("compactors_per_host.q1"));
+    assertEquals("3", contents.get("compactors_per_host.q1"));
+    assertTrue(contents.containsKey("compactors_per_host.q2"));
+    assertEquals("1", contents.get("compactors_per_host.q2"));
   }
 
   @Test
@@ -167,7 +178,6 @@ public class ClusterConfigParserTest {
     expected.put("GC_HOSTS", "localhost");
     expected.put("TSERVER_HOSTS", "localhost1 localhost2 localhost3 localhost4");
     expected.put("NUM_TSERVERS", "${NUM_TSERVERS:=1}");
-    expected.put("NUM_SSERVERS", "${NUM_SSERVERS:=1}");
 
     expected.replaceAll((k, v) -> '"' + v + '"');
 
@@ -225,7 +235,11 @@ public class ClusterConfigParserTest {
     expected.put("SSERVER_HOSTS_highmem", "hmvm1 hmvm2 hmvm3");
     expected.put("SSERVER_HOSTS_cheap", "burstyvm1 burstyvm2");
     expected.put("NUM_TSERVERS", "${NUM_TSERVERS:=2}");
-    expected.put("NUM_SSERVERS", "${NUM_SSERVERS:=1}");
+    expected.put("NUM_COMPACTORS_q1", "3");
+    expected.put("NUM_COMPACTORS_q2", "1");
+    expected.put("NUM_SSERVERS_default", "1");
+    expected.put("NUM_SSERVERS_highmem", "2");
+    expected.put("NUM_SSERVERS_cheap", "3");
 
     expected.replaceAll((k, v) -> {
       return '"' + v + '"';
@@ -242,4 +256,19 @@ public class ClusterConfigParserTest {
     assertEquals(expected, actual);
   }
 
+  @Test
+  public void testFileWithUnknownSections() throws Exception {
+    URL configFile = ClusterConfigParserTest.class
+        .getResource("/org/apache/accumulo/core/conf/cluster/bad-cluster.yaml");
+    assertNotNull(configFile);
+
+    Map<String,String> contents =
+        ClusterConfigParser.parseConfiguration(new File(configFile.toURI()).getAbsolutePath());
+
+    try (var baos = new ByteArrayOutputStream(); var ps = new PrintStream(baos)) {
+      var exception = assertThrows(IllegalArgumentException.class,
+          () -> ClusterConfigParser.outputShellVariables(contents, ps));
+      assertTrue(exception.getMessage().contains("vserver"));
+    }
+  }
 }

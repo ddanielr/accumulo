@@ -30,6 +30,7 @@ import static org.apache.accumulo.core.metadata.schema.TabletMetadata.ColumnType
 import static org.apache.accumulo.core.util.UtilWaitThread.sleepUninterruptibly;
 import static org.apache.accumulo.core.util.Validators.EXISTING_TABLE_NAME;
 import static org.apache.accumulo.core.util.Validators.NEW_TABLE_NAME;
+import static org.apache.accumulo.core.util.threads.ThreadPoolNames.SPLIT_POOL;
 
 import java.io.BufferedReader;
 import java.io.FileNotFoundException;
@@ -495,7 +496,8 @@ public class TableOperationsImpl extends TableOperationsHelper {
     CountDownLatch latch = new CountDownLatch(splits.size());
     AtomicReference<Exception> exception = new AtomicReference<>(null);
 
-    ExecutorService executor = context.threadPools().createFixedThreadPool(16, "addSplits", false);
+    ExecutorService executor =
+        context.threadPools().getPoolBuilder(SPLIT_POOL).numCoreThreads(16).build();
     try {
       executor.execute(
           new SplitTask(new SplitEnv(tableName, tableId, executor, latch, exception), splits));
@@ -1705,7 +1707,7 @@ public class TableOperationsImpl extends TableOperationsHelper {
     args.add(0, ByteBuffer.wrap(tableName.getBytes(UTF_8)));
     args.add(1, ByteBuffer.wrap(Boolean.toString(keepOffline).getBytes(UTF_8)));
     args.add(2, ByteBuffer.wrap(Boolean.toString(keepMapping).getBytes(UTF_8)));
-    checkedImportDirs.stream().map(String::getBytes).map(ByteBuffer::wrap).forEach(args::add);
+    checkedImportDirs.stream().map(s -> s.getBytes(UTF_8)).map(ByteBuffer::wrap).forEach(args::add);
 
     try {
       doTableFateOperation(tableName, AccumuloException.class, FateOperation.TABLE_IMPORT, args,

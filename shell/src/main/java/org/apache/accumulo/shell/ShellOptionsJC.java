@@ -50,7 +50,7 @@ public class ShellOptionsJC {
           + " 'file:<local file containing the password>', 'env:<variable containing"
           + " the pass>', or stdin)",
       converter = ClientOpts.PasswordConverter.class)
-  private String password;
+  private String authenticationString;
 
   @DynamicParameter(names = {"-l"},
       description = "command line properties in the format key=value. Reuse -l for each property")
@@ -145,7 +145,7 @@ public class ShellOptionsJC {
   }
 
   public String getPassword() {
-    return password;
+    return authenticationString;
   }
 
   public boolean isTabCompletionDisabled() {
@@ -201,7 +201,7 @@ public class ShellOptionsJC {
         File file = new File(path);
         if (file.isFile() && file.canRead()) {
           clientConfigFile = file.getAbsolutePath();
-          System.out.println("Loading configuration from " + clientConfigFile);
+          Shell.log.info("Loading configuration from {}", clientConfigFile);
           break;
         }
       }
@@ -239,7 +239,7 @@ public class ShellOptionsJC {
     return props;
   }
 
-  static class PositiveInteger implements IParameterValidator {
+  public static class PositiveInteger implements IParameterValidator {
     @Override
     public void validate(String name, String value) throws ParameterException {
       int n = -1;

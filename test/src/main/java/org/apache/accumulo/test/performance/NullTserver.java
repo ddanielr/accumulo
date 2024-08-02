@@ -115,6 +115,11 @@ public class NullTserver {
     }
 
     @Override
+    public boolean cancelUpdate(TInfo tinfo, long updateID) throws TException {
+      return true;
+    }
+
+    @Override
     public List<TKeyExtent> bulkImport(TInfo tinfo, TCredentials credentials, long tid,
         Map<TKeyExtent,Map<String,MapFileInfo>> files, boolean setTime) {
       return null;
@@ -340,7 +345,8 @@ public class NullTserver {
 
     TServerUtils.startTServer(context.getConfiguration(), ThriftServerType.CUSTOM_HS_HA,
         muxProcessor, "NullTServer", "null tserver", 2, ThreadPools.DEFAULT_TIMEOUT_MILLISECS, 1000,
-        10 * 1024 * 1024, null, null, -1, HostAndPort.fromParts("0.0.0.0", opts.port));
+        10 * 1024 * 1024, null, null, -1, context.getConfiguration().getCount(Property.RPC_BACKLOG),
+        context.getMetricsInfo(), false, HostAndPort.fromParts("0.0.0.0", opts.port));
 
     HostAndPort addr = HostAndPort.fromParts(InetAddress.getLocalHost().getHostName(), opts.port);
 
@@ -355,7 +361,7 @@ public class NullTserver {
 
       while (s.hasNext()) {
         TabletLocationState next = s.next();
-        assignments.add(new Assignment(next.extent, instance));
+        assignments.add(new Assignment(next.extent, instance, next.last));
       }
     }
     // point them to this server

@@ -27,6 +27,7 @@ import org.apache.accumulo.core.metadata.MetadataTable;
 import org.apache.accumulo.core.metadata.TServerInstance;
 import org.apache.accumulo.core.metadata.TabletLocationState;
 import org.apache.accumulo.core.metadata.schema.Ample;
+import org.apache.accumulo.core.metadata.schema.Ample.DataLevel;
 import org.apache.accumulo.core.metadata.schema.Ample.TabletMutator;
 import org.apache.accumulo.core.metadata.schema.MetadataSchema.TabletsSection;
 import org.apache.accumulo.core.metadata.schema.TabletMetadata.Location;
@@ -40,16 +41,24 @@ class MetaDataStateStore implements TabletStateStore {
   protected final CurrentState state;
   private final String targetTableName;
   private final Ample ample;
+  private final DataLevel level;
 
-  protected MetaDataStateStore(ClientContext context, CurrentState state, String targetTableName) {
+  protected MetaDataStateStore(DataLevel level, ClientContext context, CurrentState state,
+      String targetTableName) {
+    this.level = level;
     this.context = context;
     this.state = state;
     this.ample = context.getAmple();
     this.targetTableName = targetTableName;
   }
 
-  MetaDataStateStore(ClientContext context, CurrentState state) {
-    this(context, state, MetadataTable.NAME);
+  MetaDataStateStore(DataLevel level, ClientContext context, CurrentState state) {
+    this(level, context, state, MetadataTable.NAME);
+  }
+
+  @Override
+  public DataLevel getLevel() {
+    return level;
   }
 
   @Override
@@ -63,8 +72,8 @@ class MetaDataStateStore implements TabletStateStore {
       for (Assignment assignment : assignments) {
         TabletMutator tabletMutator = tabletsMutator.mutateTablet(assignment.tablet);
         tabletMutator.putLocation(Location.current(assignment.server));
-        ManagerMetadataUtil.updateLastForAssignmentMode(context, ample, tabletMutator,
-            assignment.tablet, assignment.server);
+        ManagerMetadataUtil.updateLastForAssignmentMode(context, tabletMutator, assignment.server,
+            assignment.lastLocation);
         tabletMutator.deleteLocation(Location.future(assignment.server));
         tabletMutator.deleteSuspension();
         tabletMutator.mutate();
@@ -107,8 +116,8 @@ class MetaDataStateStore implements TabletStateStore {
       for (TabletLocationState tls : tablets) {
         TabletMutator tabletMutator = tabletsMutator.mutateTablet(tls.extent);
         if (tls.current != null) {
-          ManagerMetadataUtil.updateLastForAssignmentMode(context, ample, tabletMutator, tls.extent,
-              tls.current.getServerInstance());
+          ManagerMetadataUtil.updateLastForAssignmentMode(context, tabletMutator,
+              tls.current.getServerInstance(), tls.last);
           tabletMutator.deleteLocation(tls.current);
           if (logsForDeadServers != null) {
             List<Path> logs = logsForDeadServers.get(tls.current.getServerInstance());
@@ -141,9 +150,8 @@ class MetaDataStateStore implements TabletStateStore {
     try (var tabletsMutator = ample.mutateTablets()) {
       for (TabletLocationState tls : tablets) {
         if (tls.suspend != null) {
-          continue;
+          tabletsMutator.mutateTablet(tls.extent).deleteSuspension().mutate();
         }
-        tabletsMutator.mutateTablet(tls.extent).deleteSuspension().mutate();
       }
     } catch (RuntimeException ex) {
       throw new DistributedStoreException(ex);

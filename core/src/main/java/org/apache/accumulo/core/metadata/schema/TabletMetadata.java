@@ -192,6 +192,16 @@ public class TabletMetadata {
       return Objects.hash(tServerInstance, lt);
     }
 
+    @Override
+    public String toString() {
+      StringBuilder sb = new StringBuilder(32);
+      sb.append("Location [");
+      sb.append("server=").append(tServerInstance);
+      sb.append(", type=").append(lt);
+      sb.append("]");
+      return sb.toString();
+    }
+
     public static Location last(TServerInstance instance) {
       return new Location(instance, LocationType.LAST);
     }
@@ -363,7 +373,9 @@ public class TabletMetadata {
         future = location;
       }
       // only care about the state so don't need walogs and chopped params
-      var tls = new TabletLocationState(extent, future, current, last, suspend, null, false);
+      // Use getExtent() when passing the extent as the private reference may not have been
+      // initialized yet. This will also ensure PREV_ROW was fetched
+      var tls = new TabletLocationState(getExtent(), future, current, last, suspend, null, false);
       return tls.getState(liveTServers);
     } catch (TabletLocationState.BadLocationStateException blse) {
       throw new IllegalArgumentException("Error creating TabletLocationState", blse);
@@ -433,7 +445,7 @@ public class TabletMetadata {
           switch (qual) {
             case DIRECTORY_QUAL:
               Preconditions.checkArgument(ServerColumnFamily.isValidDirCol(val),
-                  "Saw invalid dir name {} {}", key, val);
+                  "Saw invalid dir name %s %s", key, val);
               te.dirName = val;
               break;
             case TIME_QUAL:

@@ -19,15 +19,17 @@
 package org.apache.accumulo.core.clientImpl;
 
 import static com.google.common.base.Preconditions.checkArgument;
+import static com.google.common.base.Suppliers.memoize;
 import static com.google.common.base.Suppliers.memoizeWithExpiration;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Objects.requireNonNull;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.accumulo.core.metadata.schema.TabletMetadata.ColumnType.LOCATION;
+import static org.apache.accumulo.core.util.threads.ThreadPoolNames.CONDITIONAL_WRITER_CLEANUP_POOL;
+import static org.apache.accumulo.core.util.threads.ThreadPoolNames.SCANNER_READ_AHEAD_POOL;
 
 import java.lang.Thread.UncaughtExceptionHandler;
-import java.lang.reflect.InvocationTargetException;
 import java.net.URL;
 import java.nio.file.Path;
 import java.util.Collection;
@@ -205,9 +207,7 @@ public class ClientContext implements AccumuloClient {
         }
       });
       return scanServerSelector;
-    } catch (ClassNotFoundException | InstantiationException | IllegalAccessException
-        | IllegalArgumentException | InvocationTargetException | NoSuchMethodException
-        | SecurityException e) {
+    } catch (ReflectiveOperationException | IllegalArgumentException | SecurityException e) {
       throw new RuntimeException("Error creating ScanServerSelector implementation: " + clazz, e);
     }
   }
@@ -232,8 +232,7 @@ public class ClientContext implements AccumuloClient {
     saslSupplier = memoizeWithExpiration(
         () -> SaslConnectionParams.from(getConfiguration(), getCredentials().getToken()), 100,
         MILLISECONDS);
-    scanServerSelectorSupplier =
-        memoizeWithExpiration(this::createScanServerSelector, 100, MILLISECONDS);
+    scanServerSelectorSupplier = memoize(this::createScanServerSelector);
     this.singletonReservation = Objects.requireNonNull(reservation);
     this.tableops = new TableOperationsImpl(this);
     this.namespaceops = new NamespaceOperationsImpl(this, tableops);
@@ -260,8 +259,9 @@ public class ClientContext implements AccumuloClient {
       submitScannerReadAheadTask(Callable<List<KeyValue>> c) {
     ensureOpen();
     if (scannerReadaheadPool == null) {
-      scannerReadaheadPool = clientThreadPools.createThreadPool(0, Integer.MAX_VALUE, 3L, SECONDS,
-          "Accumulo scanner read ahead thread", new SynchronousQueue<>(), true);
+      scannerReadaheadPool = clientThreadPools.getPoolBuilder(SCANNER_READ_AHEAD_POOL)
+          .numCoreThreads(0).numMaxThreads(Integer.MAX_VALUE).withTimeOut(3L, SECONDS)
+          .withQueue(new SynchronousQueue<>()).build();
     }
     return scannerReadaheadPool.submit(c);
   }
@@ -269,8 +269,8 @@ public class ClientContext implements AccumuloClient {
   public synchronized void executeCleanupTask(Runnable r) {
     ensureOpen();
     if (cleanupThreadPool == null) {
-      cleanupThreadPool = clientThreadPools.createFixedThreadPool(1, 3, SECONDS,
-          "Conditional Writer Cleanup Thread", true);
+      cleanupThreadPool = clientThreadPools.getPoolBuilder(CONDITIONAL_WRITER_CLEANUP_POOL)
+          .numCoreThreads(1).withTimeOut(3L, SECONDS).build();
     }
     this.cleanupThreadPool.execute(r);
   }
@@ -369,11 +369,11 @@ public class ClientContext implements AccumuloClient {
     }
     Long maxLatency = ClientProperty.BATCH_WRITER_LATENCY_MAX.getTimeInMillis(props);
     if (maxLatency != null) {
-      batchWriterConfig.setMaxLatency(maxLatency, SECONDS);
+      batchWriterConfig.setMaxLatency(maxLatency, MILLISECONDS);
     }
     Long timeout = ClientProperty.BATCH_WRITER_TIMEOUT_MAX.getTimeInMillis(props);
     if (timeout != null) {
-      batchWriterConfig.setTimeout(timeout, SECONDS);
+      batchWriterConfig.setTimeout(timeout, MILLISECONDS);
     }
     Integer maxThreads = ClientProperty.BATCH_WRITER_THREADS_MAX.getInteger(props);
     if (maxThreads != null) {
@@ -433,7 +433,7 @@ public class ClientContext implements AccumuloClient {
 
     Long timeout = ClientProperty.CONDITIONAL_WRITER_TIMEOUT_MAX.getTimeInMillis(props);
     if (timeout != null) {
-      conditionalWriterConfig.setTimeout(timeout, SECONDS);
+      conditionalWriterConfig.setTimeout(timeout, MILLISECONDS);
     }
     String durability = ClientProperty.CONDITIONAL_WRITER_DURABILITY.getValue(props);
     if (!durability.isEmpty()) {
@@ -785,9 +785,7 @@ public class ClientContext implements AccumuloClient {
 
   @Override
   public ConditionalWriter createConditionalWriter(String tableName) throws TableNotFoundException {
-    ensureOpen();
-    return new ConditionalWriterImpl(this, requireNotOffline(getTableId(tableName), tableName),
-        tableName, new ConditionalWriterConfig());
+    return createConditionalWriter(tableName, null);
   }
 
   @Override

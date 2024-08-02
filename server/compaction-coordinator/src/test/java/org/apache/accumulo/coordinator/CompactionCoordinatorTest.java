@@ -39,10 +39,15 @@ import java.util.concurrent.ScheduledThreadPoolExecutor;
 
 import org.apache.accumulo.core.clientImpl.thrift.ThriftSecurityException;
 import org.apache.accumulo.core.compaction.thrift.TExternalCompaction;
+import org.apache.accumulo.core.compaction.thrift.TNextCompactionJob;
+import org.apache.accumulo.core.conf.ConfigurationCopy;
 import org.apache.accumulo.core.conf.DefaultConfiguration;
+import org.apache.accumulo.core.conf.Property;
+import org.apache.accumulo.core.conf.SiteConfiguration;
 import org.apache.accumulo.core.dataImpl.thrift.TKeyExtent;
 import org.apache.accumulo.core.metadata.TServerInstance;
 import org.apache.accumulo.core.metadata.schema.ExternalCompactionId;
+import org.apache.accumulo.core.metrics.MetricsInfo;
 import org.apache.accumulo.core.rpc.ThriftUtil;
 import org.apache.accumulo.core.securityImpl.thrift.TCredentials;
 import org.apache.accumulo.core.tabletserver.thrift.TCompactionQueueSummary;
@@ -196,6 +201,25 @@ public class CompactionCoordinatorTest {
   }
 
   @Test
+  public void testCoordinatorWarningTime() {
+    PowerMock.resetAll();
+    PowerMock.suppress(PowerMock.constructor(AbstractServer.class));
+    ServerContext context = PowerMock.createNiceMock(ServerContext.class);
+
+    SiteConfiguration aconf = SiteConfiguration.empty()
+        .withOverrides(Map.of(Property.COMPACTOR_MAX_JOB_WAIT_TIME.getKey(), "15s")).build();
+    ConfigurationCopy config = new ConfigurationCopy(aconf);
+    expect(context.getConfiguration()).andReturn(config).anyTimes();
+
+    PowerMock.replay(context);
+
+    var coordinator = new TestCoordinator(null, null, null, null, context, null);
+    // Should be equal to 3 * 15_000 milliseconds
+    assertEquals(45_000, coordinator.getMissingCompactorWarningTime());
+    coordinator.close();
+  }
+
+  @Test
   public void testCoordinatorColdStartNoCompactions() throws Exception {
     PowerMock.resetAll();
     PowerMock.suppress(PowerMock.constructor(AbstractServer.class));
@@ -205,11 +229,14 @@ public class CompactionCoordinatorTest {
 
     ServerContext context = PowerMock.createNiceMock(ServerContext.class);
     expect(context.getConfiguration()).andReturn(DefaultConfiguration.getInstance()).anyTimes();
+    MetricsInfo metricsInfo = PowerMock.createNiceMock(MetricsInfo.class);
+    expect(context.getMetricsInfo()).andReturn(metricsInfo).anyTimes();
 
     PowerMock.mockStatic(ExternalCompactionUtil.class);
     List<RunningCompaction> runningCompactions = new ArrayList<>();
     expect(ExternalCompactionUtil.getCompactionsRunningOnCompactors(context))
         .andReturn(runningCompactions);
+    expect(ExternalCompactionUtil.getCompactorAddrs(context)).andReturn(Map.of()).anyTimes();
 
     CompactionFinalizer finalizer = PowerMock.createNiceMock(CompactionFinalizer.class);
     LiveTServerSet tservers = PowerMock.createNiceMock(LiveTServerSet.class);
@@ -255,6 +282,8 @@ public class CompactionCoordinatorTest {
 
     ServerContext context = PowerMock.createNiceMock(ServerContext.class);
     expect(context.getConfiguration()).andReturn(DefaultConfiguration.getInstance()).anyTimes();
+    MetricsInfo metricsInfo = PowerMock.createNiceMock(MetricsInfo.class);
+    expect(context.getMetricsInfo()).andReturn(metricsInfo).anyTimes();
 
     TCredentials creds = PowerMock.createNiceMock(TCredentials.class);
     expect(context.rpcCreds()).andReturn(creds);
@@ -263,6 +292,7 @@ public class CompactionCoordinatorTest {
     List<RunningCompaction> runningCompactions = new ArrayList<>();
     expect(ExternalCompactionUtil.getCompactionsRunningOnCompactors(context))
         .andReturn(runningCompactions);
+    expect(ExternalCompactionUtil.getCompactorAddrs(context)).andReturn(Map.of()).anyTimes();
 
     CompactionFinalizer finalizer = PowerMock.createNiceMock(CompactionFinalizer.class);
     LiveTServerSet tservers = PowerMock.createNiceMock(LiveTServerSet.class);
@@ -326,6 +356,8 @@ public class CompactionCoordinatorTest {
 
     ServerContext context = PowerMock.createNiceMock(ServerContext.class);
     expect(context.getConfiguration()).andReturn(DefaultConfiguration.getInstance()).anyTimes();
+    MetricsInfo metricsInfo = PowerMock.createNiceMock(MetricsInfo.class);
+    expect(context.getMetricsInfo()).andReturn(metricsInfo).anyTimes();
 
     TCredentials creds = PowerMock.createNiceMock(TCredentials.class);
     expect(context.rpcCreds()).andReturn(creds);
@@ -342,6 +374,7 @@ public class CompactionCoordinatorTest {
     List<RunningCompaction> runningCompactions = new ArrayList<>();
     expect(ExternalCompactionUtil.getCompactionsRunningOnCompactors(context))
         .andReturn(runningCompactions);
+    expect(ExternalCompactionUtil.getCompactorAddrs(context)).andReturn(Map.of()).anyTimes();
 
     ServerAddress client = PowerMock.createNiceMock(ServerAddress.class);
     HostAndPort address = HostAndPort.fromString("localhost:10240");
@@ -400,6 +433,8 @@ public class CompactionCoordinatorTest {
 
     ServerContext context = PowerMock.createNiceMock(ServerContext.class);
     expect(context.getConfiguration()).andReturn(DefaultConfiguration.getInstance()).anyTimes();
+    MetricsInfo metricsInfo = PowerMock.createNiceMock(MetricsInfo.class);
+    expect(context.getMetricsInfo()).andReturn(metricsInfo).anyTimes();
 
     TCredentials creds = PowerMock.createNiceMock(TCredentials.class);
     expect(context.rpcCreds()).andReturn(creds);
@@ -422,6 +457,7 @@ public class CompactionCoordinatorTest {
     runningCompactions.add(new RunningCompaction(job, tserverAddress.toString(), "queue"));
     expect(ExternalCompactionUtil.getCompactionsRunningOnCompactors(context))
         .andReturn(runningCompactions);
+    expect(ExternalCompactionUtil.getCompactorAddrs(context)).andReturn(Map.of()).anyTimes();
 
     ServerAddress client = PowerMock.createNiceMock(ServerAddress.class);
     HostAndPort address = HostAndPort.fromString("localhost:10240");
@@ -479,6 +515,8 @@ public class CompactionCoordinatorTest {
 
     ServerContext context = PowerMock.createNiceMock(ServerContext.class);
     expect(context.getConfiguration()).andReturn(DefaultConfiguration.getInstance()).anyTimes();
+    MetricsInfo metricsInfo = PowerMock.createNiceMock(MetricsInfo.class);
+    expect(context.getMetricsInfo()).andReturn(metricsInfo).anyTimes();
 
     TCredentials creds = PowerMock.createNiceMock(TCredentials.class);
     expect(context.rpcCreds()).andReturn(creds).anyTimes();
@@ -487,6 +525,8 @@ public class CompactionCoordinatorTest {
     List<RunningCompaction> runningCompactions = new ArrayList<>();
     expect(ExternalCompactionUtil.getCompactionsRunningOnCompactors(context))
         .andReturn(runningCompactions);
+    expect(ExternalCompactionUtil.getCompactorAddrs(context)).andReturn(Map.of()).anyTimes();
+    expect(ExternalCompactionUtil.countCompactors("R2DQ", context)).andReturn(3).anyTimes();
 
     CompactionFinalizer finalizer = PowerMock.createNiceMock(CompactionFinalizer.class);
     LiveTServerSet tservers = PowerMock.createNiceMock(LiveTServerSet.class);
@@ -549,8 +589,10 @@ public class CompactionCoordinatorTest {
     assertEquals(0, coordinator.getRunning().size());
 
     // Get the next job
-    TExternalCompactionJob createdJob =
+    TNextCompactionJob next =
         coordinator.getCompactionJob(trace, creds, "R2DQ", "localhost:10241", eci.toString());
+    assertEquals(3, next.getCompactorCount());
+    var createdJob = next.getJob();
     assertEquals(eci.toString(), createdJob.getExternalCompactionId());
 
     assertEquals(1, coordinator.getQueues().size());
@@ -590,12 +632,17 @@ public class CompactionCoordinatorTest {
     AuditedSecurityOperation security = PowerMock.createNiceMock(AuditedSecurityOperation.class);
     expect(security.canPerformSystemActions(creds)).andReturn(true);
 
+    PowerMock.mockStatic(ExternalCompactionUtil.class);
+    expect(ExternalCompactionUtil.countCompactors("R2DQ", context)).andReturn(1).anyTimes();
+
     PowerMock.replayAll();
 
     var coordinator = new TestCoordinator(finalizer, tservers, client, tsc, context, security);
     coordinator.resetInternals();
-    TExternalCompactionJob job = coordinator.getCompactionJob(TraceUtil.traceInfo(), creds, "R2DQ",
-        "localhost:10240", UUID.randomUUID().toString());
+    var next = coordinator.getCompactionJob(TraceUtil.traceInfo(), creds, "R2DQ", "localhost:10240",
+        UUID.randomUUID().toString());
+    assertEquals(1, next.getCompactorCount());
+    var job = next.getJob();
     assertNull(job.getExternalCompactionId());
 
     PowerMock.verifyAll();

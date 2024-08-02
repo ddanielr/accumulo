@@ -29,6 +29,7 @@ import org.apache.accumulo.core.metadata.RootTable;
 import org.apache.accumulo.core.metadata.TServerInstance;
 import org.apache.accumulo.core.metadata.TabletLocationState;
 import org.apache.accumulo.core.metadata.schema.Ample;
+import org.apache.accumulo.core.metadata.schema.Ample.DataLevel;
 import org.apache.accumulo.core.metadata.schema.Ample.ReadConsistency;
 import org.apache.accumulo.core.metadata.schema.Ample.TabletMutator;
 import org.apache.accumulo.core.metadata.schema.TabletMetadata;
@@ -45,10 +46,17 @@ class ZooTabletStateStore implements TabletStateStore {
   private static final Logger log = LoggerFactory.getLogger(ZooTabletStateStore.class);
   private final Ample ample;
   private final ClientContext context;
+  private final DataLevel level;
 
-  ZooTabletStateStore(ClientContext context) {
+  ZooTabletStateStore(DataLevel level, ClientContext context) {
+    this.level = level;
     this.context = context;
     this.ample = context.getAmple();
+  }
+
+  @Override
+  public DataLevel getLevel() {
+    return level;
   }
 
   @Override
@@ -138,8 +146,8 @@ class ZooTabletStateStore implements TabletStateStore {
 
     TabletMutator tabletMutator = ample.mutateTablet(assignment.tablet);
     tabletMutator.putLocation(Location.current(assignment.server));
-    ManagerMetadataUtil.updateLastForAssignmentMode(context, ample, tabletMutator,
-        assignment.tablet, assignment.server);
+    ManagerMetadataUtil.updateLastForAssignmentMode(context, tabletMutator, assignment.server,
+        assignment.lastLocation);
     tabletMutator.deleteLocation(Location.future(assignment.server));
 
     tabletMutator.mutate();
@@ -161,8 +169,8 @@ class ZooTabletStateStore implements TabletStateStore {
 
     tabletMutator.deleteLocation(Location.future(futureOrCurrent));
     tabletMutator.deleteLocation(Location.current(futureOrCurrent));
-    ManagerMetadataUtil.updateLastForAssignmentMode(context, ample, tabletMutator, tls.extent,
-        futureOrCurrent);
+    ManagerMetadataUtil.updateLastForAssignmentMode(context, tabletMutator, futureOrCurrent,
+        tls.last);
     if (logsForDeadServers != null) {
       List<Path> logs = logsForDeadServers.get(futureOrCurrent);
       if (logs != null) {

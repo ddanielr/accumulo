@@ -27,6 +27,7 @@ import java.io.DataInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.lang.ref.SoftReference;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -67,6 +68,7 @@ import org.apache.accumulo.core.dataImpl.thrift.MapFileInfo;
 import org.apache.accumulo.core.file.FileOperations;
 import org.apache.accumulo.core.iterators.SortedKeyValueIterator;
 import org.apache.accumulo.core.iteratorsImpl.system.SourceSwitchingIterator;
+import org.apache.accumulo.core.logging.ConditionalLogger.DeduplicatingLogger;
 import org.apache.accumulo.core.logging.TabletLogger;
 import org.apache.accumulo.core.manager.state.tables.TableState;
 import org.apache.accumulo.core.master.thrift.BulkImportState;
@@ -141,6 +143,8 @@ import io.opentelemetry.context.Scope;
  */
 public class Tablet extends TabletBase {
   private static final Logger log = LoggerFactory.getLogger(Tablet.class);
+  private static final Logger CLOSING_STUCK_LOGGER =
+      new DeduplicatingLogger(log, Duration.ofMinutes(5), 1000);
 
   private final TabletServer tabletServer;
   private final TabletResourceManager tabletResources;
@@ -164,15 +168,20 @@ public class Tablet extends TabletBase {
   }
 
   private enum CloseState {
-    OPEN, CLOSING, CLOSED, COMPLETE
+    OPEN, REQUESTED, CLOSING, CLOSED, COMPLETE
   }
 
+  private long closeRequestTime = 0;
   private volatile CloseState closeState = CloseState.OPEN;
 
   private boolean updatingFlushID = false;
 
   private AtomicLong lastFlushID = new AtomicLong(-1);
   private AtomicLong lastCompactID = new AtomicLong(-1);
+
+  public long getLastCompactId() {
+    return lastCompactID.get();
+  }
 
   private static class CompactionWaitInfo {
     long flushID = -1;
@@ -452,16 +461,17 @@ public class Tablet extends TabletBase {
 
     ScanDataSource dataSource = createDataSource(scanParams, false, iFlag);
 
+    boolean sawException = false;
     try {
       SortedKeyValueIterator<Key,Value> iter = new SourceSwitchingIterator(dataSource);
       checker.check(iter);
-    } catch (IOException ioe) {
-      dataSource.close(true);
-      throw ioe;
+    } catch (IOException | RuntimeException e) {
+      sawException = true;
+      throw e;
     } finally {
       // code in finally block because always want
       // to return mapfiles, even when exception is thrown
-      dataSource.close(false);
+      dataSource.close(sawException);
     }
   }
 
@@ -894,13 +904,84 @@ public class Tablet extends TabletBase {
   public void close(boolean saveState) throws IOException {
     initiateClose(saveState);
     completeClose(saveState, true);
+    log.info("Tablet {} closed.", this.extent);
   }
 
   void initiateClose(boolean saveState) {
     log.trace("initiateClose(saveState={}) {}", saveState, getExtent());
 
-    MinorCompactionTask mct = null;
     synchronized (this) {
+      if (closeState == CloseState.OPEN) {
+        closeRequestTime = System.nanoTime();
+        closeState = CloseState.REQUESTED;
+      } else {
+        Preconditions.checkState(closeRequestTime != 0);
+        long runningTime = Duration.ofNanos(System.nanoTime() - closeRequestTime).toMinutes();
+        if (runningTime >= 15) {
+          CLOSING_STUCK_LOGGER.info(
+              "Tablet {} close requested again, but has been closing for {} minutes", this.extent,
+              runningTime);
+        }
+      }
+    }
+
+    MinorCompactionTask mct = null;
+    if (saveState) {
+      try {
+        synchronized (this) {
+          // Wait for any running minor compaction before trying to start another. This is done for
+          // the case where the current in memory map has a lot of data. So wait for the running
+          // minor compaction and then start compacting the current in memory map before closing.
+          getTabletMemory().waitForMinC();
+        }
+        mct = createMinorCompactionTask(getFlushID(), MinorCompactionReason.CLOSE);
+      } catch (NoNodeException e) {
+        throw new IllegalStateException("Exception on " + extent + " during prep for MinC", e);
+      }
+    }
+
+    if (mct != null) {
+      // Do an initial minor compaction that flushes any data in memory before marking that tablet
+      // as closed. Another minor compaction will be done once the tablet is marked as closed. There
+      // are two goals for this initial minor compaction.
+      //
+      // 1. Make the 2nd minor compaction that occurs after closing faster because it has less
+      // data. That is important because after the tablet is closed it can not be read or written
+      // to, so hopefully the 2nd compaction has little if any data because of this minor compaction
+      // that occurred before close.
+      //
+      // 2. Its possible a minor compaction may hang because of bad config or DFS problems. Taking
+      // this action before close can be less disruptive if it does hang. Also in the case where
+      // there is a bug that causes minor compaction to fail it will leave the tablet in a bad
+      // state. If that happens here before starting to close then it could leave the tablet in a
+      // more usable state than a failure that happens after the tablet starts to close.
+      //
+      // If 'mct' was null it means either a minor compaction was running, there was no data to
+      // minor compact, or the flush id was updating. In the case of flush id was updating, ideally
+      // this code would wait for flush id updates and then minor compact if needed, but that can
+      // not be done without setting the close state to closing to prevent flush id updates from
+      // starting. So if there is a flush id update going on it could cause no minor compaction
+      // here. There will still be a minor compaction after close.
+      //
+      // Its important to run the following minor compaction outside of any sync blocks as this
+      // could needlessly block scans. The resources needed for the minor compaction have already
+      // been reserved in a sync block.
+      mct.run();
+    }
+
+    synchronized (this) {
+
+      if (saveState) {
+        // Wait for any running minc to finish before we start shutting things down in the tablet.
+        // It is possible that this function was unable to initiate a minor compaction above and
+        // something else did because of race conditions (because everything above happens before
+        // marking anything closed so normal actions could still start minor compactions). If
+        // something did start lets wait on it before marking things closed.
+        getTabletMemory().waitForMinC();
+      }
+
+      // This check is intentionally done later in the method because the check and change of the
+      // closeState variable need to be atomic, so both are done in the same sync block.
       if (isClosed() || isClosing()) {
         String msg = "Tablet " + getExtent() + " already " + closeState;
         throw new IllegalStateException(msg);
@@ -931,27 +1012,7 @@ public class Tablet extends TabletBase {
       // calling this.wait() releases the lock, ensure things are as expected when the lock is
       // obtained again
       Preconditions.checkState(closeState == CloseState.CLOSING);
-
-      if (!saveState || getTabletMemory().getMemTable().getNumEntries() == 0) {
-        return;
-      }
-
-      getTabletMemory().waitForMinC();
-
-      // calling this.wait() in waitForMinC() releases the lock, ensure things are as expected when
-      // the lock is obtained again
-      Preconditions.checkState(closeState == CloseState.CLOSING);
-
-      try {
-        mct = prepareForMinC(getFlushID(), MinorCompactionReason.CLOSE);
-      } catch (NoNodeException e) {
-        throw new RuntimeException("Exception on " + extent + " during prep for MinC", e);
-      }
     }
-
-    // do minor compaction outside of synch block so that tablet can be read and written to while
-    // compaction runs
-    mct.run();
   }
 
   private boolean closeCompleting = false;
@@ -977,14 +1038,25 @@ public class Tablet extends TabletBase {
       activeScan.interrupt();
     }
 
+    long lastLogTime = System.nanoTime();
+
     // wait for reads and writes to complete
     while (writesInProgress > 0 || !activeScans.isEmpty()) {
+
+      if (log.isDebugEnabled() && System.nanoTime() - lastLogTime > TimeUnit.SECONDS.toNanos(60)) {
+        for (ScanDataSource activeScan : activeScans) {
+          log.debug("Waiting on scan in completeClose {} {}", extent, activeScan);
+        }
+
+        lastLogTime = System.nanoTime();
+      }
+
       try {
         log.debug("Waiting to completeClose for {}. {} writes {} scans", extent, writesInProgress,
             activeScans.size());
         this.wait(50);
       } catch (InterruptedException e) {
-        log.error(e.toString());
+        log.error("Interrupted waiting to completeClose for extent {}", extent, e);
       }
     }
 
@@ -1114,6 +1186,8 @@ public class Tablet extends TabletBase {
     }
   }
 
+  private boolean loggedErrorForTabletComparison = false;
+
   /**
    * Checks that tablet metadata from the metadata table matches what this tablet has in memory. The
    * caller of this method must acquire the updateCounter parameter before acquiring the
@@ -1162,10 +1236,17 @@ public class Tablet extends TabletBase {
       } else {
         log.error("Data files in {} differ from in-memory data {} {} {} {}", extent,
             tabletMetadata.getFilesMap(), dataFileSizes, updateCounter, latestCount);
+        loggedErrorForTabletComparison = true;
       }
     } else {
-      log.trace("AMCC Tablet {} files in memory are same as in metadata table {}",
-          tabletMetadata.getExtent(), updateCounter);
+      if (loggedErrorForTabletComparison) {
+        log.info("AMCC Tablet {} files in memory are now same as in metadata table {}",
+            tabletMetadata.getExtent(), updateCounter);
+        loggedErrorForTabletComparison = false;
+      } else {
+        log.trace("AMCC Tablet {} files in memory are same as in metadata table {}",
+            tabletMetadata.getExtent(), updateCounter);
+      }
     }
   }
 
@@ -1203,7 +1284,7 @@ public class Tablet extends TabletBase {
     return true;
   }
 
-  private SplitRowSpec findSplitRow(Optional<SplitComputations> splitComputations) {
+  private synchronized SplitRowSpec findSplitRow(Optional<SplitComputations> splitComputations) {
 
     // never split the root tablet
     // check if we already decided that we can never split
@@ -1221,7 +1302,7 @@ public class Tablet extends TabletBase {
       return null;
     }
 
-    SortedMap<Double,Key> keys = splitComputations.get().midPoint;
+    SortedMap<Double,Key> keys = splitComputations.orElseThrow().midPoint;
 
     if (keys.isEmpty()) {
       log.info("Cannot split tablet " + extent + ", files contain no data for tablet.");
@@ -1232,7 +1313,7 @@ public class Tablet extends TabletBase {
     // check to see if one row takes up most of the tablet, in which case we can not split
     Text lastRow;
     if (extent.endRow() == null) {
-      lastRow = splitComputations.get().lastRowForDefaultTablet;
+      lastRow = splitComputations.orElseThrow().lastRowForDefaultTablet;
     } else {
       lastRow = extent.endRow();
     }
@@ -1512,10 +1593,24 @@ public class Tablet extends TabletBase {
       throw new RuntimeException(msg);
     }
 
-    Optional<SplitComputations> splitComputations = null;
+    SplitRowSpec splitPoint = null;
     if (sp == null) {
       // call this outside of sync block
-      splitComputations = getSplitComputations();
+      var splitComputations = getSplitComputations();
+      splitPoint = findSplitRow(splitComputations);
+      if (splitPoint == null || splitPoint.row == null) {
+        // no reason to log anything here, findSplitRow will log reasons when it returns null
+        return null;
+      }
+    } else {
+      Text tsp = new Text(sp);
+      var fileStrings = FileUtil.toPathStrings(getDatafileManager().getFiles());
+      // This ratio is calculated before that tablet is closed and outside of a lock, so new files
+      // could arrive before the tablet is closed and locked. That is okay as the ratio is an
+      // estimate.
+      var ratio = FileUtil.estimatePercentageLTE(context, tableConfiguration, chooseTabletDir(),
+          extent.prevEndRow(), extent.endRow(), fileStrings, tsp);
+      splitPoint = new SplitRowSpec(ratio, tsp);
     }
 
     try {
@@ -1523,6 +1618,9 @@ public class Tablet extends TabletBase {
     } catch (IllegalStateException ise) {
       log.debug("File {} not splitting : {}", extent, ise.getMessage());
       return null;
+    } catch (RuntimeException re) {
+      log.debug("File {} not splitting : {}", extent, re.getMessage());
+      throw re;
     }
 
     // obtain this info outside of a synch block since it will involve opening
@@ -1538,23 +1636,6 @@ public class Tablet extends TabletBase {
       TreeMap<KeyExtent,TabletData> newTablets = new TreeMap<>();
 
       long t1 = System.currentTimeMillis();
-      // choose a split point
-      SplitRowSpec splitPoint;
-      if (sp == null) {
-        splitPoint = findSplitRow(splitComputations);
-      } else {
-        Text tsp = new Text(sp);
-        var fileStrings = FileUtil.toPathStrings(getDatafileManager().getFiles());
-        var ratio = FileUtil.estimatePercentageLTE(context, tableConfiguration, chooseTabletDir(),
-            extent.prevEndRow(), extent.endRow(), fileStrings, tsp);
-        splitPoint = new SplitRowSpec(ratio, tsp);
-      }
-
-      if (splitPoint == null || splitPoint.row == null) {
-        log.info("had to abort split because splitRow was null");
-        closeState = CloseState.OPEN;
-        return null;
-      }
 
       closeState = CloseState.CLOSING;
       completeClose(true, false);
@@ -1687,18 +1768,41 @@ public class Tablet extends TabletBase {
 
     // Clients timeout and will think that this operation failed.
     // Don't do it if we spent too long waiting for the lock
-    long now = System.currentTimeMillis();
+    long now = System.nanoTime();
     synchronized (this) {
       if (isClosed()) {
         throw new IOException("tablet " + extent + " is closed");
       }
 
-      // TODO check seems unneeded now - ACCUMULO-1291
-      long lockWait = System.currentTimeMillis() - now;
-      if (lockWait
-          > getTabletServer().getConfiguration().getTimeInMillis(Property.GENERAL_RPC_TIMEOUT)) {
-        throw new IOException(
-            "Timeout waiting " + (lockWait / 1000.) + " seconds to get tablet lock for " + extent);
+      long rpcTimeoutNanos = TimeUnit.MILLISECONDS.toNanos(
+          (long) (getTabletServer().getConfiguration().getTimeInMillis(Property.GENERAL_RPC_TIMEOUT)
+              * 1.1));
+
+      // wait for any files that are bulk importing up to the RPC timeout limit
+      while (!Collections.disjoint(bulkImporting, fileMap.keySet())) {
+        try {
+          wait(1_000);
+        } catch (InterruptedException e) {
+          Thread.currentThread().interrupt();
+          throw new IllegalStateException(e);
+        }
+
+        long lockWait = System.nanoTime() - now;
+        if (lockWait > rpcTimeoutNanos) {
+          throw new IOException("Timeout waiting " + TimeUnit.NANOSECONDS.toSeconds(lockWait)
+              + " seconds to get tablet lock for " + extent + " " + tid);
+        }
+      }
+
+      // need to check this again because when wait is called above the lock is released.
+      if (isClosed()) {
+        throw new IOException("tablet " + extent + " is closed");
+      }
+
+      long lockWait = System.nanoTime() - now;
+      if (lockWait > rpcTimeoutNanos) {
+        throw new IOException("Timeout waiting " + TimeUnit.NANOSECONDS.toSeconds(lockWait)
+            + " seconds to get tablet lock for " + extent + " " + tid);
       }
 
       List<TabletFile> alreadyImported = bulkImported.get(tid);
@@ -1709,14 +1813,6 @@ public class Tablet extends TabletBase {
           }
         }
       }
-
-      fileMap.keySet().removeIf(file -> {
-        if (bulkImporting.contains(file)) {
-          log.info("Ignoring import of bulk file currently importing: " + file);
-          return true;
-        }
-        return false;
-      });
 
       if (fileMap.isEmpty()) {
         return;
@@ -1733,6 +1829,11 @@ public class Tablet extends TabletBase {
       var storedTabletFile = getDatafileManager().importMapFiles(tid, entries, setTime);
       lastMapFileImportTime = System.currentTimeMillis();
 
+      synchronized (this) {
+        // only mark the bulk import a success if no exception was thrown
+        bulkImported.computeIfAbsent(tid, k -> new ArrayList<>()).addAll(fileMap.keySet());
+      }
+
       if (isSplitPossible()) {
         getTabletServer().executeSplit(this);
       } else {
@@ -1747,11 +1848,6 @@ public class Tablet extends TabletBase {
               "Likely bug in code, always expect to remove something.  Please open an Accumulo issue.");
         }
 
-        try {
-          bulkImported.computeIfAbsent(tid, k -> new ArrayList<>()).addAll(fileMap.keySet());
-        } catch (Exception ex) {
-          log.info(ex.toString(), ex);
-        }
         tabletServer.removeBulkImportState(files);
       }
     }
@@ -1832,14 +1928,16 @@ public class Tablet extends TabletBase {
     }
   }
 
+  ReentrantLock getLogLock() {
+    return logLock;
+  }
+
   Set<String> beginClearingUnusedLogs() {
+    Preconditions.checkState(logLock.isHeldByCurrentThread());
     Set<String> unusedLogs = new HashSet<>();
 
     ArrayList<String> otherLogsCopy = new ArrayList<>();
     ArrayList<String> currentLogsCopy = new ArrayList<>();
-
-    // do not hold tablet lock while acquiring the log lock
-    logLock.lock();
 
     synchronized (this) {
       if (removingLogs) {
@@ -1856,12 +1954,6 @@ public class Tablet extends TabletBase {
         currentLogsCopy.add(logger.toString());
         unusedLogs.remove(logger.getMeta());
       }
-
-      otherLogs = Collections.emptySet();
-      // Intentionally NOT calling rebuildReferencedLogs() here as that could cause GC of in use
-      // walogs(see #539). The clearing of otherLogs is reflected in ReferencedLogs when
-      // finishClearingUnusedLogs() calls rebuildReferencedLogs(). See the comments in
-      // rebuildReferencedLogs() for more info.
 
       if (!unusedLogs.isEmpty()) {
         removingLogs = true;
@@ -1885,9 +1977,10 @@ public class Tablet extends TabletBase {
   }
 
   synchronized void finishClearingUnusedLogs() {
+    Preconditions.checkState(logLock.isHeldByCurrentThread());
     removingLogs = false;
+    otherLogs = Collections.emptySet();
     rebuildReferencedLogs();
-    logLock.unlock();
   }
 
   private boolean removingLogs = false;
@@ -1903,7 +1996,8 @@ public class Tablet extends TabletBase {
 
     boolean releaseLock = true;
 
-    // do not hold tablet lock while acquiring the log lock
+    // Should not hold the tablet lock while trying to acquire the log lock because this could lead
+    // to deadlock. However there is a path in the code that does this. See #3759
     logLock.lock();
 
     try {
@@ -1977,6 +2071,10 @@ public class Tablet extends TabletBase {
   public void compactAll(long compactionId, CompactionConfig compactionConfig) {
 
     synchronized (this) {
+      // This check will quickly ignore stale request from the manager, however its not sufficient
+      // for correctness. This same check is done again later at a point when no compactions could
+      // be running concurrently to avoid race conditions. If the check passes here, it possible a
+      // concurrent compaction could change lastCompactID after the check succeeds.
       if (lastCompactID.get() >= compactionId) {
         return;
       }
@@ -2054,8 +2152,8 @@ public class Tablet extends TabletBase {
 
       return ManagerMetadataUtil.updateTabletDataFile(getTabletServer().getContext(), extent,
           newDatafile, dfv, tabletTime.getMetadataTime(persistedTime),
-          tabletServer.getClientAddressString(), tabletServer.getLock(), unusedWalLogs,
-          lastLocation, flushId);
+          tabletServer.getTabletSession(), tabletServer.getLock(), unusedWalLogs, lastLocation,
+          flushId);
     }
 
   }

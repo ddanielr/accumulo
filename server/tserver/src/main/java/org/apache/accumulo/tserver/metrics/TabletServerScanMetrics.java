@@ -23,7 +23,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.LongAdder;
 
 import org.apache.accumulo.core.metrics.MetricsProducer;
-import org.apache.accumulo.core.metrics.MetricsUtil;
+import org.apache.accumulo.server.metrics.NoopMetrics;
 
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.DistributionSummary;
@@ -34,13 +34,13 @@ import io.micrometer.core.instrument.Timer;
 public class TabletServerScanMetrics implements MetricsProducer {
 
   private final AtomicInteger openFiles = new AtomicInteger(0);
-  private Timer scans;
-  private DistributionSummary resultsPerScan;
-  private DistributionSummary yields;
-  private Counter startScanCalls;
-  private Counter continueScanCalls;
-  private Counter closeScanCalls;
-  private Counter busyTimeoutReturned;
+  private Timer scans = NoopMetrics.useNoopTimer();
+  private DistributionSummary resultsPerScan = NoopMetrics.useNoopDistributionSummary();
+  private DistributionSummary yields = NoopMetrics.useNoopDistributionSummary();
+  private Counter startScanCalls = NoopMetrics.useNoopCounter();
+  private Counter continueScanCalls = NoopMetrics.useNoopCounter();;
+  private Counter closeScanCalls = NoopMetrics.useNoopCounter();;
+  private Counter busyTimeoutCount = NoopMetrics.useNoopCounter();;
 
   private final LongAdder lookupCount = new LongAdder();
   private final LongAdder queryResultCount = new LongAdder();
@@ -115,40 +115,38 @@ public class TabletServerScanMetrics implements MetricsProducer {
     closeScanCalls.increment(value);
   }
 
-  public void incrementScanBusyTimeout(double value) {
-    busyTimeoutReturned.increment(value);
+  public void incrementBusy(double value) {
+    busyTimeoutCount.increment(value);
   }
 
   @Override
   public void registerMetrics(MeterRegistry registry) {
     Gauge.builder(METRICS_SCAN_OPEN_FILES, openFiles::get)
         .description("Number of files open for scans").register(registry);
-    scans = Timer.builder(METRICS_SCAN).description("Scans").register(registry);
+    scans = Timer.builder(METRICS_SCAN_TIMES).description("Scans").register(registry);
     resultsPerScan = DistributionSummary.builder(METRICS_SCAN_RESULTS)
         .description("Results per scan").register(registry);
     yields =
         DistributionSummary.builder(METRICS_SCAN_YIELDS).description("yields").register(registry);
-    startScanCalls =
-        Counter.builder(METRICS_SCAN_START).description("calls to start a scan / multiscan")
-            .tags(MetricsUtil.getCommonTags()).register(registry);
-    continueScanCalls =
-        Counter.builder(METRICS_SCAN_CONTINUE).description("calls to continue a scan / multiscan")
-            .tags(MetricsUtil.getCommonTags()).register(registry);
-    closeScanCalls =
-        Counter.builder(METRICS_SCAN_CLOSE).description("calls to close a scan / multiscan")
-            .tags(MetricsUtil.getCommonTags()).register(registry);
-    busyTimeoutReturned = Counter.builder(METRICS_SCAN_BUSY_TIMEOUT)
-        .description("times that a scan has timed out in the queue")
-        .tags(MetricsUtil.getCommonTags()).register(registry);
-    Gauge.builder(METRICS_TSERVER_QUERIES, this, TabletServerScanMetrics::getLookupCount)
+    startScanCalls = Counter.builder(METRICS_SCAN_START)
+        .description("calls to start a scan / multiscan").register(registry);
+    continueScanCalls = Counter.builder(METRICS_SCAN_CONTINUE)
+        .description("calls to continue a scan / multiscan").register(registry);
+    closeScanCalls = Counter.builder(METRICS_SCAN_CLOSE)
+        .description("calls to close a scan / multiscan").register(registry);
+    busyTimeoutCount = Counter.builder(METRICS_SCAN_BUSY_TIMEOUT_COUNTER)
+        .description("The number of scans where a busy timeout happened").register(registry);
+    Gauge.builder(METRICS_SCAN_QUERIES, this, TabletServerScanMetrics::getLookupCount)
         .description("Number of queries").register(registry);
-    Gauge.builder(METRICS_TSERVER_SCAN_RESULTS, this, TabletServerScanMetrics::getQueryResultCount)
+    Gauge
+        .builder(METRICS_SCAN_QUERY_SCAN_RESULTS, this,
+            TabletServerScanMetrics::getQueryResultCount)
         .description("Query rate (entries/sec)").register(registry);
     Gauge
-        .builder(METRICS_TSERVER_SCAN_RESULTS_BYTES, this,
+        .builder(METRICS_SCAN_QUERY_SCAN_RESULTS_BYTES, this,
             TabletServerScanMetrics::getQueryByteCount)
         .description("Query rate (bytes/sec)").register(registry);
-    Gauge.builder(METRICS_TSERVER_SCANNED_ENTRIES, this, TabletServerScanMetrics::getScannedCount)
+    Gauge.builder(METRICS_SCAN_SCANNED_ENTRIES, this, TabletServerScanMetrics::getScannedCount)
         .description("Scanned rate").register(registry);
   }
 

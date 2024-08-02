@@ -18,10 +18,12 @@
  */
 package org.apache.accumulo.coordinator;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.apache.accumulo.core.util.UtilWaitThread.sleepUninterruptibly;
+import static org.apache.accumulo.core.util.threads.ThreadPoolNames.COMPACTION_COORDINATOR_SUMMARY_POOL;
 
-import java.lang.reflect.InvocationTargetException;
 import java.net.UnknownHostException;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -48,6 +50,7 @@ import org.apache.accumulo.core.compaction.thrift.TCompactionState;
 import org.apache.accumulo.core.compaction.thrift.TCompactionStatusUpdate;
 import org.apache.accumulo.core.compaction.thrift.TExternalCompaction;
 import org.apache.accumulo.core.compaction.thrift.TExternalCompactionList;
+import org.apache.accumulo.core.compaction.thrift.TNextCompactionJob;
 import org.apache.accumulo.core.conf.AccumuloConfiguration;
 import org.apache.accumulo.core.conf.Property;
 import org.apache.accumulo.core.data.NamespaceId;
@@ -59,7 +62,7 @@ import org.apache.accumulo.core.metadata.TServerInstance;
 import org.apache.accumulo.core.metadata.schema.Ample;
 import org.apache.accumulo.core.metadata.schema.ExternalCompactionId;
 import org.apache.accumulo.core.metadata.schema.TabletMetadata;
-import org.apache.accumulo.core.metrics.MetricsUtil;
+import org.apache.accumulo.core.metrics.MetricsInfo;
 import org.apache.accumulo.core.rpc.ThriftUtil;
 import org.apache.accumulo.core.rpc.clients.ThriftClientTypes;
 import org.apache.accumulo.core.securityImpl.thrift.TCredentials;
@@ -93,15 +96,17 @@ import org.slf4j.LoggerFactory;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
+import com.github.benmanes.caffeine.cache.LoadingCache;
 import com.google.common.collect.Sets;
 
 public class CompactionCoordinator extends AbstractServer
     implements CompactionCoordinatorService.Iface, LiveTServerSet.Listener {
 
   private static final Logger LOG = LoggerFactory.getLogger(CompactionCoordinator.class);
-  private static final long TIME_BETWEEN_GC_CHECKS = 5000;
-  private static final long FIFTEEN_MINUTES = TimeUnit.MINUTES.toMillis(15);
 
+  private static final Logger STATUS_LOG =
+      LoggerFactory.getLogger(CompactionCoordinator.class.getName() + ".compaction.status");
+  private static final long TIME_BETWEEN_GC_CHECKS = 5000;
   protected static final QueueSummaries QUEUE_SUMMARIES = new QueueSummaries();
 
   /*
@@ -133,6 +138,8 @@ public class CompactionCoordinator extends AbstractServer
 
   private ScheduledThreadPoolExecutor schedExecutor;
 
+  private final LoadingCache<String,Integer> compactorCounts;
+
   protected CompactionCoordinator(ServerOpts opts, String[] args) {
     this(opts, args, null);
   }
@@ -148,6 +155,8 @@ public class CompactionCoordinator extends AbstractServer
     printStartupMsg();
     startCompactionCleaner(schedExecutor);
     startRunningCleaner(schedExecutor);
+    compactorCounts = Caffeine.newBuilder().expireAfterWrite(30, TimeUnit.SECONDS)
+        .build(queue -> ExternalCompactionUtil.countCompactors(queue, getContext()));
   }
 
   @Override
@@ -212,7 +221,7 @@ public class CompactionCoordinator extends AbstractServer
       CoordinatorLockWatcher coordinatorLockWatcher = new CoordinatorLockWatcher();
       coordinatorLock = new ServiceLock(getContext().getZooReaderWriter().getZooKeeper(),
           ServiceLock.path(lockPath), zooLockUUID);
-      coordinatorLock.lock(coordinatorLockWatcher, coordinatorClientAddress.getBytes());
+      coordinatorLock.lock(coordinatorLockWatcher, coordinatorClientAddress.getBytes(UTF_8));
 
       coordinatorLockWatcher.waitForChange();
       if (coordinatorLockWatcher.isAcquiredLock()) {
@@ -235,9 +244,9 @@ public class CompactionCoordinator extends AbstractServer
    */
   protected ServerAddress startCoordinatorClientService() throws UnknownHostException {
     var processor = ThriftProcessorTypes.getCoordinatorTProcessor(this, getContext());
-    Property maxMessageSizeProperty =
-        (getConfiguration().get(Property.COMPACTION_COORDINATOR_MAX_MESSAGE_SIZE) != null
-            ? Property.COMPACTION_COORDINATOR_MAX_MESSAGE_SIZE : Property.GENERAL_MAX_MESSAGE_SIZE);
+    @SuppressWarnings("deprecation")
+    var maxMessageSizeProperty = getConfiguration().resolve(Property.RPC_MAX_MESSAGE_SIZE,
+        Property.GENERAL_MAX_MESSAGE_SIZE);
     ServerAddress sp = TServerUtils.startServer(getContext(), getHostname(),
         Property.COMPACTION_COORDINATOR_CLIENTPORT, processor, this.getClass().getSimpleName(),
         "Thrift Client Server", Property.COMPACTION_COORDINATOR_THRIFTCLIENT_PORTSEARCH,
@@ -265,14 +274,9 @@ public class CompactionCoordinator extends AbstractServer
       throw new IllegalStateException("Exception getting Coordinator lock", e);
     }
 
-    try {
-      MetricsUtil.initializeMetrics(getContext().getConfiguration(), this.applicationName,
-          clientAddress);
-    } catch (ClassNotFoundException | InstantiationException | IllegalAccessException
-        | IllegalArgumentException | InvocationTargetException | NoSuchMethodException
-        | SecurityException e1) {
-      LOG.error("Error initializing metrics, metrics will not be emitted.", e1);
-    }
+    MetricsInfo metricsInfo = getContext().getMetricsInfo();
+    metricsInfo.addServiceTags(getApplicationName(), clientAddress);
+    metricsInfo.init();
 
     // On a re-start of the coordinator it's possible that external compactions are in-progress.
     // Attempt to get the running compactions on the compactors and then resolve which tserver
@@ -304,9 +308,12 @@ public class CompactionCoordinator extends AbstractServer
       updateSummaries();
 
       long now = System.currentTimeMillis();
-      TIME_COMPACTOR_LAST_CHECKED.forEach((k, v) -> {
-        if ((now - v) > getMissingCompactorWarningTime()) {
-          LOG.warn("No compactors have checked in with coordinator for queue {} in {}ms", k,
+
+      Map<String,List<HostAndPort>> idleCompactors = getIdleCompactors();
+      TIME_COMPACTOR_LAST_CHECKED.forEach((queue, lastCheckTime) -> {
+        if ((now - lastCheckTime) > getMissingCompactorWarningTime()
+            && QUEUE_SUMMARIES.isCompactionsQueued(queue) && idleCompactors.containsKey(queue)) {
+          LOG.warn("No compactors have checked in with coordinator for queue {} in {}ms", queue,
               getMissingCompactorWarningTime());
         }
       });
@@ -322,9 +329,31 @@ public class CompactionCoordinator extends AbstractServer
     LOG.info("Shutting down");
   }
 
+  private Map<String,List<HostAndPort>> getIdleCompactors() {
+
+    Map<String,List<HostAndPort>> allCompactors =
+        ExternalCompactionUtil.getCompactorAddrs(getContext());
+
+    Set<String> emptyQueues = new HashSet<>();
+
+    // Remove all of the compactors that are running a compaction
+    RUNNING_CACHE.values().forEach(rc -> {
+      List<HostAndPort> busyCompactors = allCompactors.get(rc.getQueueName());
+      if (busyCompactors != null
+          && busyCompactors.remove(HostAndPort.fromString(rc.getCompactorAddress()))) {
+        if (busyCompactors.isEmpty()) {
+          emptyQueues.add(rc.getQueueName());
+        }
+      }
+    });
+    // Remove entries with empty queues
+    emptyQueues.forEach(e -> allCompactors.remove(e));
+    return allCompactors;
+  }
+
   private void updateSummaries() {
-    ExecutorService executor = ThreadPools.getServerThreadPools().createFixedThreadPool(10,
-        "Compaction Summary Gatherer", false);
+    ExecutorService executor = ThreadPools.getServerThreadPools()
+        .getPoolBuilder(COMPACTION_COORDINATOR_SUMMARY_POOL).numCoreThreads(10).build();
     try {
       Set<String> queuesSeen = new ConcurrentSkipListSet<>();
 
@@ -382,7 +411,7 @@ public class CompactionCoordinator extends AbstractServer
   }
 
   protected long getMissingCompactorWarningTime() {
-    return FIFTEEN_MINUTES;
+    return getConfiguration().getTimeInMillis(Property.COMPACTOR_MAX_JOB_WAIT_TIME) * 3;
   }
 
   protected long getTServerCheckInterval() {
@@ -417,7 +446,7 @@ public class CompactionCoordinator extends AbstractServer
    * @return compaction job
    */
   @Override
-  public TExternalCompactionJob getCompactionJob(TInfo tinfo, TCredentials credentials,
+  public TNextCompactionJob getCompactionJob(TInfo tinfo, TCredentials credentials,
       String queueName, String compactorAddress, String externalCompactionId)
       throws ThriftSecurityException {
 
@@ -477,7 +506,7 @@ public class CompactionCoordinator extends AbstractServer
       result = new TExternalCompactionJob();
     }
 
-    return result;
+    return new TNextCompactionJob(result, compactorCounts.get(queue));
 
   }
 
@@ -492,8 +521,8 @@ public class CompactionCoordinator extends AbstractServer
       throws TTransportException {
     TServerConnection connection = tserverSet.getConnection(tserver);
     ServerContext serverContext = getContext();
-    TTransport transport =
-        serverContext.getTransportPool().getTransport(connection.getAddress(), 0, serverContext);
+    TTransport transport = serverContext.getTransportPool().getTransport(
+        ThriftClientTypes.TABLET_SERVER, connection.getAddress(), 0, serverContext, true);
     return ThriftUtil.createClient(ThriftClientTypes.TABLET_SERVER, transport);
   }
 
@@ -536,7 +565,8 @@ public class CompactionCoordinator extends AbstractServer
       throw new AccumuloSecurityException(credentials.getPrincipal(),
           SecurityErrorCode.PERMISSION_DENIED).asThriftException();
     }
-    LOG.info("Compaction failed, id: {}", externalCompactionId);
+    KeyExtent fromThriftExtent = KeyExtent.fromThrift(extent);
+    LOG.info("Compaction failed: id: {}, extent: {}", externalCompactionId, fromThriftExtent);
     final var ecid = ExternalCompactionId.of(externalCompactionId);
     compactionFailed(Map.of(ecid, KeyExtent.fromThrift(extent)));
   }
@@ -565,8 +595,8 @@ public class CompactionCoordinator extends AbstractServer
       throw new AccumuloSecurityException(credentials.getPrincipal(),
           SecurityErrorCode.PERMISSION_DENIED).asThriftException();
     }
-    LOG.debug("Compaction status update, id: {}, timestamp: {}, update: {}", externalCompactionId,
-        timestamp, update);
+    STATUS_LOG.debug("Compaction status update, id: {}, timestamp: {}, update: {}",
+        externalCompactionId, timestamp, update);
     final RunningCompaction rc = RUNNING_CACHE.get(ExternalCompactionId.of(externalCompactionId));
     if (null != rc) {
       rc.addUpdate(timestamp, update);

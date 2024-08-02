@@ -22,6 +22,8 @@ import static com.google.common.base.Preconditions.checkArgument;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Objects.requireNonNull;
 
+import java.util.regex.Pattern;
+
 import org.apache.accumulo.core.client.admin.TimeType;
 import org.apache.accumulo.core.data.ArrayByteSequence;
 import org.apache.accumulo.core.data.Key;
@@ -191,6 +193,8 @@ public class MetadataSchema {
        */
       public static final String DEFAULT_TABLET_DIR_NAME = "default_tablet";
 
+      private static final Pattern DIRCOL_MATCH_PATTERN = Pattern.compile("[\\dA-Za-z_-]+");
+
       /**
        * Matches regex for a tablet directory like "default_tablet" or "t-000009x"
        *
@@ -198,7 +202,7 @@ public class MetadataSchema {
        *         table. Returns false otherwise.
        */
       public static boolean isValidDirCol(String dirName) {
-        return dirName.matches("[\\dA-Za-z_-]+");
+        return DIRCOL_MATCH_PATTERN.matcher(dirName).matches();
       }
 
       /**
@@ -402,6 +406,23 @@ public class MetadataSchema {
   }
 
   /**
+   * Holds error message processing flags
+   */
+  public static class ProblemSection {
+    private static final Section section =
+        new Section(RESERVED_PREFIX + "err_", true, RESERVED_PREFIX + "err`", false);
+
+    public static Range getRange() {
+      return section.getRange();
+    }
+
+    public static String getRowPrefix() {
+      return section.getRowPrefix();
+    }
+
+  }
+
+  /**
    * Holds references to files that need replication
    *
    * <pre>
@@ -467,6 +488,20 @@ public class MetadataSchema {
   }
 
   public static class ScanServerFileReferenceSection {
+    private static final Section section =
+        new Section(RESERVED_PREFIX + "scanfileref", true, RESERVED_PREFIX + "scanfilereg", false);
+
+    public static Range getRange() {
+      return section.getRange();
+    }
+
+    public static String getRowPrefix() {
+      return section.getRowPrefix();
+    }
+  }
+
+  @Deprecated(since = "2.1")
+  public static class OldScanServerFileReferenceSection {
     private static final Section section =
         new Section(RESERVED_PREFIX + "sserv", true, RESERVED_PREFIX + "sserx", false);
 

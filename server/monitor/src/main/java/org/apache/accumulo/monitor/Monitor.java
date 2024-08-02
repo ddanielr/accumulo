@@ -62,6 +62,7 @@ import org.apache.accumulo.core.manager.thrift.ManagerClientService;
 import org.apache.accumulo.core.manager.thrift.ManagerMonitorInfo;
 import org.apache.accumulo.core.master.thrift.TableInfo;
 import org.apache.accumulo.core.master.thrift.TabletServerStatus;
+import org.apache.accumulo.core.metrics.MetricsInfo;
 import org.apache.accumulo.core.rpc.ThriftUtil;
 import org.apache.accumulo.core.rpc.clients.ThriftClientTypes;
 import org.apache.accumulo.core.tabletserver.thrift.ActiveCompaction;
@@ -389,7 +390,7 @@ public class Monitor extends AbstractServer implements HighlyAvailableService {
         coordinatorHost = ExternalCompactionUtil.findCompactionCoordinator(context);
         coordinatorCheckNanos = System.nanoTime();
         if (previousHost.isEmpty() && coordinatorHost.isPresent()) {
-          log.info("External Compaction Coordinator found at {}", coordinatorHost.get());
+          log.info("External Compaction Coordinator found at {}", coordinatorHost.orElseThrow());
         }
       }
 
@@ -483,7 +484,17 @@ public class Monitor extends AbstractServer implements HighlyAvailableService {
         log.error("Unable to get hostname", e);
       }
     }
-    log.debug("Using {} to advertise monitor location in ZooKeeper", advertiseHost);
+    HostAndPort monitorHostAndPort = HostAndPort.fromParts(advertiseHost, livePort);
+    log.debug("Using {} to advertise monitor location in ZooKeeper", monitorHostAndPort);
+    try {
+      monitorLock.replaceLockData(monitorHostAndPort.toString().getBytes(UTF_8));
+    } catch (KeeperException | InterruptedException e) {
+      throw new IllegalStateException("Exception updating monitor lock with host and port", e);
+    }
+
+    MetricsInfo metricsInfo = getContext().getMetricsInfo();
+    metricsInfo.addServiceTags(getApplicationName(), monitorHostAndPort);
+    metricsInfo.init();
 
     try {
       URL url = new URL(server.isSecure() ? "https" : "http", advertiseHost, server.getPort(), "/");
@@ -665,7 +676,7 @@ public class Monitor extends AbstractServer implements HighlyAvailableService {
     if (coordinatorHost.isEmpty()) {
       throw new IllegalStateException(coordinatorMissingMsg);
     }
-    var ccHost = coordinatorHost.get();
+    var ccHost = coordinatorHost.orElseThrow();
     log.info("User initiated fetch of running External Compactions from " + ccHost);
     var client = getCoordinator(ccHost);
     TExternalCompactionList running;

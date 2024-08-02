@@ -32,7 +32,6 @@ import org.apache.accumulo.server.manager.state.DistributedStoreException;
 import org.apache.accumulo.server.manager.state.TabletStateStore;
 import org.apache.accumulo.tserver.managermessage.TabletStatusMessage;
 import org.apache.accumulo.tserver.tablet.Tablet;
-import org.apache.zookeeper.KeeperException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -55,11 +54,11 @@ class UnloadTabletHandler implements Runnable {
   public void run() {
 
     Tablet t = null;
+    log.info("Tablet unload for extent {} requested.", extent);
 
     synchronized (server.unopenedTablets) {
       if (server.unopenedTablets.contains(extent)) {
         server.unopenedTablets.remove(extent);
-        // enqueueManagerMessage(new TabletUnloadedMessage(extent));
         return;
       }
     }
@@ -108,8 +107,7 @@ class UnloadTabletHandler implements Runnable {
     server.onlineTablets.remove(extent);
 
     try {
-      TServerInstance instance =
-          new TServerInstance(server.clientAddress, server.getLock().getSessionId());
+      TServerInstance instance = server.getTabletSession();
       TabletLocationState tls = null;
       try {
         tls = new TabletLocationState(extent, null, Location.current(instance), null, null, null,
@@ -127,10 +125,6 @@ class UnloadTabletHandler implements Runnable {
       }
     } catch (DistributedStoreException ex) {
       log.warn("Unable to update storage", ex);
-    } catch (KeeperException e) {
-      log.warn("Unable determine our zookeeper session information", e);
-    } catch (InterruptedException e) {
-      log.warn("Interrupted while getting our zookeeper session information", e);
     }
 
     // tell the manager how it went

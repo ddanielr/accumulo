@@ -28,6 +28,7 @@ import static org.apache.accumulo.core.rpc.ThriftUtil.createClient;
 import static org.apache.accumulo.core.rpc.ThriftUtil.createTransport;
 import static org.apache.accumulo.core.rpc.ThriftUtil.getClient;
 import static org.apache.accumulo.core.rpc.ThriftUtil.returnClient;
+import static org.apache.accumulo.core.util.threads.ThreadPoolNames.INSTANCE_OPS_COMPACTIONS_FINDER_POOL;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -301,8 +302,8 @@ public class InstanceOperationsImpl implements InstanceOperations {
     List<String> tservers = getTabletServers();
 
     int numThreads = Math.max(4, Math.min((tservers.size() + compactors.size()) / 10, 256));
-    var executorService =
-        context.threadPools().createFixedThreadPool(numThreads, "getactivecompactions", false);
+    var executorService = context.threadPools().getPoolBuilder(INSTANCE_OPS_COMPACTIONS_FINDER_POOL)
+        .numCoreThreads(numThreads).build();
     try {
       List<Future<List<ActiveCompaction>>> futures = new ArrayList<>();
 

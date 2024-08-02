@@ -18,8 +18,6 @@
  */
 package org.apache.accumulo.server.util;
 
-import static org.apache.accumulo.core.util.UtilWaitThread.sleepUninterruptibly;
-
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -30,7 +28,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
-import java.util.concurrent.TimeUnit;
 
 import org.apache.accumulo.core.client.AccumuloException;
 import org.apache.accumulo.core.client.Scanner;
@@ -44,7 +41,6 @@ import org.apache.accumulo.core.data.TableId;
 import org.apache.accumulo.core.data.Value;
 import org.apache.accumulo.core.dataImpl.KeyExtent;
 import org.apache.accumulo.core.fate.zookeeper.ServiceLock;
-import org.apache.accumulo.core.metadata.MetadataTable;
 import org.apache.accumulo.core.metadata.StoredTabletFile;
 import org.apache.accumulo.core.metadata.TServerInstance;
 import org.apache.accumulo.core.metadata.TabletFile;
@@ -60,9 +56,10 @@ import org.apache.accumulo.core.metadata.schema.TabletMetadata.Location;
 import org.apache.accumulo.core.security.Authorizations;
 import org.apache.accumulo.server.ServerContext;
 import org.apache.hadoop.io.Text;
-import org.apache.zookeeper.KeeperException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import com.google.common.base.Preconditions;
 
 public class ManagerMetadataUtil {
 
@@ -134,7 +131,8 @@ public class ManagerMetadataUtil {
     // check to see if prev tablet exist in metadata tablet
     Key prevRowKey = new Key(new Text(TabletsSection.encodeRow(tableId, metadataPrevEndRow)));
 
-    try (ScannerImpl scanner2 = new ScannerImpl(context, MetadataTable.ID, Authorizations.EMPTY)) {
+    try (ScannerImpl scanner2 =
+        new ScannerImpl(context, Ample.DataLevel.of(tableId).metaTableId(), Authorizations.EMPTY)) {
       scanner2.setRange(new Range(prevRowKey, prevRowKey.followingKey(PartialKey.ROW)));
 
       if (scanner2.iterator().hasNext()) {
@@ -147,7 +145,8 @@ public class ManagerMetadataUtil {
         SortedMap<StoredTabletFile,DataFileValue> lowDatafileSizes = new TreeMap<>();
 
         Key rowKey = new Key(metadataEntry);
-        try (Scanner scanner3 = new ScannerImpl(context, MetadataTable.ID, Authorizations.EMPTY)) {
+        try (Scanner scanner3 = new ScannerImpl(context, Ample.DataLevel.of(tableId).metaTableId(),
+            Authorizations.EMPTY)) {
 
           scanner3.fetchColumnFamily(DataFileColumnFamily.NAME);
           scanner3.setRange(new Range(rowKey, rowKey.followingKey(PartialKey.ROW)));
@@ -176,22 +175,14 @@ public class ManagerMetadataUtil {
     }
   }
 
-  private static TServerInstance getTServerInstance(String address, ServiceLock zooLock) {
-    while (true) {
-      try {
-        return new TServerInstance(address, zooLock.getSessionId());
-      } catch (KeeperException | InterruptedException e) {
-        log.error("{}", e.getMessage(), e);
-      }
-      sleepUninterruptibly(1, TimeUnit.SECONDS);
-    }
-  }
-
   public static void replaceDatafiles(ServerContext context, KeyExtent extent,
       Set<StoredTabletFile> datafilesToDelete, Set<StoredTabletFile> scanFiles,
-      Optional<StoredTabletFile> path, Long compactionId, DataFileValue size, String address,
-      Location lastLocation, ServiceLock zooLock, Optional<ExternalCompactionId> ecid) {
+      Optional<StoredTabletFile> path, Long compactionId, DataFileValue size,
+      TServerInstance tServerInstance, Location lastLocation, ServiceLock zooLock,
+      Optional<ExternalCompactionId> ecid) {
 
+    // Write candidates before the mutation to ensure that a process failure after a mutation would
+    // not affect candidate creation
     context.getAmple().putGcCandidates(extent.tableId(), datafilesToDelete);
 
     TabletMutator tablet = context.getAmple().mutateTablet(extent);
@@ -200,22 +191,24 @@ public class ManagerMetadataUtil {
     scanFiles.forEach(tablet::putScan);
 
     if (path.isPresent()) {
-      tablet.putFile(path.get(), size);
+      tablet.putFile(path.orElseThrow(), size);
     }
 
     if (compactionId != null) {
       tablet.putCompactionId(compactionId);
     }
 
-    updateLastForCompactionMode(context, tablet, lastLocation, address, zooLock);
+    updateLastForCompactionMode(context, tablet, lastLocation, tServerInstance);
 
     if (ecid.isPresent()) {
-      tablet.deleteExternalCompaction(ecid.get());
+      tablet.deleteExternalCompaction(ecid.orElseThrow());
     }
 
     tablet.putZooLock(zooLock);
 
     tablet.mutate();
+    // Write candidates again to avoid a possible race condition when removing InUse candidates
+    context.getAmple().putGcCandidates(extent.tableId(), datafilesToDelete);
   }
 
   /**
@@ -223,8 +216,8 @@ public class ManagerMetadataUtil {
    */
   public static Optional<StoredTabletFile> updateTabletDataFile(ServerContext context,
       KeyExtent extent, TabletFile newDatafile, DataFileValue dfv, MetadataTime time,
-      String address, ServiceLock zooLock, Set<String> unusedWalLogs, Location lastLocation,
-      long flushId) {
+      TServerInstance tServerInstance, ServiceLock zooLock, Set<String> unusedWalLogs,
+      Location lastLocation, long flushId) {
 
     TabletMutator tablet = context.getAmple().mutateTablet(extent);
     // if there are no entries, the path doesn't get stored in metadata table, only the flush ID
@@ -236,7 +229,7 @@ public class ManagerMetadataUtil {
       tablet.putTime(time);
       newFile = Optional.of(newDatafile.insert());
 
-      updateLastForCompactionMode(context, tablet, lastLocation, address, zooLock);
+      updateLastForCompactionMode(context, tablet, lastLocation, tServerInstance);
     }
     tablet.putFlushId(flushId);
 
@@ -253,18 +246,18 @@ public class ManagerMetadataUtil {
    * last location if needed and set the new last location
    *
    * @param context The server context
-   * @param ample The metadata persistence layer
    * @param tabletMutator The mutator being built
-   * @param extent The tablet extent
    * @param location The new location
+   * @param lastLocation The previous last location, which may be null
    */
-  public static void updateLastForAssignmentMode(ClientContext context, Ample ample,
-      Ample.TabletMutator tabletMutator, KeyExtent extent, TServerInstance location) {
+  public static void updateLastForAssignmentMode(ClientContext context,
+      Ample.TabletMutator tabletMutator, TServerInstance location, Location lastLocation) {
+    Preconditions.checkArgument(
+        lastLocation == null || lastLocation.getType() == TabletMetadata.LocationType.LAST);
+
     // if the location mode is assignment, then preserve the current location in the last
     // location value
     if ("assignment".equals(context.getConfiguration().get(Property.TSERV_LAST_LOCATION_MODE))) {
-      TabletMetadata lastMetadata = ample.readTablet(extent, TabletMetadata.ColumnType.LAST);
-      Location lastLocation = (lastMetadata == null ? null : lastMetadata.getLast());
       ManagerMetadataUtil.updateLocation(tabletMutator, lastLocation, Location.last(location));
     }
   }
@@ -276,15 +269,14 @@ public class ManagerMetadataUtil {
    * @param context The server context
    * @param tabletMutator The mutator being built
    * @param lastLocation The last location
-   * @param address The server address
-   * @param zooLock The zookeeper lock
+   * @param tServerInstance The server address
    */
   public static void updateLastForCompactionMode(ClientContext context, TabletMutator tabletMutator,
-      Location lastLocation, String address, ServiceLock zooLock) {
+      Location lastLocation, TServerInstance tServerInstance) {
     // if the location mode is 'compaction', then preserve the current compaction location in the
     // last location value
     if ("compaction".equals(context.getConfiguration().get(Property.TSERV_LAST_LOCATION_MODE))) {
-      Location newLocation = Location.last(getTServerInstance(address, zooLock));
+      Location newLocation = Location.last(tServerInstance);
       updateLocation(tabletMutator, lastLocation, newLocation);
     }
   }

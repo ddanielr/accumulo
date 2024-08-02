@@ -36,9 +36,11 @@ import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.security.SecureRandom;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -50,6 +52,7 @@ import java.util.regex.Pattern;
 import org.apache.accumulo.core.Constants;
 import org.apache.accumulo.core.client.Accumulo;
 import org.apache.accumulo.core.client.AccumuloClient;
+import org.apache.accumulo.core.client.AccumuloException;
 import org.apache.accumulo.core.client.IteratorSetting;
 import org.apache.accumulo.core.client.Scanner;
 import org.apache.accumulo.core.client.sample.RowColumnSampler;
@@ -112,6 +115,8 @@ public class ShellServerIT extends SharedMiniClusterBase {
   private MockShell ts;
 
   private static String rootPath;
+
+  private final SecureRandom random = new SecureRandom();
 
   private static class ShellServerITConfigCallback implements MiniClusterConfigurationCallback {
     @Override
@@ -287,7 +292,7 @@ public class ShellServerIT extends SharedMiniClusterBase {
   }
 
   @Test
-  public void egrep() throws Exception {
+  public void egrep() {
     final String table = getUniqueNames(1)[0];
 
     // egrep
@@ -440,7 +445,7 @@ public class ShellServerIT extends SharedMiniClusterBase {
   }
 
   @Test
-  public void setIterOptionPrompt() throws Exception {
+  public void setIterOptionPrompt() {
     try (AccumuloClient client = Accumulo.newClient().from(getClientProps()).build()) {
       final String[] tableNames = getUniqueNames(4);
       final String tableName0 = tableNames[0];
@@ -519,11 +524,11 @@ public class ShellServerIT extends SharedMiniClusterBase {
   }
 
   protected void checkTableForProperty(final AccumuloClient client, final String tableName,
-      final String expectedKey, final String expectedValue) throws Exception {
-    assertTrue(
-        Wait.waitFor(() -> client.tableOperations().getConfiguration(tableName).get(expectedKey)
-            .equals(expectedValue), 5000, 500),
-        "Failed to find expected value for key: " + expectedKey);
+      final String expectedKey, final String expectedValue) {
+    Wait.waitFor(
+        () -> client.tableOperations().getConfiguration(tableName).get(expectedKey)
+            .equals(expectedValue),
+        5000, 500, "Failed to find expected value for key: " + expectedKey);
   }
 
   @Test
@@ -630,7 +635,7 @@ public class ShellServerIT extends SharedMiniClusterBase {
   }
 
   @Test
-  public void byeQuitExit() throws Exception {
+  public void byeQuitExit() {
     // bye, quit, exit
     for (String cmd : "bye quit exit".split(" ")) {
       assertFalse(ts.shell.getExit());
@@ -911,7 +916,7 @@ public class ShellServerIT extends SharedMiniClusterBase {
   }
 
   @Test
-  public void testCompactionSelectionAndStrategy() throws Exception {
+  public void testCompactionSelectionAndStrategy() {
 
     final String table = getUniqueNames(1)[0];
 
@@ -1051,7 +1056,7 @@ public class ShellServerIT extends SharedMiniClusterBase {
     final String table = getUniqueNames(1)[0];
 
     // constraint
-    ts.exec("constraint -l -t " + MetadataTable.NAME + "", true, "MetadataConstraints=1", true);
+    ts.exec("constraint -l -t " + MetadataTable.NAME, true, "MetadataConstraints=1", true);
     ts.exec("createtable " + table + " -evc");
 
     // Make sure the table is fully propagated through zoocache
@@ -1145,7 +1150,7 @@ public class ShellServerIT extends SharedMiniClusterBase {
   }
 
   @Test
-  public void formatter() throws Exception {
+  public void formatter() {
     ts.exec("createtable formatter_test", true);
     ts.exec("table formatter_test", true);
     ts.exec("insert row cf cq 1234abcd", true);
@@ -1335,11 +1340,13 @@ public class ShellServerIT extends SharedMiniClusterBase {
     File errorsDir = new File(rootPath, "errors_" + table);
     assertTrue(errorsDir.mkdir());
     fs.mkdirs(new Path(errorsDir.toString()));
-    File importDir = createRFiles(conf, fs, table);
+
+    String nonce = generateNonce();
+    File importDir = createRFiles(conf, fs, table, nonce);
     ts.exec("createtable " + table, true);
     ts.exec("importdirectory " + importDir + " " + errorsDir + " true", true);
-    ts.exec("scan -r 00000000", true, "00000000", true);
-    ts.exec("scan -r 00000099", true, "00000099", true);
+    ts.exec("scan -r 00000000", true, "0-->" + nonce, true);
+    ts.exec("scan -r 00000099", true, "99-->" + nonce, true);
     ts.exec("deletetable -f " + table);
   }
 
@@ -1347,12 +1354,14 @@ public class ShellServerIT extends SharedMiniClusterBase {
   public void importDirectory() throws Exception {
     final String table = getUniqueNames(1)[0];
     Configuration conf = new Configuration();
+    String nonce = generateNonce();
     FileSystem fs = FileSystem.get(conf);
-    File importDir = createRFiles(conf, fs, table);
+    File importDir = createRFiles(conf, fs, table, nonce);
     ts.exec("createtable " + table, true);
     ts.exec("importdirectory " + importDir + " true", true);
-    ts.exec("scan -r 00000000", true, "00000000", true);
-    ts.exec("scan -r 00000099", true, "00000099", true);
+    ts.exec("scan -r 00000000", true, "0-->" + nonce, true);
+    ts.exec("scan -r 00000099", true, "99-->" + nonce, true);
+    ts.exec("scan -r 00000099", true, "99-->" + nonce + nonce, false);
     ts.exec("deletetable -f " + table);
   }
 
@@ -1361,25 +1370,27 @@ public class ShellServerIT extends SharedMiniClusterBase {
   public void importDirectoryWithOptions() throws Exception {
     final String table = getUniqueNames(1)[0];
     Configuration conf = new Configuration();
+    String nonce = generateNonce();
     FileSystem fs = FileSystem.get(conf);
-    File importDir = createRFiles(conf, fs, table);
+    File importDir = createRFiles(conf, fs, table, nonce);
     ts.exec("createtable " + table, true);
     ts.exec("notable", true);
     ts.exec("importdirectory -t " + table + " -i " + importDir + " true", true);
-    ts.exec("scan -t " + table + " -r 00000000", true, "00000000", true);
-    ts.exec("scan -t " + table + " -r 00000099", true, "00000099", true);
+    ts.exec("scan -t " + table + " -np -b 0 -e 2", true, "0-->" + nonce, true);
+    ts.exec("scan -t " + table + " -b 00000098 -e 00000100", true, "99-->" + nonce, true);
     // Attempt to re-import without -i option, error should occur
     ts.exec("importdirectory -t " + table + " " + importDir + " true", false);
     // Attempt re-import once more, this time with -i option. No error should occur, only a
     // message indicating the directory was empty and zero files were imported
     ts.exec("importdirectory -t " + table + " -i " + importDir + " true", true);
-    ts.exec("scan -t " + table + " -r 00000000", true, "00000000", true);
-    ts.exec("scan -t " + table + " -r 00000099", true, "00000099", true);
+    ts.exec("scan -t " + table + " -r 00000000", true, "0-->" + nonce, true);
+    ts.exec("scan -t " + table + " -r 00000099", true, "99-->" + nonce, true);
+    ts.exec("scan -t " + table + " -r 00000201", true, nonce, false);
     ts.exec("deletetable -f " + table);
   }
 
-  private File createRFiles(final Configuration conf, final FileSystem fs, final String postfix)
-      throws IOException {
+  private File createRFiles(final Configuration conf, final FileSystem fs, final String postfix,
+      final String nonce) throws IOException {
     File importDir = new File(rootPath, "import_" + postfix);
     assertTrue(importDir.mkdir());
     String even = new File(importDir, "even.rf").toString();
@@ -1394,11 +1405,13 @@ public class ShellServerIT extends SharedMiniClusterBase {
     long timestamp = System.currentTimeMillis();
     Text cf = new Text("cf");
     Text cq = new Text("cq");
-    Value value = new Value("value");
+    Value value;
     for (int i = 0; i < 100; i += 2) {
-      Key key = new Key(new Text(String.format("%8d", i)), cf, cq, timestamp);
+      Key key = new Key(new Text(String.format("%08d", i)), cf, cq, timestamp);
+      value = new Value(i + "-->" + nonce);
       evenWriter.append(key, value);
-      key = new Key(new Text(String.format("%8d", i + 1)), cf, cq, timestamp);
+      key = new Key(new Text(String.format("%08d", i + 1)), cf, cq, timestamp);
+      value = new Value(i + 1 + "-->" + nonce);
       oddWriter.append(key, value);
     }
     evenWriter.close();
@@ -1478,12 +1491,12 @@ public class ShellServerIT extends SharedMiniClusterBase {
     ts.exec("merge --all", true);
     ts.exec("getsplits", true, "z", false);
     ts.exec("deletetable -f " + table);
-    ts.exec("getsplits -t " + MetadataTable.NAME + "", true);
+    ts.exec("getsplits -t " + MetadataTable.NAME, true);
     assertEquals(2, ts.output.get().split("\n").length);
     ts.exec("getsplits -t accumulo.root", true);
     assertEquals(1, ts.output.get().split("\n").length);
-    ts.exec("merge --all -t " + MetadataTable.NAME + "");
-    ts.exec("getsplits -t " + MetadataTable.NAME + "", true);
+    ts.exec("merge --all -t " + MetadataTable.NAME);
+    ts.exec("getsplits -t " + MetadataTable.NAME, true);
     assertEquals(1, ts.output.get().split("\n").length);
   }
 
@@ -1532,7 +1545,7 @@ public class ShellServerIT extends SharedMiniClusterBase {
   }
 
   @Test
-  public void systempermission() throws Exception {
+  public void systempermission() {
     ts.exec("systempermissions");
     assertEquals(12, ts.output.get().split("\n").length - 1);
     ts.exec("tablepermissions", true);
@@ -1665,7 +1678,7 @@ public class ShellServerIT extends SharedMiniClusterBase {
   }
 
   @Test
-  public void badLogin() throws Exception {
+  public void badLogin() {
     // Can't run with Kerberos, can't switch identity in shell presently
     assumeTrue(getToken() instanceof PasswordToken);
     ts.input.set(getRootPassword() + "\n");
@@ -1757,7 +1770,7 @@ public class ShellServerIT extends SharedMiniClusterBase {
     ts.exec("insert r cf cq abc", true);
   }
 
-  private int countkeys(String table) throws IOException {
+  private int countkeys(String table) {
     ts.exec("scan -np -t " + table);
     return ts.output.get().split("\n").length - 1;
   }
@@ -2024,13 +2037,13 @@ public class ShellServerIT extends SharedMiniClusterBase {
     }
   }
 
-  private void make10() throws IOException {
+  private void make10() {
     for (int i = 0; i < 10; i++) {
       ts.exec(String.format("insert row%d cf col%d value", i, i));
     }
   }
 
-  private List<String> getFiles(String tableId) throws IOException {
+  private List<String> getFiles(String tableId) {
     ts.output.clear();
 
     ts.exec(
@@ -2048,7 +2061,7 @@ public class ShellServerIT extends SharedMiniClusterBase {
     return Arrays.asList(Arrays.copyOfRange(lines, 1, lines.length));
   }
 
-  private int countFiles(String tableId) throws IOException {
+  private int countFiles(String tableId) {
     return getFiles(tableId).size();
   }
 
@@ -2081,7 +2094,7 @@ public class ShellServerIT extends SharedMiniClusterBase {
   }
 
   @Test
-  public void testSummaries() throws Exception {
+  public void testSummaries() {
     String tableName = getUniqueNames(1)[0];
     ts.exec("createtable " + tableName);
     ts.exec(
@@ -2151,7 +2164,7 @@ public class ShellServerIT extends SharedMiniClusterBase {
   }
 
   @Test
-  public void testSummarySelection() throws Exception {
+  public void testSummarySelection() {
     String tableName = getUniqueNames(1)[0];
     ts.exec("createtable " + tableName);
     // will create a few files and do not want them compacted
@@ -2258,4 +2271,36 @@ public class ShellServerIT extends SharedMiniClusterBase {
     }
   }
 
+  @Test
+  public void failOnInvalidClassloaderContestTest() throws Exception {
+
+    final String[] names = getUniqueNames(3);
+    final String table1 = names[0];
+    final String namespace1 = names[1];
+    final String table2 = namespace1 + "." + names[2];
+
+    ts.exec("createtable " + table1, true);
+    ts.exec("createnamespace " + namespace1, true);
+    ts.exec("createtable " + table2, true);
+
+    ts.exec("config -s table.class.loader.context=invalid", false,
+        AccumuloException.class.getName(), true);
+    ts.exec("config -s table.class.loader.context=invalid -ns " + namespace1, false,
+        AccumuloException.class.getName(), true);
+    ts.exec("config -s table.class.loader.context=invalid -t " + table1, false,
+        AccumuloException.class.getName(), true);
+    ts.exec("config -s table.class.loader.context=invalid -t " + table2, false,
+        AccumuloException.class.getName(), true);
+
+  }
+
+  /**
+   * Generates a string based on a random number that can be used to uniquely identify data in shell
+   * output
+   */
+  public String generateNonce() {
+    byte[] r = new byte[16];
+    random.nextBytes(r);
+    return new String(Base64.getEncoder().encode(r), UTF_8);
+  }
 }

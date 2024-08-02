@@ -18,6 +18,8 @@
  */
 package org.apache.accumulo.core.metadata;
 
+import java.net.URI;
+
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.Text;
 
@@ -40,7 +42,7 @@ public class StoredTabletFile extends TabletFile {
    * the entry can be deleted.
    */
   public StoredTabletFile(String metadataEntry) {
-    super(new Path(metadataEntry));
+    super(new Path(URI.create(metadataEntry)));
     this.metadataEntry = metadataEntry;
   }
 
@@ -60,15 +62,4 @@ public class StoredTabletFile extends TabletFile {
     return new Text(getMetaUpdateDelete());
   }
 
-  /**
-   * Validate that the provided reference matches what is in the metadata table.
-   *
-   * @param reference the relative path to check against
-   */
-  public void validate(String reference) {
-    if (!metadataEntry.equals(reference)) {
-      throw new IllegalStateException("The reference " + reference
-          + " does not match what was in the metadata: " + metadataEntry);
-    }
-  }
 }

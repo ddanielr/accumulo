@@ -601,7 +601,7 @@ public class Upgrader9to10 implements Upgrader {
       var tableId = TableId.of(pathNoVolume.getParent().getName());
       // except bulk directories don't get an all volume prefix
       if (pathNoVolume.getName().startsWith(Constants.BULK_PREFIX)) {
-        return new ReferenceFile(tableId, olddelete.toString());
+        return ReferenceFile.forFile(tableId, olddelete.toString());
       } else {
         return new AllVolumesDirectory(tableId, tabletDir);
       }
@@ -610,7 +610,7 @@ public class Upgrader9to10 implements Upgrader {
       if (pathNoVolume.depth() == 4) {
         Path tabletDirPath = pathNoVolume.getParent();
         var tableId = TableId.of(tabletDirPath.getParent().getName());
-        return new ReferenceFile(tableId, olddelete.toString());
+        return ReferenceFile.forFile(tableId, olddelete.toString());
       } else {
         throw new IllegalStateException("Invalid delete marker: " + olddelete);
       }
@@ -820,7 +820,7 @@ public class Upgrader9to10 implements Upgrader {
     // A relative path file of the form "/tableId/tabletDir/file" will have depth == 3
     Preconditions.checkState(
         oldDelete.startsWith("/") && (pathToCheck.depth() == 2 || pathToCheck.depth() == 3),
-        "Unrecognized relative delete marker {}", oldDelete);
+        "Unrecognized relative delete marker (%s)", oldDelete);
 
     // found relative paths so verify the property used to build the absolute paths
     if (upgradeProperty == null || upgradeProperty.isBlank()) {

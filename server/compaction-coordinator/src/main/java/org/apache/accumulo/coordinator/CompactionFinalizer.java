@@ -18,9 +18,12 @@
  */
 package org.apache.accumulo.coordinator;
 
+import static java.util.concurrent.TimeUnit.MINUTES;
 import static java.util.function.Function.identity;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toMap;
+import static org.apache.accumulo.core.util.threads.ThreadPoolNames.COORDINATOR_FINALIZER_BACKGROUND_POOL;
+import static org.apache.accumulo.core.util.threads.ThreadPoolNames.COORDINATOR_FINALIZER_NOTIFIER_POOL;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -74,11 +77,13 @@ public class CompactionFinalizer {
     int max = this.context.getConfiguration()
         .getCount(Property.COMPACTION_COORDINATOR_FINALIZER_TSERVER_NOTIFIER_MAXTHREADS);
 
-    this.ntfyExecutor = ThreadPools.getServerThreadPools().createThreadPool(3, max, 1,
-        TimeUnit.MINUTES, "Compaction Finalizer Notifier", true);
+    this.ntfyExecutor = ThreadPools.getServerThreadPools()
+        .getPoolBuilder(COORDINATOR_FINALIZER_NOTIFIER_POOL).numCoreThreads(3).numMaxThreads(max)
+        .withTimeOut(1L, MINUTES).enableThreadPoolMetrics().build();
 
-    this.backgroundExecutor = ThreadPools.getServerThreadPools().createFixedThreadPool(1,
-        "Compaction Finalizer Background Task", true);
+    this.backgroundExecutor =
+        ThreadPools.getServerThreadPools().getPoolBuilder(COORDINATOR_FINALIZER_BACKGROUND_POOL)
+            .numCoreThreads(1).enableThreadPoolMetrics().build();
 
     backgroundExecutor.execute(() -> {
       processPending();
@@ -128,7 +133,8 @@ public class CompactionFinalizer {
             ecfs.getExternalCompactionId().canonical(), ecfs.getExtent().toThrift(),
             ecfs.getFileSize(), ecfs.getEntries());
       } else if (ecfs.getFinalState() == FinalState.FAILED) {
-        LOG.debug("Notifying tserver {} that compaction {} has failed.", loc, ecfs);
+        LOG.debug("Notifying tserver {} that compaction {} with {} has failed.", loc,
+            ecfs.getExternalCompactionId(), ecfs);
         client.compactionJobFailed(TraceUtil.traceInfo(), context.rpcCreds(),
             ecfs.getExternalCompactionId().canonical(), ecfs.getExtent().toThrift());
       } else {

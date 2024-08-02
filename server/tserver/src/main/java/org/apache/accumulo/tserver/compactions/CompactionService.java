@@ -18,7 +18,10 @@
  */
 package org.apache.accumulo.tserver.compactions;
 
-import java.io.IOException;
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static java.util.concurrent.TimeUnit.MINUTES;
+import static org.apache.accumulo.core.util.threads.ThreadPoolNames.COMPACTION_SERVICE_COMPACTION_PLANNER_POOL;
+
 import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumMap;
@@ -34,13 +37,13 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
 import org.apache.accumulo.core.client.admin.compaction.CompactableFile;
 import org.apache.accumulo.core.conf.ConfigurationTypeHelper;
+import org.apache.accumulo.core.conf.Property;
 import org.apache.accumulo.core.data.TableId;
 import org.apache.accumulo.core.dataImpl.KeyExtent;
 import org.apache.accumulo.core.spi.common.ServiceEnvironment;
@@ -66,6 +69,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.google.common.base.Preconditions;
+import com.google.common.cache.Cache;
+import com.google.common.cache.CacheBuilder;
 import com.google.common.collect.Sets;
 
 public class CompactionService {
@@ -85,6 +90,9 @@ public class CompactionService {
   private AtomicLong rateLimit = new AtomicLong(0);
   private Function<CompactionExecutorId,ExternalCompactionExecutor> externExecutorSupplier;
 
+  // use to limit logging of max scan files exceeded
+  private final Cache<TableId,Long> maxScanFilesExceededErrorCache;
+
   private static final Logger log = LoggerFactory.getLogger(CompactionService.class);
 
   public CompactionService(String serviceName, String plannerClass, Long maxRate,
@@ -103,8 +111,7 @@ public class CompactionService {
 
     var initParams =
         new CompactionPlannerInitParams(myId, plannerOpts, new ServiceEnvironmentImpl(context));
-    planner = createPlanner(plannerClass);
-    planner.init(initParams);
+    planner = createPlanner(myId, plannerClass, plannerOptions, initParams);
 
     Map<CompactionExecutorId,CompactionExecutor> tmpExecutors = new HashMap<>();
 
@@ -126,23 +133,33 @@ public class CompactionService {
 
     this.executors = Map.copyOf(tmpExecutors);
 
-    this.planningExecutor = ThreadPools.getServerThreadPools().createThreadPool(1, 1, 0L,
-        TimeUnit.MILLISECONDS, "CompactionPlanner", false);
+    this.planningExecutor = ThreadPools.getServerThreadPools()
+        .getPoolBuilder(COMPACTION_SERVICE_COMPACTION_PLANNER_POOL).numCoreThreads(1)
+        .numMaxThreads(1).withTimeOut(0L, MILLISECONDS).build();
 
     this.queuedForPlanning = new EnumMap<>(CompactionKind.class);
     for (CompactionKind kind : CompactionKind.values()) {
       queuedForPlanning.put(kind, new ConcurrentHashMap<KeyExtent,Compactable>());
     }
 
+    maxScanFilesExceededErrorCache = CacheBuilder.newBuilder().expireAfterWrite(5, MINUTES).build();
+
     log.debug("Created new compaction service id:{} rate limit:{} planner:{} planner options:{}",
         myId, maxRate, plannerClass, plannerOptions);
   }
 
-  private CompactionPlanner createPlanner(String plannerClass) {
+  private static CompactionPlanner createPlanner(CompactionServiceId myId, String plannerClass,
+      Map<String,String> options, CompactionPlannerInitParams initParams) {
     try {
-      return ConfigurationTypeHelper.getClassInstance(null, plannerClass, CompactionPlanner.class);
-    } catch (IOException | ReflectiveOperationException e) {
-      throw new RuntimeException(e);
+      var planner =
+          ConfigurationTypeHelper.getClassInstance(null, plannerClass, CompactionPlanner.class);
+      planner.init(initParams);
+      return planner;
+    } catch (Exception e) {
+      log.error(
+          "Failed to create compaction planner for {} using class:{} options:{}.  Compaction service will not start any new compactions until its configuration is fixed.",
+          myId, plannerClass, options, e);
+      return new ProvisionalCompactionPlanner(myId);
     }
   }
 
@@ -187,11 +204,12 @@ public class CompactionService {
         planningExecutor.execute(() -> {
           try {
             Optional<Compactable.Files> files = compactable.getFiles(myId, kind);
-            if (files.isEmpty() || files.get().candidates.isEmpty()) {
-              log.trace("Compactable returned no files {} {}", compactable.getExtent(), kind);
+            if (files.isEmpty() || files.orElseThrow().candidates.isEmpty()) {
+              log.trace("Compactable returned no files {} {} {}", myId, compactable.getExtent(),
+                  kind);
             } else {
-              CompactionPlan plan = getCompactionPlan(kind, files.get(), compactable);
-              submitCompactionJob(plan, files.get(), compactable, completionCallback);
+              CompactionPlan plan = getCompactionPlan(kind, files.orElseThrow(), compactable);
+              submitCompactionJob(plan, files.orElseThrow(), compactable, completionCallback);
             }
           } finally {
             queuedForPlanning.get(kind).remove(compactable.getExtent());
@@ -271,15 +289,36 @@ public class CompactionService {
       Compactable compactable) {
     PlanningParameters params = new CpPlanParams(kind, compactable, files);
 
-    log.trace("Planning compactions {} {} {} {}", planner.getClass().getName(),
+    log.trace("Planning compactions {} {} {} {} {}", myId, planner.getClass().getName(),
         compactable.getExtent(), kind, files);
 
     CompactionPlan plan;
     try {
       plan = planner.makePlan(params);
+      var tableId = compactable.getTableId();
+
+      if (plan.getJobs().isEmpty()) {
+        int maxScanFiles =
+            context.getTableConfiguration(tableId).getCount(Property.TSERV_SCAN_MAX_OPENFILES);
+
+        if (files.allFiles.size() >= maxScanFiles && files.compacting.isEmpty()) {
+          var last = maxScanFilesExceededErrorCache.getIfPresent(tableId);
+
+          if (last == null) {
+            log.warn(
+                "The tablet {} has {} files and the max files for scan is {}.  No compactions are "
+                    + "running and none were planned for this tablet by {}, so the files will "
+                    + "not be reduced by compaction which could cause scans to fail.  Please "
+                    + "check your compaction configuration. This log message is temporarily suppressed for the entire table.",
+                compactable.getExtent(), files.allFiles.size(), maxScanFiles, myId);
+            maxScanFilesExceededErrorCache.put(tableId, System.currentTimeMillis());
+          }
+        }
+      }
+
     } catch (RuntimeException e) {
-      log.debug("Planner failed {} {} {} {}", planner.getClass().getName(), compactable.getExtent(),
-          kind, files, e);
+      log.debug("Planner failed {} {} {} {} {}", myId, planner.getClass().getName(),
+          compactable.getExtent(), kind, files, e);
       throw e;
     }
 
@@ -368,8 +407,7 @@ public class CompactionService {
 
     var initParams =
         new CompactionPlannerInitParams(myId, plannerOptions, new ServiceEnvironmentImpl(context));
-    var tmpPlanner = createPlanner(plannerClassName);
-    tmpPlanner.init(initParams);
+    var tmpPlanner = createPlanner(myId, plannerClassName, plannerOptions, initParams);
 
     Map<CompactionExecutorId,CompactionExecutor> tmpExecutors = new HashMap<>();
 
@@ -408,6 +446,7 @@ public class CompactionService {
 
   public void stop() {
     executors.values().forEach(CompactionExecutor::stop);
+    log.debug("Stopped compaction service {}", myId);
   }
 
   int getCompactionsRunning(CType ctype) {

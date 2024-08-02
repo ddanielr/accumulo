@@ -21,6 +21,7 @@ package org.apache.accumulo.core.classloader;
 import org.apache.accumulo.core.conf.AccumuloConfiguration;
 import org.apache.accumulo.core.conf.Property;
 import org.apache.accumulo.core.spi.common.ContextClassLoaderFactory;
+import org.apache.accumulo.core.util.ConfigurationImpl;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -46,11 +47,12 @@ public class ClassLoaderUtil {
             ContextClassLoaderFactory.class.getName());
         FACTORY = new DefaultContextClassLoaderFactory(conf);
       } else {
-        // load user's selected implementation
+        // load user's selected implementation and provide it with the service environment
         try {
           var factoryClass = Class.forName(factoryName).asSubclass(ContextClassLoaderFactory.class);
           LOG.info("Creating {}: {}", ContextClassLoaderFactory.class.getName(), factoryName);
           FACTORY = factoryClass.getDeclaredConstructor().newInstance();
+          FACTORY.init(() -> new ConfigurationImpl(conf));
         } catch (ReflectiveOperationException e) {
           throw new IllegalStateException("Unable to load and initialize class: " + factoryName, e);
         }
@@ -77,6 +79,25 @@ public class ClassLoaderUtil {
       return FACTORY.getClassLoader(context);
     } else {
       return org.apache.accumulo.start.classloader.vfs.AccumuloVFSClassLoader.getClassLoader();
+    }
+  }
+
+  public static boolean isValidContext(String context) {
+    if (context != null && !context.isEmpty()) {
+      try {
+        var loader = FACTORY.getClassLoader(context);
+        if (loader == null) {
+          LOG.debug("Context {} resulted in a null classloader from {}.", context,
+              FACTORY.getClass().getName());
+          return false;
+        }
+        return true;
+      } catch (RuntimeException e) {
+        LOG.debug("Context {} is not valid.", context, e);
+        return false;
+      }
+    } else {
+      return true;
     }
   }
 

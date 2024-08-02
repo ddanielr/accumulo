@@ -195,6 +195,7 @@ public class MiniAccumuloClusterImpl implements AccumuloCluster {
       conf.set("dfs.support.append", "true");
       conf.set("dfs.datanode.synconclose", "true");
       conf.set("dfs.datanode.data.dir.perm", MiniDFSUtil.computeDatanodeDirectoryPermission());
+      config.getHadoopConfOverrides().forEach((k, v) -> conf.set(k, v));
       String oldTestBuildData = System.setProperty("test.build.data", dfs.getAbsolutePath());
       miniDFS.set(new MiniDFSCluster.Builder(conf).build());
       if (oldTestBuildData == null) {
@@ -548,7 +549,7 @@ public class MiniAccumuloClusterImpl implements AccumuloCluster {
           while (true) {
             try (Socket s = new Socket("localhost", config.getZooKeeperPort())) {
               s.setReuseAddress(true);
-              s.getOutputStream().write("ruok\n".getBytes());
+              s.getOutputStream().write("ruok\n".getBytes(UTF_8));
               s.getOutputStream().flush();
               byte[] buffer = new byte[100];
               int n = s.getInputStream().read(buffer);

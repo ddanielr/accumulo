@@ -18,6 +18,8 @@
  */
 package org.apache.accumulo.server.problems;
 
+import static java.util.concurrent.TimeUnit.SECONDS;
+
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.Iterator;
@@ -44,12 +46,11 @@ import org.apache.accumulo.core.fate.zookeeper.ZooReaderWriter;
 import org.apache.accumulo.core.iterators.SortedKeyIterator;
 import org.apache.accumulo.core.metadata.MetadataTable;
 import org.apache.accumulo.core.metadata.RootTable;
+import org.apache.accumulo.core.metadata.schema.MetadataSchema.ProblemSection;
 import org.apache.accumulo.core.security.Authorizations;
 import org.apache.accumulo.core.util.threads.ThreadPools;
 import org.apache.accumulo.server.ServerContext;
-import org.apache.accumulo.server.util.MetadataTableUtil;
 import org.apache.commons.collections4.map.LRUMap;
-import org.apache.hadoop.io.Text;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -66,8 +67,9 @@ public class ProblemReports implements Iterable<ProblemReport> {
    * processed because the whole system is in a really bad state (like HDFS is down) and everything
    * is reporting lots of problems, but problem reports can not be processed
    */
-  private ExecutorService reportExecutor = ThreadPools.getServerThreadPools().createThreadPool(0, 1,
-      60, TimeUnit.SECONDS, "acu-problem-reporter", new LinkedBlockingQueue<>(500), false);
+  private final ExecutorService reportExecutor = ThreadPools.getServerThreadPools()
+      .getPoolBuilder("problem.reporter").numCoreThreads(0).numMaxThreads(1)
+      .withTimeOut(60L, SECONDS).withQueue(new LinkedBlockingQueue<>(500)).build();
 
   private final ServerContext context;
 
@@ -161,9 +163,9 @@ public class ProblemReports implements Iterable<ProblemReport> {
     Scanner scanner = context.createScanner(MetadataTable.NAME, Authorizations.EMPTY);
     scanner.addScanIterator(new IteratorSetting(1, "keys-only", SortedKeyIterator.class));
 
-    scanner.setRange(new Range(new Text("~err_" + table)));
+    scanner.setRange(new Range(ProblemSection.getRowPrefix() + table));
 
-    Mutation delMut = new Mutation(new Text("~err_" + table));
+    Mutation delMut = new Mutation(ProblemSection.getRowPrefix() + table);
 
     boolean hasProblems = false;
     for (Entry<Key,Value> entry : scanner) {
@@ -172,7 +174,9 @@ public class ProblemReports implements Iterable<ProblemReport> {
     }
 
     if (hasProblems) {
-      MetadataTableUtil.getMetadataTable(context).update(delMut);
+      try (var writer = context.createBatchWriter(MetadataTable.NAME)) {
+        writer.addMutation(delMut);
+      }
     }
   }
 
@@ -217,9 +221,9 @@ public class ProblemReports implements Iterable<ProblemReport> {
                 scanner.setTimeout(3, TimeUnit.SECONDS);
 
                 if (table == null) {
-                  scanner.setRange(new Range(new Text("~err_"), false, new Text("~err`"), false));
+                  scanner.setRange(ProblemSection.getRange());
                 } else {
-                  scanner.setRange(new Range(new Text("~err_" + table)));
+                  scanner.setRange(new Range(ProblemSection.getRowPrefix() + table));
                 }
 
                 iter2 = scanner.iterator();

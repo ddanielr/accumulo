@@ -30,7 +30,6 @@ import static org.apache.accumulo.core.util.threads.ThreadPools.watchNonCritical
 
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
-import java.lang.reflect.InvocationTargetException;
 import java.net.UnknownHostException;
 import java.security.SecureRandom;
 import java.time.Duration;
@@ -89,7 +88,7 @@ import org.apache.accumulo.core.metadata.MetadataTable;
 import org.apache.accumulo.core.metadata.RootTable;
 import org.apache.accumulo.core.metadata.TServerInstance;
 import org.apache.accumulo.core.metadata.schema.TabletsMetadata;
-import org.apache.accumulo.core.metrics.MetricsUtil;
+import org.apache.accumulo.core.metrics.MetricsInfo;
 import org.apache.accumulo.core.rpc.ThriftUtil;
 import org.apache.accumulo.core.rpc.clients.ThriftClientTypes;
 import org.apache.accumulo.core.spi.fs.VolumeChooserEnvironment;
@@ -188,6 +187,7 @@ public class TabletServer extends AbstractServer implements TabletHostingServer 
   TabletServerScanMetrics scanMetrics;
   TabletServerMinCMetrics mincMetrics;
   CompactionExecutorsMetrics ceMetrics;
+  BlockCacheMetrics blockCacheMetrics;
 
   @Override
   public TabletServerScanMetrics getScanMetrics() {
@@ -217,7 +217,7 @@ public class TabletServer extends AbstractServer implements TabletHostingServer 
 
   private final BlockingDeque<ManagerMessage> managerMessages = new LinkedBlockingDeque<>();
 
-  HostAndPort clientAddress;
+  volatile HostAndPort clientAddress;
 
   private volatile boolean serverStopRequested = false;
   private volatile boolean shutdownComplete = false;
@@ -227,9 +227,8 @@ public class TabletServer extends AbstractServer implements TabletHostingServer 
   private TServer server;
   private volatile TServer replServer;
 
-  private DistributedWorkQueue bulkFailedCopyQ;
-
   private String lockID;
+  private volatile long lockSessionId = -1;
 
   public static final AtomicLong seekCount = new AtomicLong(0);
 
@@ -401,6 +400,7 @@ public class TabletServer extends AbstractServer implements TabletHostingServer 
   }
 
   void requestStop() {
+    log.info("Stop requested.");
     serverStopRequested = true;
   }
 
@@ -544,10 +544,11 @@ public class TabletServer extends AbstractServer implements TabletHostingServer 
     }
   }
 
-  private HostAndPort startServer(AccumuloConfiguration conf, String address, TProcessor processor)
+  private HostAndPort startServer(String address, TProcessor processor)
       throws UnknownHostException {
-    Property maxMessageSizeProperty = (conf.get(Property.TSERV_MAX_MESSAGE_SIZE) != null
-        ? Property.TSERV_MAX_MESSAGE_SIZE : Property.GENERAL_MAX_MESSAGE_SIZE);
+    @SuppressWarnings("deprecation")
+    var maxMessageSizeProperty = getConfiguration().resolve(Property.RPC_MAX_MESSAGE_SIZE,
+        Property.TSERV_MAX_MESSAGE_SIZE, Property.GENERAL_MAX_MESSAGE_SIZE);
     ServerAddress sp = TServerUtils.startServer(getContext(), address, Property.TSERV_CLIENTPORT,
         processor, this.getClass().getSimpleName(), "Thrift Client Server",
         Property.TSERV_PORTSEARCH, Property.TSERV_MINTHREADS, Property.TSERV_MINTHREADS_TIMEOUT,
@@ -612,7 +613,7 @@ public class TabletServer extends AbstractServer implements TabletHostingServer 
 
     TProcessor processor = ThriftProcessorTypes.getTabletServerTProcessor(clientHandler,
         thriftClientHandler, scanClientHandler, getContext());
-    HostAndPort address = startServer(getConfiguration(), clientAddress.getHost(), processor);
+    HostAndPort address = startServer(clientAddress.getHost(), processor);
     log.info("address = {}", address);
     return address;
   }
@@ -622,9 +623,8 @@ public class TabletServer extends AbstractServer implements TabletHostingServer 
     final var handler =
         new org.apache.accumulo.tserver.replication.ReplicationServicerHandler(this);
     var processor = ThriftProcessorTypes.getReplicationClientTProcessor(handler, getContext());
-    Property maxMessageSizeProperty =
-        getConfiguration().get(Property.TSERV_MAX_MESSAGE_SIZE) != null
-            ? Property.TSERV_MAX_MESSAGE_SIZE : Property.GENERAL_MAX_MESSAGE_SIZE;
+    var maxMessageSizeProperty = getConfiguration().resolve(Property.RPC_MAX_MESSAGE_SIZE,
+        Property.TSERV_MAX_MESSAGE_SIZE, Property.GENERAL_MAX_MESSAGE_SIZE);
     ServerAddress sp = TServerUtils.startServer(getContext(), clientAddress.getHost(),
         Property.REPLICATION_RECEIPT_SERVICE_PORT, processor, "ReplicationServicerHandler",
         "Replication Servicer", Property.TSERV_PORTSEARCH, Property.REPLICATION_MIN_THREADS, null,
@@ -703,9 +703,11 @@ public class TabletServer extends AbstractServer implements TabletHostingServer 
         zoo.putPersistentData(zLockPath.toString(), new byte[0], NodeExistsPolicy.SKIP);
 
         if (tabletServerLock.tryLock(lw, lockContent)) {
-          log.debug("Obtained tablet server lock {}", tabletServerLock.getLockPath());
           lockID = tabletServerLock.getLockID()
               .serialize(getContext().getZooKeeperRoot() + Constants.ZTSERVERS + "/");
+          lockSessionId = tabletServerLock.getSessionId();
+          log.debug("Obtained tablet server lock {} {}", tabletServerLock.getLockPath(),
+              getTabletSession());
           return;
         }
         log.info("Waiting for tablet server lock");
@@ -752,33 +754,32 @@ public class TabletServer extends AbstractServer implements TabletHostingServer 
             + " ZooKeeper. Delegation token authentication will be unavailable.", e);
       }
     }
-
     try {
-      MetricsUtil.initializeMetrics(context.getConfiguration(), this.applicationName,
-          clientAddress);
-    } catch (ClassNotFoundException | InstantiationException | IllegalAccessException
-        | IllegalArgumentException | InvocationTargetException | NoSuchMethodException
-        | SecurityException e1) {
-      log.error("Error initializing metrics, metrics will not be emitted.", e1);
+      clientAddress = startTabletClientService();
+    } catch (UnknownHostException e1) {
+      throw new RuntimeException("Failed to start the tablet client service", e1);
     }
+
+    MetricsInfo metricsInfo = context.getMetricsInfo();
+    metricsInfo.addServiceTags(getApplicationName(), clientAddress);
 
     metrics = new TabletServerMetrics(this);
     updateMetrics = new TabletServerUpdateMetrics();
     scanMetrics = new TabletServerScanMetrics();
     mincMetrics = new TabletServerMinCMetrics();
     ceMetrics = new CompactionExecutorsMetrics();
-    MetricsUtil.initializeProducers(metrics, updateMetrics, scanMetrics, mincMetrics, ceMetrics);
+    blockCacheMetrics = new BlockCacheMetrics(this.resourceManager.getIndexCache(),
+        this.resourceManager.getDataCache(), this.resourceManager.getSummaryCache());
+
+    metricsInfo.addMetricsProducers(this, metrics, updateMetrics, scanMetrics, mincMetrics,
+        ceMetrics, blockCacheMetrics);
+    metricsInfo.init();
 
     this.compactionManager = new CompactionManager(() -> Iterators
         .transform(onlineTablets.snapshot().values().iterator(), Tablet::asCompactable),
         getContext(), ceMetrics);
     compactionManager.start();
 
-    try {
-      clientAddress = startTabletClientService();
-    } catch (UnknownHostException e1) {
-      throw new RuntimeException("Failed to start the tablet client service", e1);
-    }
     announceExistence();
 
     try {
@@ -788,10 +789,12 @@ public class TabletServer extends AbstractServer implements TabletHostingServer 
       throw new RuntimeException(e);
     }
 
+    @SuppressWarnings("deprecation")
     ThreadPoolExecutor distWorkQThreadPool = ThreadPools.getServerThreadPools()
         .createExecutorService(getConfiguration(), Property.TSERV_WORKQ_THREADS, true);
 
-    bulkFailedCopyQ =
+    // TODO: Remove when Property.TSERV_WORKQ_THREADS is removed
+    DistributedWorkQueue bulkFailedCopyQ =
         new DistributedWorkQueue(getContext().getZooKeeperRoot() + Constants.ZBULK_FAILED_COPYQ,
             getConfiguration(), getContext());
     try {
@@ -802,7 +805,7 @@ public class TabletServer extends AbstractServer implements TabletHostingServer 
     }
 
     try {
-      logSorter.startWatchingForRecoveryLogs(distWorkQThreadPool);
+      logSorter.startWatchingForRecoveryLogs();
     } catch (Exception ex) {
       log.error("Error setting watches for recoveries");
       throw new RuntimeException(ex);
@@ -841,7 +844,6 @@ public class TabletServer extends AbstractServer implements TabletHostingServer 
         try (TabletsMetadata tabletsMetadata =
             getContext().getAmple().readTablets().forTablets(onlineTabletsSnapshot.keySet())
                 .fetch(FILES, LOGS, ECOMP, PREV_ROW).build()) {
-          mdScanSpan.end();
           duration = Duration.between(start, Instant.now());
           log.debug("Metadata scan took {}ms for {} tablets read.", duration.toMillis(),
               onlineTabletsSnapshot.keySet().size());
@@ -854,6 +856,11 @@ public class TabletServer extends AbstractServer implements TabletHostingServer 
             tablet.compareTabletInfo(counter, tabletMetadata);
           }
         }
+      } catch (Exception e) {
+        log.error("Unable to complete verification of tablet metadata", e);
+        TraceUtil.setException(mdScanSpan, e, true);
+      } finally {
+        mdScanSpan.end();
       }
     });
 
@@ -864,16 +871,20 @@ public class TabletServer extends AbstractServer implements TabletHostingServer 
 
     HostAndPort managerHost;
     while (!serverStopRequested) {
+
+      updateIdleStatus(getOnlineTablets().isEmpty());
+
       // send all of the pending messages
       try {
         ManagerMessage mm = null;
         ManagerClientService.Client iface = null;
 
         try {
-          // wait until a message is ready to send, or a sever stop
+          // wait until a message is ready to send, or a server stop
           // was requested
           while (mm == null && !serverStopRequested) {
             mm = managerMessages.poll(1, TimeUnit.SECONDS);
+            updateIdleStatus(getOnlineTablets().isEmpty());
           }
 
           // have a message to send to the manager, so grab a
@@ -901,6 +912,7 @@ public class TabletServer extends AbstractServer implements TabletHostingServer 
             // if any messages are immediately available grab em and
             // send them
             mm = managerMessages.poll();
+            updateIdleStatus(getOnlineTablets().isEmpty());
           }
 
         } finally {
@@ -977,7 +989,7 @@ public class TabletServer extends AbstractServer implements TabletHostingServer 
 
     // Start the pool to handle outgoing replications
     final ThreadPoolExecutor replicationThreadPool = ThreadPools.getServerThreadPools()
-        .createExecutorService(getConfiguration(), Property.REPLICATION_WORKER_THREADS, false);
+        .createExecutorService(getConfiguration(), Property.REPLICATION_WORKER_THREADS);
     replWorker.setExecutor(replicationThreadPool);
     replWorker.run();
 
@@ -1002,9 +1014,12 @@ public class TabletServer extends AbstractServer implements TabletHostingServer 
     if (address == null) {
       return null;
     }
+    if (lockSessionId == -1) {
+      return null;
+    }
 
     try {
-      return new TServerInstance(address, tabletServerLock.getSessionId());
+      return new TServerInstance(address, lockSessionId);
     } catch (Exception ex) {
       log.warn("Unable to read session from tablet server lock" + ex);
       return null;

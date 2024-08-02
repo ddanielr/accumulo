@@ -32,6 +32,7 @@ import java.util.Set;
 import org.apache.accumulo.core.client.admin.compaction.CompactableFile;
 import org.apache.accumulo.core.conf.ConfigurationTypeHelper;
 import org.apache.accumulo.core.conf.Property;
+import org.apache.accumulo.core.spi.common.ServiceEnvironment;
 import org.apache.accumulo.core.util.compaction.CompactionJobPrioritizer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -95,9 +96,10 @@ import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
  *
  * <pre>
  * {@code
- * [{"name":"small", "type": "internal", "maxSize":"100M","numThreads":3},
+ * [
+ *  {"name":"small", "type": "internal", "maxSize":"100M","numThreads":3},
  *  {"name":"medium", "type": "internal", "maxSize":"500M","numThreads":3},
- *  {"name: "large", "type": "external", "queue", "Queue1"}
+ *  {"name":"large", "type":"external", "queue":"Queue1"}
  * ]}
  * </pre>
  *
@@ -107,6 +109,21 @@ import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
  * number of files that will be included in a single compaction.
  * </ul>
  *
+ * <p>
+ * Starting with Accumulo 2.1.3, this plugin will use the table config option
+ * {@code "table.file.max"}. When the following four conditions are met, then this plugin will try
+ * to find a lower compaction ratio that will result in a compaction:
+ * <ol>
+ * <li>When a tablet has no compactions running</li>
+ * <li>Its number of files exceeds table.file.max</li>
+ * <li>System compactions are not finding anything to compact</li>
+ * <li>No files are selected for user compaction</li>
+ * </ol>
+ * For example, given a tablet with 20 files, and table.file.max is 15 and no compactions are
+ * planned. If the compaction ratio is set to 3, then this plugin will find the largest compaction
+ * ratio less than 3 that results in a compaction.
+ *
+ *
  * @since 2.1.0
  * @see org.apache.accumulo.core.spi.compaction
  */
@@ -115,7 +132,7 @@ public class DefaultCompactionPlanner implements CompactionPlanner {
 
   private static final Logger log = LoggerFactory.getLogger(DefaultCompactionPlanner.class);
 
-  public static class ExecutorConfig {
+  private static class ExecutorConfig {
     String type;
     String name;
     String maxSize;
@@ -150,62 +167,68 @@ public class DefaultCompactionPlanner implements CompactionPlanner {
       justification = "Field is written by Gson")
   @Override
   public void init(InitParameters params) {
-    ExecutorConfig[] execConfigs =
-        new Gson().fromJson(params.getOptions().get("executors"), ExecutorConfig[].class);
 
-    List<Executor> tmpExec = new ArrayList<>();
+    if (params.getOptions().containsKey("executors")
+        && !params.getOptions().get("executors").isBlank()) {
 
-    for (ExecutorConfig executorConfig : execConfigs) {
-      Long maxSize = executorConfig.maxSize == null ? null
-          : ConfigurationTypeHelper.getFixedMemoryAsBytes(executorConfig.maxSize);
+      ExecutorConfig[] execConfigs =
+          new Gson().fromJson(params.getOptions().get("executors"), ExecutorConfig[].class);
 
-      CompactionExecutorId ceid;
+      List<Executor> tmpExec = new ArrayList<>();
 
-      // If not supplied, GSON will leave type null. Default to internal
-      if (executorConfig.type == null) {
-        executorConfig.type = "internal";
+      for (ExecutorConfig executorConfig : execConfigs) {
+        Long maxSize = executorConfig.maxSize == null ? null
+            : ConfigurationTypeHelper.getFixedMemoryAsBytes(executorConfig.maxSize);
+
+        CompactionExecutorId ceid;
+
+        // If not supplied, GSON will leave type null. Default to internal
+        if (executorConfig.type == null) {
+          executorConfig.type = "internal";
+        }
+
+        switch (executorConfig.type) {
+          case "internal":
+            Preconditions.checkArgument(null == executorConfig.queue,
+                "'queue' should not be specified for internal compactions");
+            int numThreads = Objects.requireNonNull(executorConfig.numThreads,
+                "'numThreads' must be specified for internal type");
+            ceid = params.getExecutorManager().createExecutor(executorConfig.name, numThreads);
+            break;
+          case "external":
+            Preconditions.checkArgument(null == executorConfig.numThreads,
+                "'numThreads' should not be specified for external compactions");
+            String queue = Objects.requireNonNull(executorConfig.queue,
+                "'queue' must be specified for external type");
+            ceid = params.getExecutorManager().getExternalExecutor(queue);
+            break;
+          default:
+            throw new IllegalArgumentException("type must be 'internal' or 'external'");
+        }
+        tmpExec.add(new Executor(ceid, maxSize));
       }
 
-      switch (executorConfig.type) {
-        case "internal":
-          Preconditions.checkArgument(null == executorConfig.queue,
-              "'queue' should not be specified for internal compactions");
-          int numThreads = Objects.requireNonNull(executorConfig.numThreads,
-              "'numThreads' must be specified for internal type");
-          ceid = params.getExecutorManager().createExecutor(executorConfig.name, numThreads);
-          break;
-        case "external":
-          Preconditions.checkArgument(null == executorConfig.numThreads,
-              "'numThreads' should not be specified for external compactions");
-          String queue = Objects.requireNonNull(executorConfig.queue,
-              "'queue' must be specified for external type");
-          ceid = params.getExecutorManager().getExternalExecutor(queue);
-          break;
-        default:
-          throw new IllegalArgumentException("type must be 'internal' or 'external'");
-      }
-      tmpExec.add(new Executor(ceid, maxSize));
-    }
+      Collections.sort(tmpExec, Comparator.comparing(Executor::getMaxSize,
+          Comparator.nullsLast(Comparator.naturalOrder())));
 
-    Collections.sort(tmpExec, Comparator.comparing(Executor::getMaxSize,
-        Comparator.nullsLast(Comparator.naturalOrder())));
+      executors = List.copyOf(tmpExec);
 
-    executors = List.copyOf(tmpExec);
-
-    if (executors.stream().filter(e -> e.getMaxSize() == null).count() > 1) {
-      throw new IllegalArgumentException(
-          "Can only have one executor w/o a maxSize. " + params.getOptions().get("executors"));
-    }
-
-    // use the add method on the Set interface to check for duplicate maxSizes
-    Set<Long> maxSizes = new HashSet<>();
-    executors.forEach(e -> {
-      if (!maxSizes.add(e.getMaxSize())) {
+      if (executors.stream().filter(e -> e.getMaxSize() == null).count() > 1) {
         throw new IllegalArgumentException(
-            "Duplicate maxSize set in executors. " + params.getOptions().get("executors"));
+            "Can only have one executor w/o a maxSize. " + params.getOptions().get("executors"));
       }
-    });
 
+      // use the add method on the Set interface to check for duplicate maxSizes
+      Set<Long> maxSizes = new HashSet<>();
+      executors.forEach(e -> {
+        if (!maxSizes.add(e.getMaxSize())) {
+          throw new IllegalArgumentException(
+              "Duplicate maxSize set in executors. " + params.getOptions().get("executors"));
+        }
+      });
+    } else {
+      throw new IllegalStateException("No defined executors for this planner");
+    }
     determineMaxFilesToCompact(params);
   }
 
@@ -220,7 +243,8 @@ public class DefaultCompactionPlanner implements CompactionPlanner {
       this.maxFilesToCompact = Integer.parseInt(params.getServiceEnvironment().getConfiguration()
           .get(Property.TSERV_MAJC_THREAD_MAXOPEN.getKey()));
     } else {
-      this.maxFilesToCompact = Integer.parseInt(params.getOptions().getOrDefault("maxOpen", "10"));
+      this.maxFilesToCompact = Integer.parseInt(params.getOptions().getOrDefault("maxOpen",
+          Property.TSERV_COMPACTION_SERVICE_DEFAULT_MAX_OPEN.getDefaultValue()));
     }
   }
 
@@ -238,7 +262,7 @@ public class DefaultCompactionPlanner implements CompactionPlanner {
 
       Collection<CompactableFile> group;
       if (params.getRunningCompactions().isEmpty()) {
-        group = findMapFilesToCompact(filesCopy, params.getRatio(), maxFilesToCompact,
+        group = findDataFilesToCompact(filesCopy, params.getRatio(), maxFilesToCompact,
             maxSizeToCompact);
 
         if (!group.isEmpty() && group.size() < params.getCandidates().size()
@@ -253,7 +277,7 @@ public class DefaultCompactionPlanner implements CompactionPlanner {
           filesCopy.removeAll(group);
           filesCopy.add(getExpected(group, 0));
 
-          if (findMapFilesToCompact(filesCopy, params.getRatio(), maxFilesToCompact,
+          if (findDataFilesToCompact(filesCopy, params.getRatio(), maxFilesToCompact,
               maxSizeToCompact).isEmpty()) {
             // The next possible compaction does not meet the compaction ratio, so compact
             // everything.
@@ -276,7 +300,7 @@ public class DefaultCompactionPlanner implements CompactionPlanner {
 
         filesCopy.addAll(expectedFiles);
 
-        group = findMapFilesToCompact(filesCopy, params.getRatio(), maxFilesToCompact,
+        group = findDataFilesToCompact(filesCopy, params.getRatio(), maxFilesToCompact,
             maxSizeToCompact);
 
         if (!Collections.disjoint(group, expectedFiles)) {
@@ -288,12 +312,25 @@ public class DefaultCompactionPlanner implements CompactionPlanner {
         group = Set.of();
       }
 
-      if (group.isEmpty()
-          && (params.getKind() == CompactionKind.USER || params.getKind() == CompactionKind.SELECTOR
-              || params.getKind() == CompactionKind.CHOP)
-          && params.getRunningCompactions().stream()
-              .noneMatch(job -> job.getKind() == params.getKind())) {
-        group = findMaximalRequiredSetToCompact(params.getCandidates(), maxFilesToCompact);
+      if (group.isEmpty()) {
+
+        if ((params.getKind() == CompactionKind.USER || params.getKind() == CompactionKind.SELECTOR
+            || params.getKind() == CompactionKind.CHOP)
+            && params.getRunningCompactions().stream()
+                .noneMatch(job -> job.getKind() == params.getKind())) {
+          group = findMaximalRequiredSetToCompact(params.getCandidates(), maxFilesToCompact);
+        } else if (params.getKind() == CompactionKind.SYSTEM
+            && params.getRunningCompactions().isEmpty()
+            && params.getAll().size() == params.getCandidates().size()) {
+          int maxTabletFiles = getMaxTabletFiles(
+              params.getServiceEnvironment().getConfiguration(params.getTableId()));
+          if (params.getAll().size() > maxTabletFiles) {
+            // The tablet is above its max files, there are no compactions running, all files are
+            // candidates for a system compaction, and no files were found to compact. Attempt to
+            // find a set of files to compact by lowering the compaction ratio.
+            group = findFilesToCompactWithLowerRatio(params, maxSizeToCompact, maxTabletFiles);
+          }
+        }
       }
 
       if (group.isEmpty()) {
@@ -308,6 +345,74 @@ public class DefaultCompactionPlanner implements CompactionPlanner {
     } catch (RuntimeException e) {
       throw e;
     }
+  }
+
+  static int getMaxTabletFiles(ServiceEnvironment.Configuration configuration) {
+    int maxTabletFiles = Integer.parseInt(configuration.get(Property.TABLE_FILE_MAX.getKey()));
+    if (maxTabletFiles <= 0) {
+      maxTabletFiles =
+          Integer.parseInt(configuration.get(Property.TSERV_SCAN_MAX_OPENFILES.getKey())) - 1;
+    }
+    return maxTabletFiles;
+  }
+
+  /**
+   * Searches for the highest compaction ratio that is less than the configured ratio that will
+   * lower the number of files.
+   */
+  private Collection<CompactableFile> findFilesToCompactWithLowerRatio(PlanningParameters params,
+      long maxSizeToCompact, int maxTabletFiles) {
+    double lowRatio = 1.0;
+    double highRatio = params.getRatio();
+
+    Preconditions.checkArgument(highRatio >= lowRatio);
+
+    var candidates = Set.copyOf(params.getCandidates());
+    Collection<CompactableFile> found = Set.of();
+
+    int goalCompactionSize = candidates.size() - maxTabletFiles + 1;
+    if (goalCompactionSize > maxFilesToCompact) {
+      // The tablet is way over max tablet files, so multiple compactions will be needed. Therefore,
+      // do not set a goal size for this compaction and find the largest compaction ratio that will
+      // compact some set of files.
+      goalCompactionSize = 0;
+    }
+
+    // Do a binary search of the compaction ratios.
+    while (highRatio - lowRatio > .1) {
+      double ratioToCheck = (highRatio - lowRatio) / 2 + lowRatio;
+
+      // This is continually resorting the list of files in the following call, could optimize this
+      var filesToCompact =
+          findDataFilesToCompact(candidates, ratioToCheck, maxFilesToCompact, maxSizeToCompact);
+
+      log.trace("Tried ratio {} and found {} {} {}", ratioToCheck, filesToCompact,
+          filesToCompact.size() >= goalCompactionSize, goalCompactionSize);
+
+      if (filesToCompact.isEmpty() || filesToCompact.size() < goalCompactionSize) {
+        highRatio = ratioToCheck;
+      } else {
+        lowRatio = ratioToCheck;
+        found = filesToCompact;
+      }
+    }
+
+    if (found.isEmpty() && lowRatio == 1.0) {
+      // in this case the data must be really skewed, operator intervention may be needed.
+      log.warn(
+          "Attempted to lower compaction ration from {} to {} for {} because there are {} files "
+              + "and the max tablet files is {}, however no set of files to compact were found.",
+          params.getRatio(), highRatio, params.getTableId(), params.getCandidates().size(),
+          maxTabletFiles);
+    }
+
+    log.info(
+        "For {} found {} files to compact lowering compaction ratio from {} to {} because the tablet "
+            + "exceeded {} files, it had {}",
+        params.getTableId(), found.size(), params.getRatio(), lowRatio, maxTabletFiles,
+        params.getCandidates().size());
+
+    return found;
   }
 
   private static short createPriority(PlanningParameters params,
@@ -354,7 +459,7 @@ public class DefaultCompactionPlanner implements CompactionPlanner {
     return expected;
   }
 
-  public static Collection<CompactableFile>
+  private static Collection<CompactableFile>
       findMaximalRequiredSetToCompact(Collection<CompactableFile> files, int maxFilesToCompact) {
 
     if (files.size() <= maxFilesToCompact) {
@@ -373,7 +478,7 @@ public class DefaultCompactionPlanner implements CompactionPlanner {
     return sortedFiles.subList(0, numToCompact);
   }
 
-  public static Collection<CompactableFile> findMapFilesToCompact(Set<CompactableFile> files,
+  static Collection<CompactableFile> findDataFilesToCompact(Set<CompactableFile> files,
       double ratio, int maxFilesToCompact, long maxSizeToCompact) {
     if (files.size() <= 1) {
       return Collections.emptySet();
@@ -399,13 +504,18 @@ public class DefaultCompactionPlanner implements CompactionPlanner {
       }
     }
 
-    var loops = Math.max(1, sortedFiles.size() - maxFilesToCompact + 1);
-    for (int i = 0; i < loops; i++) {
-      var filesToCompact = findMapFilesToCompact(
-          sortedFiles.subList(i, Math.min(sortedFiles.size(), maxFilesToCompact) + i), ratio);
+    int windowStart = 0;
+    int windowEnd = Math.min(sortedFiles.size(), maxFilesToCompact);
+
+    while (windowEnd <= sortedFiles.size()) {
+      var filesToCompact =
+          findDataFilesToCompact(sortedFiles.subList(windowStart, windowEnd), ratio);
       if (!filesToCompact.isEmpty()) {
         return filesToCompact;
       }
+
+      windowStart++;
+      windowEnd++;
     }
 
     return Collections.emptySet();
@@ -441,7 +551,7 @@ public class DefaultCompactionPlanner implements CompactionPlanner {
    * smaller set because of it would prevent the future compaction.
    */
   private static Collection<CompactableFile>
-      findMapFilesToCompact(List<CompactableFile> sortedFiles, double ratio) {
+      findDataFilesToCompact(List<CompactableFile> sortedFiles, double ratio) {
 
     int larsmaIndex = -1;
     long larsmaSum = Long.MIN_VALUE;
@@ -500,7 +610,7 @@ public class DefaultCompactionPlanner implements CompactionPlanner {
     return executors.get(executors.size() - 1).ceid;
   }
 
-  public static List<CompactableFile> sortByFileSize(Collection<CompactableFile> files) {
+  private static List<CompactableFile> sortByFileSize(Collection<CompactableFile> files) {
     ArrayList<CompactableFile> sortedFiles = new ArrayList<>(files);
 
     // sort from smallest file to largest

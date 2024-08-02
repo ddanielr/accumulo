@@ -62,7 +62,8 @@ public final class TinyLfuBlockCache implements BlockCache {
   private final Policy.Eviction<String,Block> policy;
   private final int maxSize;
   private final ScheduledExecutorService statsExecutor = ThreadPools.getServerThreadPools()
-      .createScheduledExecutorService(1, "TinyLfuBlockCacheStatsExecutor", true);
+      .createScheduledExecutorService(1, "TinyLfuBlockCacheStatsExecutor");
+  private final CacheType type;
 
   public TinyLfuBlockCache(Configuration conf, CacheType type) {
     cache = Caffeine.newBuilder()
@@ -71,10 +72,11 @@ public final class TinyLfuBlockCache implements BlockCache {
           int keyWeight = ClassSize.align(blockName.length()) + ClassSize.STRING;
           return keyWeight + block.weight();
         }).maximumWeight(conf.getMaxSize(type)).recordStats().build();
-    policy = cache.policy().eviction().get();
+    policy = cache.policy().eviction().orElseThrow();
     maxSize = (int) Math.min(Integer.MAX_VALUE, policy.getMaximum());
     ScheduledFuture<?> future = statsExecutor.scheduleAtFixedRate(this::logStats, STATS_PERIOD_SEC,
         STATS_PERIOD_SEC, SECONDS);
+    this.type = type;
     ThreadPools.watchNonCriticalScheduledTask(future);
   }
 
@@ -118,9 +120,9 @@ public final class TinyLfuBlockCache implements BlockCache {
 
   private void logStats() {
     double maxMB = ((double) policy.getMaximum()) / ((double) (1024 * 1024));
-    double sizeMB = ((double) policy.weightedSize().getAsLong()) / ((double) (1024 * 1024));
+    double sizeMB = ((double) policy.weightedSize().orElse(0)) / ((double) (1024 * 1024));
     double freeMB = maxMB - sizeMB;
-    log.debug("Cache Size={}MB, Free={}MB, Max={}MB, Blocks={}", sizeMB, freeMB, maxMB,
+    log.debug("Cache {} Size={}MB, Free={}MB, Max={}MB, Blocks={}", type, sizeMB, freeMB, maxMB,
         cache.estimatedSize());
     log.debug(cache.stats().toString());
   }

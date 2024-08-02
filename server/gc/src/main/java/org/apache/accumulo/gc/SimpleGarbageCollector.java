@@ -18,11 +18,11 @@
  */
 package org.apache.accumulo.gc;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.apache.accumulo.core.util.UtilWaitThread.sleepUninterruptibly;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.lang.reflect.InvocationTargetException;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
@@ -40,7 +40,7 @@ import org.apache.accumulo.core.gc.thrift.GcCycleStats;
 import org.apache.accumulo.core.metadata.MetadataTable;
 import org.apache.accumulo.core.metadata.RootTable;
 import org.apache.accumulo.core.metadata.schema.Ample.DataLevel;
-import org.apache.accumulo.core.metrics.MetricsUtil;
+import org.apache.accumulo.core.metrics.MetricsInfo;
 import org.apache.accumulo.core.securityImpl.thrift.TCredentials;
 import org.apache.accumulo.core.trace.TraceUtil;
 import org.apache.accumulo.core.trace.thrift.TInfo;
@@ -116,7 +116,9 @@ public class SimpleGarbageCollector extends AbstractServer implements Iface {
    * @return true if trash is used
    */
   boolean isUsingTrash() {
-    return !getConfiguration().getBoolean(Property.GC_TRASH_IGNORE);
+    @SuppressWarnings("removal")
+    Property p = Property.GC_TRASH_IGNORE;
+    return !getConfiguration().getBoolean(p);
   }
 
   /**
@@ -140,7 +142,7 @@ public class SimpleGarbageCollector extends AbstractServer implements Iface {
   /**
    * Checks if safemode is set - files will not be deleted.
    *
-   * @return number of delete threads
+   * @return true if safe mode is set, false otherwise
    */
   boolean inSafeMode() {
     return getConfiguration().getBoolean(Property.GC_SAFEMODE);
@@ -164,15 +166,11 @@ public class SimpleGarbageCollector extends AbstractServer implements Iface {
       System.exit(1);
     }
 
-    try {
-      MetricsUtil.initializeMetrics(getContext().getConfiguration(), this.applicationName, address);
-      MetricsUtil.initializeProducers(new GcMetrics(this));
-    } catch (ClassNotFoundException | InstantiationException | IllegalAccessException
-        | IllegalArgumentException | InvocationTargetException | NoSuchMethodException
-        | SecurityException e1) {
-      log.error("Error initializing metrics, metrics will not be emitted.", e1);
-    }
+    MetricsInfo metricsInfo = getContext().getMetricsInfo();
+    metricsInfo.addServiceTags(getApplicationName(), address);
 
+    metricsInfo.addMetricsProducers(new GcMetrics(this));
+    metricsInfo.init();
     try {
       long delay = getStartDelay();
       log.debug("Sleeping for {} milliseconds before beginning garbage collection cycles", delay);
@@ -223,14 +221,14 @@ public class SimpleGarbageCollector extends AbstractServer implements Iface {
             incrementStatsForRun(userGC);
             logStats();
 
+          } catch (Exception e) {
+            TraceUtil.setException(innerSpan, e, false);
+            log.error("{}", e.getMessage(), e);
+          } finally {
             status.current.finished = System.currentTimeMillis();
             status.last = status.current;
             gcCycleMetrics.setLastCollect(status.current);
             status.current = new GcCycleStats();
-
-          } catch (Exception e) {
-            TraceUtil.setException(innerSpan, e, false);
-            log.error("{}", e.getMessage(), e);
           }
 
           final long tStop = System.nanoTime();
@@ -385,7 +383,7 @@ public class SimpleGarbageCollector extends AbstractServer implements Iface {
       ServiceLock lock =
           new ServiceLock(getContext().getZooReaderWriter().getZooKeeper(), path, zooLockUUID);
       if (lock.tryLock(lockWatcher,
-          new ServerServices(addr.toString(), Service.GC_CLIENT).toString().getBytes())) {
+          new ServerServices(addr.toString(), Service.GC_CLIENT).toString().getBytes(UTF_8))) {
         log.debug("Got GC ZooKeeper lock");
         return;
       }
@@ -398,11 +396,16 @@ public class SimpleGarbageCollector extends AbstractServer implements Iface {
     var processor = ThriftProcessorTypes.getGcTProcessor(this, getContext());
     IntStream port = getConfiguration().getPortStream(Property.GC_PORT);
     HostAndPort[] addresses = TServerUtils.getHostAndPorts(getHostname(), port);
-    long maxMessageSize = getConfiguration().getAsBytes(Property.GENERAL_MAX_MESSAGE_SIZE);
+    @SuppressWarnings("deprecation")
+    var maxMessageSizeProperty = getConfiguration().resolve(Property.RPC_MAX_MESSAGE_SIZE,
+        Property.GENERAL_MAX_MESSAGE_SIZE);
+    long maxMessageSize = getConfiguration().getAsBytes(maxMessageSizeProperty);
     ServerAddress server = TServerUtils.startTServer(getConfiguration(),
         getContext().getThriftServerType(), processor, this.getClass().getSimpleName(),
         "GC Monitor Service", 2, ThreadPools.DEFAULT_TIMEOUT_MILLISECS, 1000, maxMessageSize,
-        getContext().getServerSslParams(), getContext().getSaslParams(), 0, addresses);
+        getContext().getServerSslParams(), getContext().getSaslParams(), 0,
+        getConfiguration().getCount(Property.RPC_BACKLOG), getContext().getMetricsInfo(), false,
+        addresses);
     log.debug("Starting garbage collector listening on " + server.address);
     return server.address;
   }
