@@ -24,28 +24,33 @@ import org.apache.accumulo.core.spi.compaction.CompactorGroupId;
 
 import com.google.common.base.Preconditions;
 
-public class CompactionGroupConfig {
+public class CompactionGroup {
 
   private final CompactorGroupId cgid;
-  private final int maxJobs;
+  private final Long maxSize;
 
   /**
    * Defines the concept of a CompactionGroup for the compaction coordinator.
    *
    * @param cgid ID of the compactor group
-   * @param maxJobs Size of the priority queue assigned to this group
+   * @param maxSize Max Size of the compaction jobs submitted to this group
    */
-  public CompactionGroupConfig(CompactorGroupId cgid, Integer maxJobs) {
-    Preconditions.checkArgument(maxJobs == null || maxJobs > 0, "Invalid value for maxJobs");
+  public CompactionGroup(CompactorGroupId cgid, Long maxSize) {
+    Preconditions.checkArgument(maxSize == null || maxSize > 0, "Invalid value for maxSize");
     this.cgid = Objects.requireNonNull(cgid, "Compaction Group ID is null");
-    this.maxJobs = maxJobs;
+    this.maxSize = maxSize;
   }
 
   public CompactorGroupId getGroupId() {
     return cgid;
   }
 
-  public int getMaxJobs() {
-    return maxJobs;
+  public Long getMaxSize() {
+    return maxSize;
+  }
+
+  @Override
+  public String toString() {
+    return "[cgid=" + cgid + ", maxSize=" + maxSize + "]";
   }
 }

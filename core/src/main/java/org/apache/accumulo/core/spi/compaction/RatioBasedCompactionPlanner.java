@@ -28,13 +28,13 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Objects;
 import java.util.Set;
 
 import org.apache.accumulo.core.client.admin.compaction.CompactableFile;
 import org.apache.accumulo.core.conf.ConfigurationTypeHelper;
 import org.apache.accumulo.core.conf.Property;
 import org.apache.accumulo.core.spi.common.ServiceEnvironment;
+import org.apache.accumulo.core.util.compaction.CompactionGroup;
 import org.apache.accumulo.core.util.compaction.CompactionJobPrioritizer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -123,28 +123,7 @@ public class RatioBasedCompactionPlanner implements CompactionPlanner {
 
   private static class GroupConfig {
     String group;
-    String maxJobs;
     String maxSize;
-  }
-
-  private static class CompactionGroup {
-    final CompactorGroupId cgid;
-    final Long maxSize;
-
-    public CompactionGroup(CompactorGroupId cgid, Long maxSize) {
-      Preconditions.checkArgument(maxSize == null || maxSize > 0, "Invalid value for maxSize");
-      this.cgid = Objects.requireNonNull(cgid, "Compaction ID is null");
-      this.maxSize = maxSize;
-    }
-
-    Long getMaxSize() {
-      return maxSize;
-    }
-
-    @Override
-    public String toString() {
-      return "[cgid=" + cgid + ", maxSize=" + maxSize + "]";
-    }
   }
 
   private static class FakeFileGenerator {
@@ -171,6 +150,8 @@ public class RatioBasedCompactionPlanner implements CompactionPlanner {
   @Override
   public void init(InitParameters params) {
     List<CompactionGroup> tmpGroups = new ArrayList<>();
+
+    // All this JSON parsing should be moved up to the Compaction Service Factory
 
     for (JsonElement element : GSON.get().fromJson(params.getOptions().get("groups"),
         JsonArray.class)) {
@@ -405,7 +386,7 @@ public class RatioBasedCompactionPlanner implements CompactionPlanner {
 
   private long getMaxSizeToCompact(CompactionKind kind) {
     if (kind == CompactionKind.SYSTEM) {
-      Long max = groups.get(groups.size() - 1).maxSize;
+      Long max = groups.get(groups.size() - 1).getMaxSize();
       if (max != null) {
         return max;
       }
@@ -575,12 +556,12 @@ public class RatioBasedCompactionPlanner implements CompactionPlanner {
     long size = files.stream().mapToLong(CompactableFile::getEstimatedSize).sum();
 
     for (CompactionGroup group : groups) {
-      if (group.maxSize == null || size < group.maxSize) {
-        return group.cgid;
+      if (group.getMaxSize() == null || size < group.getMaxSize()) {
+        return group.getGroupId();
       }
     }
 
-    return groups.get(groups.size() - 1).cgid;
+    return groups.get(groups.size() - 1).getGroupId();
   }
 
   private static List<CompactableFile> sortByFileSize(Collection<CompactableFile> files) {

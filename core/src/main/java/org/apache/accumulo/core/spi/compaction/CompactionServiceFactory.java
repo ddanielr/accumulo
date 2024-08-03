@@ -21,7 +21,7 @@ package org.apache.accumulo.core.spi.compaction;
 import java.util.Set;
 
 import org.apache.accumulo.core.client.PluginEnvironment;
-import org.apache.accumulo.core.util.compaction.CompactionGroupConfig;
+import org.apache.accumulo.core.util.compaction.CompactionGroup;
 
 /**
  * A Factory that returns a CompactionService based on the environment and configuration.
@@ -39,7 +39,7 @@ public interface CompactionServiceFactory {
   void init(PluginEnvironment env);
 
   // Use this for a top level groups pull from the compaction-coordinator
-  Set<CompactionGroupConfig> getCompactionGroupConfigs();
+  Set<CompactionGroup> getCompactionGroupConfigs();
 
   Set<CompactionServiceId> getCompactionServiceIds();
 

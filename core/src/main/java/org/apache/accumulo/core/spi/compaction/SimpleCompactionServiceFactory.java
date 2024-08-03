@@ -19,8 +19,6 @@
 package org.apache.accumulo.core.spi.compaction;
 
 import static org.apache.accumulo.core.conf.Property.COMPACTION_SERVICE_FACTORY_CONFIG;
-import static org.apache.accumulo.core.conf.Property.MANAGER_COMPACTION_SERVICE_PRIORITY_QUEUE_INITIAL_SIZE;
-
 import static org.apache.accumulo.core.util.LazySingletons.GSON;
 
 import java.lang.reflect.Field;
@@ -35,7 +33,8 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.apache.accumulo.core.client.PluginEnvironment;
-import org.apache.accumulo.core.util.compaction.CompactionGroupConfig;
+import org.apache.accumulo.core.conf.ConfigurationTypeHelper;
+import org.apache.accumulo.core.util.compaction.CompactionGroup;
 import org.apache.accumulo.core.util.compaction.CompactionPlannerInitParams;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -52,7 +51,7 @@ public class SimpleCompactionServiceFactory implements CompactionServiceFactory 
   private PluginEnvironment env;
   private final String plannerClassName = RatioBasedCompactionPlanner.class.getName();
   private final Map<CompactionServiceId,Map<String,String>> serviceOpts = new HashMap<>();
-  private final Map<CompactorGroupId,CompactionGroupConfig> compactionGroups = new HashMap<>();
+  private final Map<CompactorGroupId,CompactionGroup> compactionGroups = new HashMap<>();
 
   private static class ServiceConfig {
     String maxOpenFilesPerJob;
@@ -61,7 +60,6 @@ public class SimpleCompactionServiceFactory implements CompactionServiceFactory 
 
   private static class GroupConfig {
     String group;
-    String maxJobs;
     String maxSize;
   }
 
@@ -70,7 +68,6 @@ public class SimpleCompactionServiceFactory implements CompactionServiceFactory 
     this.env = env;
     var config = env.getConfiguration();
     String factoryConfig = config.get(COMPACTION_SERVICE_FACTORY_CONFIG.getKey());
-    String defaultQueueSize = config.get(MANAGER_COMPACTION_SERVICE_PRIORITY_QUEUE_INITIAL_SIZE.getKey());
 
     // Generate a list of fields from the desired object.
     final List<String> serviceFields = Arrays.stream(ServiceConfig.class.getDeclaredFields())
@@ -102,8 +99,8 @@ public class SimpleCompactionServiceFactory implements CompactionServiceFactory 
         GroupConfig groupConfig = GSON.get().fromJson(element, GroupConfig.class);
 
         String groupName = Objects.requireNonNull(groupConfig.group, "'group' must be specified");
-        Integer maxJobs =
-            Integer.valueOf(groupConfig.maxJobs == null ? defaultQueueSize : groupConfig.maxJobs);
+        Long maxSize = groupConfig.maxSize == null ? null
+            : ConfigurationTypeHelper.getFixedMemoryAsBytes(groupConfig.maxSize);
 
         var cgid = CompactorGroupId.of(groupName);
         // Check if the compaction service has been defined before
@@ -111,7 +108,7 @@ public class SimpleCompactionServiceFactory implements CompactionServiceFactory 
           throw new IllegalArgumentException(
               "Duplicate compaction group definition on service :" + csid);
         }
-        compactionGroups.put(cgid, new CompactionGroupConfig(cgid, maxJobs));
+        compactionGroups.put(cgid, new CompactionGroup(cgid, maxSize));
       }
       options.put("groups", GSON.get().toJson(groups));
       serviceOpts.put(csid, options);
@@ -138,7 +135,7 @@ public class SimpleCompactionServiceFactory implements CompactionServiceFactory 
   }
 
   @Override
-  public Set<CompactionGroupConfig> getCompactionGroupConfigs() {
+  public Set<CompactionGroup> getCompactionGroupConfigs() {
     return new HashSet<>(compactionGroups.values());
   }
 

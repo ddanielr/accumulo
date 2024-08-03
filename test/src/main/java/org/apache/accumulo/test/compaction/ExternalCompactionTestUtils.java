@@ -88,7 +88,7 @@ import org.apache.accumulo.core.spi.compaction.ProvisionalCompactionPlanner;
 import org.apache.accumulo.core.spi.compaction.SimpleCompactionDispatcher;
 import org.apache.accumulo.core.trace.TraceUtil;
 import org.apache.accumulo.core.util.UtilWaitThread;
-import org.apache.accumulo.core.util.compaction.CompactionGroupConfig;
+import org.apache.accumulo.core.util.compaction.CompactionGroup;
 import org.apache.accumulo.core.util.compaction.CompactionPlannerInitParams;
 import org.apache.accumulo.core.util.compaction.ExternalCompactionUtil;
 import org.apache.accumulo.miniclusterImpl.MiniAccumuloConfigImpl;
@@ -486,7 +486,7 @@ public class ExternalCompactionTestUtils {
     private final String plannerClassName = TestPlanner.class.getName();
     private final Map<CompactionServiceId,Map<String,String>> serviceOpts = new HashMap<>();
     private final Map<CompactionServiceId,CompactorGroupId> serviceGroups = new HashMap<>();
-    private final Map<CompactorGroupId,CompactionGroupConfig> compactionGroups = new HashMap<>();
+    private final Map<CompactorGroupId,CompactionGroup> compactionGroups = new HashMap<>();
 
     private static class ServiceConfig {
       String process;
@@ -503,6 +503,7 @@ public class ExternalCompactionTestUtils {
       this.env = env;
       var config = env.getConfiguration();
       String factoryConfig = config.get(COMPACTION_SERVICE_FACTORY_CONFIG.getKey());
+      // Fix this next
       String defaultQueueSize = config.get(MANAGER_COMPACTION_SERVICE_PRIORITY_QUEUE_SIZE.getKey());
 
       // Generate a list of fields from the desired object.
@@ -545,7 +546,7 @@ public class ExternalCompactionTestUtils {
                 "Duplicate compaction group definition on service :" + csid);
           }
           compactionGroups.put(cgid,
-              new CompactionGroupConfig(cgid, Integer.parseInt(defaultQueueSize)));
+              new CompactionGroup(cgid, groupConfig.(defaultQueueSize)));
           options.put("groups", GSON.get().toJson(groups));
           serviceGroups.put(csid, cgid);
         }
@@ -573,7 +574,7 @@ public class ExternalCompactionTestUtils {
     }
 
     @Override
-    public Set<CompactionGroupConfig> getCompactionGroupConfigs() {
+    public Set<CompactionGroup> getCompactionGroupConfigs() {
       return new HashSet<>(compactionGroups.values());
     }
 

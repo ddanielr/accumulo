@@ -70,7 +70,7 @@ public enum Property {
   COMPACTION_SERVICE_FACTORY_CONFIG(COMPACTION_SERVICE_FACTORY + ".config",
       "{ \"" + DEFAULT_COMPACTION_SERVICE_NAME
           + "\": { \"maxOpenFilesPerJob\": \"30\", \"groups\": [{ \"group\": \""
-          + DEFAULT_RESOURCE_GROUP_NAME + "\", \"maxSize\": \"128M\", \"maxJobs\": \"1000\"}]}}",
+          + DEFAULT_RESOURCE_GROUP_NAME + "\", \"maxSize\": \"128M\"}]}}",
       PropertyType.JSON, "Compaction Service Factory config.", "4.0.0"),
   COMPACTION_WARN_TIME(COMPACTION_PREFIX + "warn.time", "10m", PropertyType.TIMEDURATION,
       "When a compaction has not made progress for this time period, a warning will be logged.",
