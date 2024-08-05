@@ -16,21 +16,15 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.accumulo.core.util.compaction;
+package org.apache.accumulo.server.validation.system;
 
-import java.util.Map;
+import org.apache.accumulo.server.ServerContext;
+import org.apache.accumulo.server.validation.SystemPluginValidator;
 
-import org.apache.accumulo.core.spi.compaction.CompactionPlanner;
-
-public class CompactionPlannerInitParams implements CompactionPlanner.InitParameters {
-  private final Map<String,String> plannerOpts;
-
-  public CompactionPlannerInitParams(Map<String,String> plannerOpts) {
-    this.plannerOpts = plannerOpts;
-  }
+public class CompactionFactoryValidator implements SystemPluginValidator {
 
   @Override
-  public Map<String,String> getOptions() {
-    return plannerOpts;
+  public boolean validate(ServerContext context) {
+    return false;
   }
 }

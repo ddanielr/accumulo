@@ -54,6 +54,7 @@ import java.util.stream.Collectors;
 
 import org.apache.accumulo.core.Constants;
 import org.apache.accumulo.core.client.AccumuloSecurityException;
+import org.apache.accumulo.core.client.PluginEnvironment;
 import org.apache.accumulo.core.client.TableDeletedException;
 import org.apache.accumulo.core.client.TableNotFoundException;
 import org.apache.accumulo.core.client.admin.CompactionConfig;
@@ -120,6 +121,7 @@ import org.apache.accumulo.manager.compaction.coordinator.commit.RenameCompactio
 import org.apache.accumulo.manager.compaction.queue.CompactionJobPriorityQueue;
 import org.apache.accumulo.manager.compaction.queue.CompactionJobQueues;
 import org.apache.accumulo.server.ServerContext;
+import org.apache.accumulo.server.ServiceEnvironmentImpl;
 import org.apache.accumulo.server.compaction.CompactionConfigStorage;
 import org.apache.accumulo.server.compaction.CompactionPluginUtils;
 import org.apache.accumulo.server.security.SecurityOperation;
@@ -193,8 +195,13 @@ public class CompactionCoordinator
     this.security = security;
     this.manager = Objects.requireNonNull(manager);
 
+    String compactionFactoryName =
+        this.ctx.getConfiguration().get(Property.COMPACTION_SERVICE_FACTORY.getKey());
+
     this.jobQueueInitialSize = ctx.getConfiguration()
         .getCount(Property.MANAGER_COMPACTION_SERVICE_PRIORITY_QUEUE_INITIAL_SIZE);
+
+    PluginEnvironment env = new ServiceEnvironmentImpl(this.ctx);
 
     this.jobQueues = new CompactionJobQueues(jobQueueInitialSize);
 
