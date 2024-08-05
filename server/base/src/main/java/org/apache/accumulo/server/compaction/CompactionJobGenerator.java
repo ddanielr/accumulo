@@ -180,7 +180,7 @@ public class CompactionJobGenerator {
   private Collection<CompactionJob> planCompactions(CompactionServiceId serviceId,
       CompactionKind kind, TabletMetadata tablet, Map<String,String> executionHints) {
 
-    if (csf.forService(serviceId).getClass().equals(ProvisionalCompactionPlanner.class)) {
+    if (csf.getPlanner(serviceId).getClass().equals(ProvisionalCompactionPlanner.class)) {
       var cacheKey = new Pair<>(tablet.getTableId(), serviceId);
       var last = unknownCompactionServiceErrorCache.getIfPresent(cacheKey);
       if (last == null) {
@@ -201,7 +201,7 @@ public class CompactionJobGenerator {
     // Or this gets a compactionService with a "Plan" option.
 
     CompactionPlanner planner =
-        planners.computeIfAbsent(serviceId, sid -> csf.forService(serviceId));
+        planners.computeIfAbsent(serviceId, sid -> csf.getPlanner(serviceId));
 
     // selecting indicator
     // selected files

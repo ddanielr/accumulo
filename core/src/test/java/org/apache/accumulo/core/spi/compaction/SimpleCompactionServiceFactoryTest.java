@@ -57,10 +57,10 @@ public class SimpleCompactionServiceFactoryTest {
     csf = testCSF;
     csf.init(senv);
 
-    var planner = csf.forService(CompactionServiceId.of("default"));
+    var planner = csf.getPlanner(CompactionServiceId.of("default"));
     assertEquals(planner.getClass().getName(), RatioBasedCompactionPlanner.class.getName());
 
-    planner = csf.forService(CompactionServiceId.of("Unknown"));
+    planner = csf.getPlanner(CompactionServiceId.of("Unknown"));
     assertEquals(planner.getClass().getName(), ProvisionalCompactionPlanner.class.getName());
   }
 

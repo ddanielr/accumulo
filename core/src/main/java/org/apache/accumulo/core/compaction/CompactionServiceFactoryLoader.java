@@ -18,6 +18,76 @@
  */
 package org.apache.accumulo.core.compaction;
 
-public class CompactionServiceFactoryLoader {
+import static org.apache.accumulo.core.compaction.CompactionServiceFactoryLoader.ClassloaderType.ACCUMULO;
+import static org.apache.accumulo.core.compaction.CompactionServiceFactoryLoader.ClassloaderType.JAVA;
 
+import org.apache.accumulo.core.conf.AccumuloConfiguration;
+import org.apache.accumulo.core.conf.ConfigurationTypeHelper;
+import org.apache.accumulo.core.conf.Property;
+import org.apache.accumulo.core.spi.compaction.CompactionPlanner;
+import org.apache.accumulo.core.spi.compaction.CompactionServiceFactory;
+import org.apache.accumulo.core.spi.compaction.CompactionServiceId;
+import org.apache.accumulo.core.spi.compaction.SimpleCompactionServiceFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+public class CompactionServiceFactoryLoader {
+  private static final Logger log = LoggerFactory
+      .getLogger(org.apache.accumulo.core.compaction.CompactionServiceFactoryLoader.class);
+
+  // Initialize Default state for compaction factory
+  private static final CompactionServiceFactory NO_COMPACTION_FACTORY =
+      new SimpleCompactionServiceFactory();
+
+  enum ClassloaderType {
+    // Use the Accumulo custom classloader. Should only be used by Accumulo server side code.
+    ACCUMULO,
+    // Use basic Java classloading mechanism. Should be use by Accumulo client code.
+    JAVA
+  }
+
+  /**
+   * Creates a new server Factory.
+   */
+  public static CompactionServiceFactory newInstance(AccumuloConfiguration conf) {
+    String clazzName = conf.get(Property.COMPACTION_SERVICE_FACTORY);
+    return loadCompactionServiceFactory(ACCUMULO, clazzName);
+  }
+
+  /**
+   * For use by server utilities not associated with a table. Requires Instance, general and table
+   * configuration. Creates a new Factory from the configuration and gets the CompactionPlanner from
+   * that Factory.
+   */
+  public static CompactionPlanner getServiceForServer(AccumuloConfiguration conf,
+      CompactionServiceId csid) {
+    CompactionServiceFactory factory = newInstance(conf);
+    return factory.getPlanner(csid);
+  }
+
+  private static CompactionServiceFactory loadCompactionServiceFactory(ClassloaderType ct,
+      String clazzName) {
+    log.debug("Creating new compaction factory class {}", clazzName);
+    CompactionServiceFactory newCompactionServiceFactory;
+
+    if (ct == ACCUMULO) {
+      newCompactionServiceFactory = ConfigurationTypeHelper.getClassInstance(null, clazzName,
+          CompactionServiceFactory.class, new SimpleCompactionServiceFactory());
+    } else if (ct == JAVA) {
+      if (clazzName == null || clazzName.trim().isEmpty()) {
+        newCompactionServiceFactory = NO_COMPACTION_FACTORY;
+      } else {
+        try {
+          newCompactionServiceFactory = CompactionServiceFactoryLoader.class.getClassLoader()
+              .loadClass(clazzName).asSubclass(CompactionServiceFactory.class)
+              .getDeclaredConstructor().newInstance();
+        } catch (ReflectiveOperationException e) {
+          throw new RuntimeException(e);
+        }
+      }
+    } else {
+      throw new IllegalArgumentException();
+    }
+    return newCompactionServiceFactory;
+  }
 }

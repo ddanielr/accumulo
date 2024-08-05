@@ -43,6 +43,7 @@ import java.util.function.Supplier;
 
 import org.apache.accumulo.core.Constants;
 import org.apache.accumulo.core.clientImpl.ClientContext;
+import org.apache.accumulo.core.compaction.CompactionServiceFactoryLoader;
 import org.apache.accumulo.core.conf.AccumuloConfiguration;
 import org.apache.accumulo.core.conf.DefaultConfiguration;
 import org.apache.accumulo.core.conf.Property;
@@ -58,6 +59,7 @@ import org.apache.accumulo.core.metadata.schema.Ample;
 import org.apache.accumulo.core.metrics.MetricsInfo;
 import org.apache.accumulo.core.rpc.SslConnectionParams;
 import org.apache.accumulo.core.singletons.SingletonReservation;
+import org.apache.accumulo.core.spi.compaction.CompactionServiceFactory;
 import org.apache.accumulo.core.spi.crypto.CryptoServiceFactory;
 import org.apache.accumulo.core.util.AddressUtil;
 import org.apache.accumulo.core.util.threads.ThreadPools;
@@ -110,6 +112,8 @@ public class ServerContext extends ClientContext {
   private final AtomicReference<ServiceLock> serverLock = new AtomicReference<>();
   private final Supplier<MetricsInfo> metricsInfoSupplier;
 
+  private final Supplier<CompactionServiceFactory> compactionServiceFactory;
+
   // private final Supplier<CompactionServiceFactory> compactionServiceFactory;
 
   public ServerContext(SiteConfiguration siteConfig) {
@@ -138,7 +142,8 @@ public class ServerContext extends ClientContext {
             SecurityOperation.getAuthenticator(this), SecurityOperation.getPermHandler(this)));
     lowMemoryDetector = memoize(() -> new LowMemoryDetector());
     metricsInfoSupplier = memoize(() -> new MetricsInfoImpl(this));
-    // compactionServiceFactory = memoize(() -> new CompactionServiceFactory());
+    compactionServiceFactory =
+        memoize(() -> CompactionServiceFactoryLoader.newInstance(getConfiguration()));
   }
 
   /**
@@ -495,8 +500,9 @@ public class ServerContext extends ClientContext {
     getMetricsInfo().close();
     super.close();
   }
-  // public CompactionServiceFactory getCompactionServiceFactory() {
-  // return CompactionServiceFactory.get();
-  // }
+
+  public CompactionServiceFactory getCompactionServiceFactory() {
+    return compactionServiceFactory.get();
+  }
 
 }

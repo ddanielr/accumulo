@@ -584,7 +584,7 @@ public class ExternalCompactionTestUtils {
     }
 
     @Override
-    public CompactionPlanner forService(CompactionServiceId serviceId) {
+    public CompactionPlanner getPlanner(CompactionServiceId serviceId) {
       if (!serviceOpts.containsKey(serviceId)) {
         log.error("Compaction service {} does not exist", serviceId);
         return new ProvisionalCompactionPlanner(serviceId);

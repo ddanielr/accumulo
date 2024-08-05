@@ -38,6 +38,14 @@ public interface CompactionServiceFactory {
 
   void init(PluginEnvironment env);
 
+  /**
+   * Validate the property configuration for the planners using the defined compaction factory
+   * property value.
+   *
+   * @param env = PluginEnv for the environment
+   */
+  void validate(PluginEnvironment env);
+
   // Use this for a top level groups pull from the compaction-coordinator
   Set<CompactionGroup> getCompactionGroupConfigs();
 
@@ -49,5 +57,5 @@ public interface CompactionServiceFactory {
    * @param serviceId ID of the desired compaction service
    * @return CompactionPlanner object
    */
-  CompactionPlanner forService(CompactionServiceId serviceId);
+  CompactionPlanner getPlanner(CompactionServiceId serviceId);
 }
