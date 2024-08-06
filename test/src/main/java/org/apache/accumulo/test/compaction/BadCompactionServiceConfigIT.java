@@ -19,6 +19,8 @@
 package org.apache.accumulo.test.compaction;
 
 import static org.apache.accumulo.core.Constants.DEFAULT_COMPACTION_SERVICE_NAME;
+import static org.apache.accumulo.core.Constants.DEFAULT_RESOURCE_GROUP_NAME;
+import static org.apache.accumulo.core.conf.Property.COMPACTION_SERVICE_FACTORY_CONFIG;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.util.Collections;
@@ -86,13 +88,14 @@ public class BadCompactionServiceConfigIT extends AccumuloClusterHarness {
   @Override
   public void configureMiniCluster(MiniAccumuloConfigImpl cfg, Configuration hadoopCoreSite) {
     Map<String,String> siteCfg = new HashMap<>();
-    siteCfg.put(CSP + DEFAULT_COMPACTION_SERVICE_NAME + ".planner",
-        RatioBasedCompactionPlanner.class.getName());
-    siteCfg.put(CSP + DEFAULT_COMPACTION_SERVICE_NAME + ".planner.opts.groups",
-        "[{\"group\":\"default\"}]");
-    siteCfg.put(CSP + "cs1.planner", RatioBasedCompactionPlanner.class.getName());
+    siteCfg.put(COMPACTION_SERVICE_FACTORY_CONFIG.getKey(),
+        "{ \"" + DEFAULT_COMPACTION_SERVICE_NAME + "\": { \"planner\": \""
+            + RatioBasedCompactionPlanner.class.getName()
+            + "\", \"opts\": {\"maxOpenFilesPerJob\": \"30\"}, \"groups\": [{ \"group\": \""
+            + DEFAULT_RESOURCE_GROUP_NAME + "\", \"maxSize\": \"128M\"}]},"
+            + "\"cs1\" : { \"planner\": \"" + RatioBasedCompactionPlanner.class.getName() + "\","
+            + "\"groups\": {'group]}}}");
     // place invalid json in the planners config
-    siteCfg.put(CSP + "cs1.planner.opts.groups", "{{'group]");
     cfg.setSiteConfig(siteCfg);
     cfg.setProperty(Property.MANAGER_TABLET_GROUP_WATCHER_INTERVAL, "3s");
     // Tell the server processes to use a StatsDMeterRegistry and the simple logging registry
@@ -158,6 +161,12 @@ public class BadCompactionServiceConfigIT extends AccumuloClusterHarness {
     thread.start();
 
     String table = getUniqueNames(1)[0];
+    String goodValue = "{ \"" + DEFAULT_COMPACTION_SERVICE_NAME + "\": { \"planner\": \""
+        + RatioBasedCompactionPlanner.class.getName()
+        + "\", \"opts\": {\"maxOpenFilesPerJob\": \"30\"}, \"groups\": [{ \"group\": \""
+        + DEFAULT_RESOURCE_GROUP_NAME + "\", \"maxSize\": \"128M\"}]},"
+        + "\"cs1\" : { \"planner\": \"" + RatioBasedCompactionPlanner.class.getName() + "\","
+        + "\"groups\" : [{ \"group\": \"cs1q1\"}]}}";
 
     // Create a table that is configured to use a compaction service with bad configuration.
     try (AccumuloClient client = Accumulo.newClient().from(getClientProps()).build()) {
@@ -188,8 +197,8 @@ public class BadCompactionServiceConfigIT extends AccumuloClusterHarness {
                 .collect(MoreCollectors.onlyElement()));
           }
 
-          var value = "[{'group':'cs1q1'}]".replaceAll("'", "\"");
-          client.instanceOperations().setProperty(CSP + "cs1.planner.opts.groups", value);
+          client.instanceOperations().setProperty(COMPACTION_SERVICE_FACTORY_CONFIG.getKey(),
+              goodValue);
 
           // start the compactor, it was not started initially because of bad config
           ((MiniAccumuloClusterImpl) getCluster()).getConfig().getClusterServerConfiguration()
@@ -216,7 +225,7 @@ public class BadCompactionServiceConfigIT extends AccumuloClusterHarness {
 
       // misconfigure the service, test how going from good config to bad config works. The test
       // started with an initial state of bad config.
-      client.instanceOperations().setProperty(CSP + "cs1.planner.opts.groups", "]o.o[");
+      client.instanceOperations().setProperty(COMPACTION_SERVICE_FACTORY_CONFIG.getKey(), "]o.o[");
       Wait.waitFor(() -> serviceMisconfigured.get() == true);
 
       try (var writer = client.createBatchWriter(table)) {
@@ -230,8 +239,8 @@ public class BadCompactionServiceConfigIT extends AccumuloClusterHarness {
       fixerFuture = executorService.submit(() -> {
         try {
           Thread.sleep(2000);
-          var value = "[{'group':'cs1q1'}]".replaceAll("'", "\"");
-          client.instanceOperations().setProperty(CSP + "cs1.planner.opts.groups", value);
+          client.instanceOperations().setProperty(COMPACTION_SERVICE_FACTORY_CONFIG.getKey(),
+              goodValue);
         } catch (Exception e) {
           throw new RuntimeException(e);
         }

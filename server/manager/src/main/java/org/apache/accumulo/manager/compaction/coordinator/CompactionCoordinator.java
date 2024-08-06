@@ -70,7 +70,6 @@ import org.apache.accumulo.core.compaction.thrift.TCompactionStatusUpdate;
 import org.apache.accumulo.core.compaction.thrift.TExternalCompaction;
 import org.apache.accumulo.core.compaction.thrift.TExternalCompactionList;
 import org.apache.accumulo.core.compaction.thrift.TNextCompactionJob;
-import org.apache.accumulo.core.conf.AccumuloConfiguration;
 import org.apache.accumulo.core.conf.Property;
 import org.apache.accumulo.core.data.NamespaceId;
 import org.apache.accumulo.core.dataImpl.KeyExtent;
@@ -99,9 +98,9 @@ import org.apache.accumulo.core.metrics.MetricsProducer;
 import org.apache.accumulo.core.securityImpl.thrift.TCredentials;
 import org.apache.accumulo.core.spi.compaction.CompactionJob;
 import org.apache.accumulo.core.spi.compaction.CompactionKind;
-import org.apache.accumulo.core.spi.compaction.CompactionPlanner;
-import org.apache.accumulo.core.spi.compaction.CompactionServiceId;
+import org.apache.accumulo.core.spi.compaction.CompactionServiceFactory;
 import org.apache.accumulo.core.spi.compaction.CompactorGroupId;
+import org.apache.accumulo.core.spi.compaction.NoCompactionServiceFactory;
 import org.apache.accumulo.core.tabletserver.thrift.InputFile;
 import org.apache.accumulo.core.tabletserver.thrift.IteratorConfig;
 import org.apache.accumulo.core.tabletserver.thrift.TCompactionKind;
@@ -110,8 +109,6 @@ import org.apache.accumulo.core.tabletserver.thrift.TExternalCompactionJob;
 import org.apache.accumulo.core.util.Retry;
 import org.apache.accumulo.core.util.UtilWaitThread;
 import org.apache.accumulo.core.util.cache.Caches.CacheName;
-import org.apache.accumulo.core.util.compaction.CompactionPlannerInitParams;
-import org.apache.accumulo.core.util.compaction.CompactionServicesConfig;
 import org.apache.accumulo.core.util.compaction.ExternalCompactionUtil;
 import org.apache.accumulo.core.util.compaction.RunningCompaction;
 import org.apache.accumulo.core.util.threads.ThreadPools;
@@ -185,6 +182,7 @@ public class CompactionCoordinator
   private final Cache<Path,Integer> tabletDirCache;
   private final DeadCompactionDetector deadCompactionDetector;
 
+  private CompactionServiceFactory compactionServiceFactory;
   private QueueMetrics queueMetrics;
   private final Manager manager;
 
@@ -209,6 +207,16 @@ public class CompactionCoordinator
 
     this.fateInstances = fateInstances;
 
+    ServiceEnvironmentImpl senv = new ServiceEnvironmentImpl(ctx);
+    try {
+      compactionServiceFactory =
+          senv.instantiate(ctx.getConfiguration().get(Property.COMPACTION_SERVICE_FACTORY),
+              CompactionServiceFactory.class);
+      compactionServiceFactory.init(senv);
+    } catch (ReflectiveOperationException e) {
+      // Use an noop Compaction Service Factory
+      compactionServiceFactory = new NoCompactionServiceFactory();
+    }
     completed = ctx.getCaches().createNewBuilder(CacheName.COMPACTIONS_COMPLETED, true)
         .maximumSize(200).expireAfterWrite(10, TimeUnit.MINUTES).build();
 
@@ -1085,32 +1093,6 @@ public class CompactionCoordinator
     }
   }
 
-  private Set<CompactorGroupId> getCompactionServicesConfigurationGroups()
-      throws ReflectiveOperationException, IllegalArgumentException, SecurityException {
-
-    Set<CompactorGroupId> groups = new HashSet<>();
-    AccumuloConfiguration config = ctx.getConfiguration();
-    CompactionServicesConfig servicesConfig = new CompactionServicesConfig(config);
-
-    for (var entry : servicesConfig.getPlanners().entrySet()) {
-      String serviceId = entry.getKey();
-      String plannerClassName = entry.getValue();
-
-      Class<? extends CompactionPlanner> plannerClass =
-          Class.forName(plannerClassName).asSubclass(CompactionPlanner.class);
-      CompactionPlanner planner = plannerClass.getDeclaredConstructor().newInstance();
-
-      var initParams = new CompactionPlannerInitParams(CompactionServiceId.of(serviceId),
-          servicesConfig.getPlannerPrefix(serviceId), servicesConfig.getOptions().get(serviceId),
-          new ServiceEnvironmentImpl(ctx));
-
-      planner.init(initParams);
-
-      groups.addAll(initParams.getRequestedGroups());
-    }
-    return groups;
-  }
-
   public void cleanUpInternalState() {
 
     // This method does the following:
@@ -1141,8 +1123,8 @@ public class CompactionCoordinator
     // Get the set of groups being referenced in the current configuration
     Set<CompactorGroupId> groupsInConfiguration = null;
     try {
-      groupsInConfiguration = getCompactionServicesConfigurationGroups();
-    } catch (RuntimeException | ReflectiveOperationException e) {
+      groupsInConfiguration = compactionServiceFactory.getCompactorGroupIds();
+    } catch (RuntimeException e) {
       LOG.error(
           "Error getting groups from the compaction services configuration. Unable to clean up internal state.",
           e);

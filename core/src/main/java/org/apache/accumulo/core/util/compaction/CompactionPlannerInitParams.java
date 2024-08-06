@@ -18,13 +18,11 @@
  */
 package org.apache.accumulo.core.util.compaction;
 
-import java.util.HashSet;
+import java.util.Collection;
 import java.util.Map;
-import java.util.Set;
 
-import org.apache.accumulo.core.spi.common.ServiceEnvironment;
+import org.apache.accumulo.core.spi.compaction.CompactionGroup;
 import org.apache.accumulo.core.spi.compaction.CompactionPlanner;
-import org.apache.accumulo.core.spi.compaction.CompactionServiceId;
 import org.apache.accumulo.core.spi.compaction.CompactorGroupId;
 import org.apache.accumulo.core.spi.compaction.GroupManager;
 
@@ -32,33 +30,17 @@ import com.google.common.base.Preconditions;
 
 public class CompactionPlannerInitParams implements CompactionPlanner.InitParameters {
   private final Map<String,String> plannerOpts;
-  private final Set<CompactorGroupId> requestedGroups;
-  private final ServiceEnvironment senv;
-  private final CompactionServiceId serviceId;
-  private final String prefix;
+  private final Collection<CompactionGroup> compactorGroups;
 
-  public CompactionPlannerInitParams(CompactionServiceId serviceId, String prefix,
-      Map<String,String> plannerOpts, ServiceEnvironment senv) {
-    this.serviceId = serviceId;
+  public CompactionPlannerInitParams(Map<String,String> plannerOpts,
+      Collection<CompactionGroup> groups) {
     this.plannerOpts = plannerOpts;
-    this.requestedGroups = new HashSet<>();
-    this.senv = senv;
-    this.prefix = prefix;
-  }
-
-  @Override
-  public ServiceEnvironment getServiceEnvironment() {
-    return senv;
+    this.compactorGroups = groups;
   }
 
   @Override
   public Map<String,String> getOptions() {
     return plannerOpts;
-  }
-
-  @Override
-  public String getFullyQualifiedOption(String key) {
-    return prefix + serviceId + ".planner.opts." + key;
   }
 
   @Override
@@ -68,15 +50,15 @@ public class CompactionPlannerInitParams implements CompactionPlanner.InitParame
       @Override
       public CompactorGroupId getGroup(String name) {
         var cgid = CompactorGroupId.of(name);
-        Preconditions.checkArgument(!getRequestedGroups().contains(cgid),
-            "Duplicate compactor group for group: " + name);
-        getRequestedGroups().add(cgid);
+        Preconditions.checkArgument(compactorGroups.stream().map(CompactionGroup::getGroupId)
+            .noneMatch(id -> id.equals(cgid)), "Duplicate compactor group for group: " + name);
         return cgid;
       }
-    };
-  }
 
-  public Set<CompactorGroupId> getRequestedGroups() {
-    return requestedGroups;
+      @Override
+      public Collection<CompactionGroup> getGroups() {
+        return compactorGroups;
+      }
+    };
   }
 }
