@@ -18,7 +18,7 @@
  */
 package org.apache.accumulo.test.compaction;
 
-import static org.apache.accumulo.core.util.LazySingletons.GSON;
+import static org.apache.accumulo.core.Constants.DEFAULT_RESOURCE_GROUP_NAME;
 import static org.apache.accumulo.core.util.LazySingletons.RANDOM;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -69,6 +69,7 @@ import org.apache.accumulo.core.spi.compaction.CompactionKind;
 import org.apache.accumulo.core.spi.compaction.CompactionPlan;
 import org.apache.accumulo.core.spi.compaction.CompactionPlanner;
 import org.apache.accumulo.core.spi.compaction.CompactorGroupId;
+import org.apache.accumulo.core.spi.compaction.RatioBasedCompactionPlanner;
 import org.apache.accumulo.harness.MiniClusterConfigurationCallback;
 import org.apache.accumulo.harness.SharedMiniClusterBase;
 import org.apache.accumulo.minicluster.ServerType;
@@ -83,9 +84,6 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import com.google.gson.JsonArray;
-import com.google.gson.JsonElement;
 
 public class CompactionExecutorIT extends SharedMiniClusterBase {
   public static final List<String> compactionGroups = new LinkedList<>();
@@ -109,13 +107,6 @@ public class CompactionExecutorIT extends SharedMiniClusterBase {
       for (String kind : params.getOptions().get("process").split(",")) {
         kindsToProcess.add(CompactionKind.valueOf(kind.toUpperCase()));
       }
-
-      for (JsonElement element : GSON.get().fromJson(groups, JsonArray.class)) {
-        GroupConfig groupConfig = GSON.get().fromJson(element, GroupConfig.class);
-        var cgid = params.getGroupManager().getGroup(groupConfig.group);
-        groupIds.add(cgid);
-      }
-
     }
 
     static String getFirstChar(CompactableFile cf) {
@@ -170,34 +161,29 @@ public class CompactionExecutorIT extends SharedMiniClusterBase {
   public static class CompactionExecutorITConfig implements MiniClusterConfigurationCallback {
     @Override
     public void configureMiniCluster(MiniAccumuloConfigImpl cfg, Configuration conf) {
-      var csp = Property.COMPACTION_SERVICE_PREFIX.getKey();
-      cfg.setProperty(csp + "cs1.planner", TestPlanner.class.getName());
-      cfg.setProperty(csp + "cs1.planner.opts.groups",
-          "[{'group':'e1'},{'group':'e2'},{'group':'e3'}]");
-      cfg.setProperty(csp + "cs1.planner.opts.filesPerCompaction", "5");
-      cfg.setProperty(csp + "cs1.planner.opts.process", "SYSTEM");
-
-      cfg.setProperty(csp + "cs2.planner", TestPlanner.class.getName());
-      cfg.setProperty(csp + "cs2.planner.opts.groups", "[{'group':'f1'},{'group':'f2'}]");
-      cfg.setProperty(csp + "cs2.planner.opts.filesPerCompaction", "7");
-      cfg.setProperty(csp + "cs2.planner.opts.process", "SYSTEM");
-
-      cfg.setProperty(csp + "cs3.planner", TestPlanner.class.getName());
-      cfg.setProperty(csp + "cs3.planner.opts.groups", "[{'group':'g1'}]");
-      cfg.setProperty(csp + "cs3.planner.opts.filesPerCompaction", "3");
-      cfg.setProperty(csp + "cs3.planner.opts.process", "USER");
-
-      cfg.setProperty(csp + "cs4.planner", TestPlanner.class.getName());
-      cfg.setProperty(csp + "cs4.planner.opts.groups", "[{'group':'h1'},{'group':'h2'}]");
-      cfg.setProperty(csp + "cs4.planner.opts.filesPerCompaction", "11");
-      cfg.setProperty(csp + "cs4.planner.opts.process", "USER");
+      cfg.setProperty(Property.COMPACTION_SERVICE_FACTORY,
+          ExternalCompactionTestUtils.TestCompactionServiceFactory.class.getName());
+      cfg.setProperty(Property.COMPACTION_SERVICE_FACTORY_CONFIG, "{ \"default\": {\"planner\": \""
+          + RatioBasedCompactionPlanner.class.getName()
+          + "\", \"opts\": {\"maxOpenFilesPerJob\": \"30\"}, \"groups\": [{\"group\": \""
+          + DEFAULT_RESOURCE_GROUP_NAME + "\", \"maxSize\": \"128M\"}]},"
+          + "\"cs1\" : {\"planner\": \"" + TestPlanner.class.getName() + "\","
+          + "\"opts\": { \"filesPerCompaction\" : \"5\", \"process\" : \"SYSTEM\"}, \"groups\" : [{\"group\" : \"e1\"}, {\"group\" : \"e2\"}, {\"group\" : \"e3\"}]},"
+          + "\"cs2\" : { \"planner\": \"" + TestPlanner.class.getName() + "\","
+          + "\"opts\": { \"filesPerCompaction\" : \"7\", \"process\" : \"SYSTEM\"}, \"groups\" : [{\"group\" : \"f1\"}, {\"group\" : \"f2\"}]},"
+          + "\"cs3\": { \"planner\": \"" + TestPlanner.class.getName() + "\","
+          + "\"opts\": { \"filesPerCompaction\" : \"3\", \"process\" : \"USER\"}, \"groups\" : [{\"group\" : \"g1\"}]},"
+          + "\"cs4\": { \"planner\": \"" + TestPlanner.class.getName() + "\","
+          + "\"opts\": { \"filesPerCompaction\" : \"11\", \"process\" : \"USER\"}, \"groups\" : [{\"group\" : \"h1\"}, {\"group\" : \"h2\"}]},"
+          + "\"recfg\": { \"planner\": \"" + TestPlanner.class.getName() + "\","
+          + "\"opts\": { \"filesPerCompaction\" : \"11\", \"process\" : \"SYSTEM\"}, \"groups\" : [{\"group\" : \"i1\"}, {\"group\" : \"i2\"}]},"
+          + "\"cse1\": { \"planner\": \"" + ErroringPlanner.class.getName()
+          + "\", \"opts\": { \"failInInit\" : \"true\"}}, \"cse2\": { \"planner\": \""
+          + ErroringPlanner.class.getName() + "\", \"opts\": { \"failInInit\" : \"false\"}},"
+          + "\"cse3\": { \"planner\": \"NonExistentPlanner20240522"
+          + "\", \"opts\": { \"failInInit\" : \"false\"}}}");
 
       // this is meant to be dynamically reconfigured
-      cfg.setProperty(csp + "recfg.planner", TestPlanner.class.getName());
-      cfg.setProperty(csp + "recfg.planner.opts.groups", "[{'group':'i1'},{'group':'i2'}]");
-      cfg.setProperty(csp + "recfg.planner.opts.filesPerCompaction", "11");
-      cfg.setProperty(csp + "recfg.planner.opts.process", "SYSTEM");
-
       Stream.of("e1", "e2", "e3", "f1", "f2", "g1", "h1", "h2", "i1", "i2")
           .forEach(s -> cfg.getClusterServerConfiguration().addCompactorResourceGroup(s, 0));
 
@@ -313,6 +299,7 @@ public class CompactionExecutorIT extends SharedMiniClusterBase {
 
       assertEquals(2, getFiles(client, "rctt").size());
 
+      // Change Factory Config here:
       client.instanceOperations().setProperty(
           Property.COMPACTION_SERVICE_PREFIX.getKey() + "recfg.planner.opts.filesPerCompaction",
           "5");

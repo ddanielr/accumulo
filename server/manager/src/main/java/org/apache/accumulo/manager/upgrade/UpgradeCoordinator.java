@@ -39,14 +39,16 @@ import org.apache.accumulo.core.client.AccumuloSecurityException;
 import org.apache.accumulo.core.client.NamespaceNotFoundException;
 import org.apache.accumulo.core.client.TableNotFoundException;
 import org.apache.accumulo.core.conf.ConfigCheckUtil;
+import org.apache.accumulo.core.conf.Property;
 import org.apache.accumulo.core.metadata.schema.Ample;
+import org.apache.accumulo.core.spi.compaction.CompactionServiceFactory;
 import org.apache.accumulo.core.util.threads.ThreadPools;
 import org.apache.accumulo.core.volume.Volume;
 import org.apache.accumulo.manager.EventCoordinator;
 import org.apache.accumulo.server.AccumuloDataVersion;
 import org.apache.accumulo.server.ServerContext;
 import org.apache.accumulo.server.ServerDirs;
-import org.apache.accumulo.server.conf.CheckCompactionConfig;
+import org.apache.accumulo.server.ServiceEnvironmentImpl;
 import org.apache.accumulo.server.fs.VolumeManager;
 import org.apache.hadoop.fs.Path;
 import org.slf4j.Logger;
@@ -261,8 +263,12 @@ public class UpgradeCoordinator {
         | TableNotFoundException e) {
       throw new IllegalStateException("Error checking properties", e);
     }
+    ServiceEnvironmentImpl senv = new ServiceEnvironmentImpl(context);
     try {
-      CheckCompactionConfig.validate(context.getConfiguration());
+      CompactionServiceFactory compactionServiceFactory =
+          senv.instantiate(context.getConfiguration().get(Property.COMPACTION_SERVICE_FACTORY),
+              CompactionServiceFactory.class);
+      compactionServiceFactory.validate(senv);
     } catch (RuntimeException | ReflectiveOperationException e) {
       throw new IllegalStateException("Error validating compaction configuration", e);
     }
