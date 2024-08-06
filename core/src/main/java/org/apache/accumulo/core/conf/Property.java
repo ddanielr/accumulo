@@ -19,6 +19,7 @@
 package org.apache.accumulo.core.conf;
 
 import static org.apache.accumulo.core.Constants.DEFAULT_COMPACTION_SERVICE_NAME;
+import static org.apache.accumulo.core.Constants.DEFAULT_RESOURCE_GROUP_NAME;
 
 import java.lang.annotation.Annotation;
 import java.util.Arrays;
@@ -28,7 +29,6 @@ import java.util.HashSet;
 import java.util.Objects;
 import java.util.function.Predicate;
 
-import org.apache.accumulo.core.Constants;
 import org.apache.accumulo.core.classloader.ClassLoaderUtil;
 import org.apache.accumulo.core.data.constraints.NoDeleteConstraint;
 import org.apache.accumulo.core.file.rfile.RFile;
@@ -37,6 +37,7 @@ import org.apache.accumulo.core.iteratorsImpl.system.DeletingIterator;
 import org.apache.accumulo.core.metadata.AccumuloTable;
 import org.apache.accumulo.core.spi.compaction.RatioBasedCompactionPlanner;
 import org.apache.accumulo.core.spi.compaction.SimpleCompactionDispatcher;
+import org.apache.accumulo.core.spi.compaction.SimpleCompactionServiceFactory;
 import org.apache.accumulo.core.spi.fs.RandomVolumeChooser;
 import org.apache.accumulo.core.spi.scan.ScanDispatcher;
 import org.apache.accumulo.core.spi.scan.ScanPrioritizer;
@@ -62,6 +63,14 @@ public enum Property {
           + "`compaction.service.newService.opts.maxOpen=50`.\n"
           + "Additional options can be defined using the `compaction.service.<service>.opts.<option>` property.",
       "3.1.0"),
+  COMPACTION_SERVICE_FACTORY(COMPACTION_SERVICE_PREFIX + "factory",
+      SimpleCompactionServiceFactory.class.getName(), PropertyType.CLASSNAME,
+      "Compaction Service Factory class to use for generating compaction services.", "4.0.0"),
+  COMPACTION_SERVICE_FACTORY_CONFIG(COMPACTION_SERVICE_FACTORY + ".config",
+      "{ \"" + DEFAULT_COMPACTION_SERVICE_NAME
+          + "\": { \"maxOpenFilesPerJob\": \"30\", \"groups\": [{ \"group\": \""
+          + DEFAULT_RESOURCE_GROUP_NAME + "\", \"maxSize\": \"128M\"}]}}",
+      PropertyType.JSON, "Compaction Service Factory config.", "4.0.0"),
   COMPACTION_SERVICE_DEFAULT_PLANNER(
       COMPACTION_SERVICE_PREFIX + DEFAULT_COMPACTION_SERVICE_NAME + ".planner",
       RatioBasedCompactionPlanner.class.getName(), PropertyType.CLASSNAME,
@@ -747,7 +756,7 @@ public enum Property {
       PropertyType.TIMEDURATION,
       "The interval at which the TabletServer will check if on-demand tablets can be unloaded.",
       "4.0.0"),
-  TSERV_GROUP_NAME("tserver.group", Constants.DEFAULT_RESOURCE_GROUP_NAME, PropertyType.STRING,
+  TSERV_GROUP_NAME("tserver.group", DEFAULT_RESOURCE_GROUP_NAME, PropertyType.STRING,
       "Resource group name for this TabletServer. Resource groups can be defined to dedicate resources "
           + " to specific tables (e.g. balancing tablets for table(s) within a group, see TableLoadBalancer).",
       "4.0.0"),
@@ -1137,8 +1146,8 @@ public enum Property {
   COMPACTOR_THREADCHECK("compactor.threadcheck.time", "1s", PropertyType.TIMEDURATION,
       "The time between adjustments of the server thread pool.", "2.1.0"),
   @Experimental
-  COMPACTOR_GROUP_NAME("compactor.group", Constants.DEFAULT_RESOURCE_GROUP_NAME,
-      PropertyType.STRING, "Resource group name for this Compactor.", "3.0.0"),
+  COMPACTOR_GROUP_NAME("compactor.group", DEFAULT_RESOURCE_GROUP_NAME, PropertyType.STRING,
+      "Resource group name for this Compactor.", "3.0.0"),
   // CompactionCoordinator properties
   @Experimental
   COMPACTION_COORDINATOR_PREFIX("compaction.coordinator.", null, PropertyType.PREFIX,

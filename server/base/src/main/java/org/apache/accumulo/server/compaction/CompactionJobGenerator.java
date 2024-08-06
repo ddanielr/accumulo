@@ -46,6 +46,7 @@ import org.apache.accumulo.core.spi.compaction.CompactionPlan;
 import org.apache.accumulo.core.spi.compaction.CompactionPlanner;
 import org.apache.accumulo.core.spi.compaction.CompactionServiceId;
 import org.apache.accumulo.core.spi.compaction.CompactionServices;
+import org.apache.accumulo.core.spi.compaction.ProvisionalCompactionPlanner;
 import org.apache.accumulo.core.util.cache.Caches;
 import org.apache.accumulo.core.util.cache.Caches.CacheName;
 import org.apache.accumulo.core.util.compaction.CompactionJobImpl;
@@ -234,7 +235,7 @@ public class CompactionJobGenerator {
     }
 
     if (candidates.isEmpty()) {
-      // there are not candidate files for compaction, so no reason to call the planner
+      // there are no candidate files for compaction, so no reason to call the planner
       return Set.of();
     }
 

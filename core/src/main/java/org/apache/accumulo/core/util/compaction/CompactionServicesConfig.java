@@ -27,6 +27,8 @@ import org.apache.accumulo.core.client.PluginEnvironment;
 import org.apache.accumulo.core.conf.AccumuloConfiguration;
 import org.apache.accumulo.core.conf.ConfigurationTypeHelper;
 import org.apache.accumulo.core.conf.Property;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.google.common.collect.Sets;
 
@@ -42,6 +44,8 @@ public class CompactionServicesConfig {
   private final Map<String,Map<String,String>> options = new HashMap<>();
 
   private static final Property prefix = Property.COMPACTION_SERVICE_PREFIX;
+
+  private static final Logger LOG = LoggerFactory.getLogger(CompactionServicesConfig.class);
 
   private interface ConfigIndirection {
     Map<String,String> getAllPropertiesWithPrefixStripped(Property p);
@@ -85,6 +89,8 @@ public class CompactionServicesConfig {
           if (eprop == null || isSetPredicate.test(eprop)) {
             rateLimits.put(tokens[0], ConfigurationTypeHelper.getFixedMemoryAsBytes(val));
           }
+        } else if (tokens[1].equals("factory")) {
+          LOG.info("Ignoring compaction factory");
         } else {
           throw new IllegalArgumentException(
               "Malformed compaction service property " + prefix + prop);
