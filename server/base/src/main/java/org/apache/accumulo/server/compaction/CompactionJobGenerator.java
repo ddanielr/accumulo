@@ -171,7 +171,10 @@ public class CompactionJobGenerator {
   private Collection<CompactionJob> planCompactions(CompactionServiceId serviceId,
       CompactionKind kind, TabletMetadata tablet, Map<String,String> executionHints) {
 
-    if (!servicesConfig.getPlanners().containsKey(serviceId.canonical())) {
+    CompactionPlanner planner = planners.computeIfAbsent(serviceId,
+        sid -> compactionServiceFactory.getPlanner(tablet.getTableId(), serviceId));
+
+    if (planner.getClass().equals(ProvisionalCompactionPlanner.class)) {
       UNKNOWN_SERVICE_ERROR_LOG.trace(
           "Table {} returned non-existent compaction service {} for compaction type {}.  Check"
               + " the table compaction dispatcher configuration. No compactions will happen"
@@ -179,9 +182,6 @@ public class CompactionJobGenerator {
           tablet.getExtent().tableId(), serviceId, kind);
       return Set.of();
     }
-
-    CompactionPlanner planner =
-        planners.computeIfAbsent(serviceId, sid -> createPlanner(tablet.getTableId(), serviceId));
 
     // selecting indicator
     // selected files
@@ -208,7 +208,7 @@ public class CompactionJobGenerator {
         tablet.getExternalCompactions().values().stream().flatMap(ecm -> ecm.getJobFiles().stream())
             .forEach(tmpFiles::remove);
         // remove any files that are selected and the user compaction has completed
-        // at least 1 job, otherwise we can keep the files
+        // at least one job, otherwise we can keep the files
         var selectedFiles = tablet.getSelectedFiles();
 
         if (selectedFiles != null) {

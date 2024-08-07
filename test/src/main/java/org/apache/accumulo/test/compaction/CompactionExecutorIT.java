@@ -171,26 +171,15 @@ public class CompactionExecutorIT extends SharedMiniClusterBase {
     @Override
     public void configureMiniCluster(MiniAccumuloConfigImpl cfg, Configuration conf) {
       var csp = Property.COMPACTION_SERVICE_PREFIX.getKey();
-      cfg.setProperty(csp + "cs1.planner", TestPlanner.class.getName());
-      cfg.setProperty(csp + "cs1.planner.opts.groups",
-          "[{'group':'e1'},{'group':'e2'},{'group':'e3'}]");
-      cfg.setProperty(csp + "cs1.planner.opts.filesPerCompaction", "5");
-      cfg.setProperty(csp + "cs1.planner.opts.process", "SYSTEM");
 
-      cfg.setProperty(csp + "cs2.planner", TestPlanner.class.getName());
-      cfg.setProperty(csp + "cs2.planner.opts.groups", "[{'group':'f1'},{'group':'f2'}]");
-      cfg.setProperty(csp + "cs2.planner.opts.filesPerCompaction", "7");
-      cfg.setProperty(csp + "cs2.planner.opts.process", "SYSTEM");
-
-      cfg.setProperty(csp + "cs3.planner", TestPlanner.class.getName());
-      cfg.setProperty(csp + "cs3.planner.opts.groups", "[{'group':'g1'}]");
-      cfg.setProperty(csp + "cs3.planner.opts.filesPerCompaction", "3");
-      cfg.setProperty(csp + "cs3.planner.opts.process", "USER");
-
-      cfg.setProperty(csp + "cs4.planner", TestPlanner.class.getName());
-      cfg.setProperty(csp + "cs4.planner.opts.groups", "[{'group':'h1'},{'group':'h2'}]");
-      cfg.setProperty(csp + "cs4.planner.opts.filesPerCompaction", "11");
-      cfg.setProperty(csp + "cs4.planner.opts.process", "USER");
+      cfg.setProperty(Property.COMPACTION_SERVICE_FACTORY,
+          ExternalCompactionTestUtils.TestCompactionServiceFactory.class.getName());
+      cfg.setProperty(Property.COMPACTION_SERVICE_FACTORY_CONFIG.getKey(),
+          "{\"cs1\" : { \"filesPerCompaction\" : \"5\", \"process\" : \"SYSTEM\", \"groups\" : [{\"group\" : \"e1\"}, {\"group\" : \"e2\"}, {\"group\" : \"e3\"}]},"
+              + "\"cs2\" : { \"filesPerCompaction\" : \"7\", \"process\" : \"SYSTEM\", \"groups\" : [{\"group\" : \"f1\"}, {\"group\" : \"f2\"}]},"
+              + "\"cs3\" : { \"filesPerCompaction\" : \"3\", \"process\" : \"USER\", \"groups\" : [{\"group\" : \"g1\"}]},"
+              + "\"cs4\" : { \"filesPerCompaction\" : \"11\", \"process\" : \"USER\", \"groups\" : [{\"group\" : \"h1\"}, {\"group\" : \"h2\"}]},"
+              + "\"recfg\" : { \"filesPerCompaction\" : \"11\", \"process\" : \"SYSTEM\", \"groups\" : [{\"group\" : \"i1\"}, {\"group\" : \"i2\"}]}}");
 
       // Setup three planner that fail to initialize or plan, these planners should not impede
       // tablet assignment.
@@ -203,11 +192,6 @@ public class CompactionExecutorIT extends SharedMiniClusterBase {
       cfg.setProperty(csp + "cse3.planner", "NonExistentPlanner20240522");
 
       // this is meant to be dynamically reconfigured
-      cfg.setProperty(csp + "recfg.planner", TestPlanner.class.getName());
-      cfg.setProperty(csp + "recfg.planner.opts.groups", "[{'group':'i1'},{'group':'i2'}]");
-      cfg.setProperty(csp + "recfg.planner.opts.filesPerCompaction", "11");
-      cfg.setProperty(csp + "recfg.planner.opts.process", "SYSTEM");
-
       Stream.of("e1", "e2", "e3", "f1", "f2", "g1", "h1", "h2", "i1", "i2")
           .forEach(s -> cfg.getClusterServerConfiguration().addCompactorResourceGroup(s, 0));
 
