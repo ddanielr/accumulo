@@ -27,11 +27,8 @@ import java.util.Set;
 import org.apache.accumulo.core.cli.Help;
 import org.apache.accumulo.core.conf.AccumuloConfiguration;
 import org.apache.accumulo.core.conf.SiteConfiguration;
-import org.apache.accumulo.core.data.TableId;
-import org.apache.accumulo.core.spi.common.ServiceEnvironment;
 import org.apache.accumulo.core.spi.compaction.CompactionPlanner;
 import org.apache.accumulo.core.spi.compaction.CompactionServiceId;
-import org.apache.accumulo.core.util.ConfigurationImpl;
 import org.apache.accumulo.core.util.compaction.CompactionPlannerInitParams;
 import org.apache.accumulo.core.util.compaction.CompactionServicesConfig;
 import org.apache.accumulo.start.spi.KeywordExecutable;
@@ -43,12 +40,10 @@ import com.google.auto.service.AutoService;
 
 /**
  * A command line tool that verifies that a given properties file will correctly configure
- * compaction services.
- *
- * This tool takes, as input, a local path to a properties file containing the properties used to
- * configure compaction services. The file is parsed and the user is presented with output detailing
- * which (if any) compaction services would be created from the given properties, or an error
- * describing why the given properties are incorrect.
+ * compaction services. This tool takes, as input, a local path to a properties file containing the
+ * properties used to configure compaction services. The file is then parsed and the output is
+ * presented to the user, detailing which (if any) compaction services would be created from the
+ * given properties, or an error describing why the given properties are incorrect.
  */
 @AutoService(KeywordExecutable.class)
 public class CheckCompactionConfig implements KeywordExecutable {
@@ -119,35 +114,5 @@ public class CheckCompactionConfig implements KeywordExecutable {
     }
 
     log.info("Properties file has passed all checks.");
-  }
-
-  private ServiceEnvironment createServiceEnvironment(AccumuloConfiguration config) {
-    return new ServiceEnvironment() {
-
-      @Override
-      public <T> T instantiate(TableId tableId, String className, Class<T> base) {
-        throw new UnsupportedOperationException();
-      }
-
-      @Override
-      public <T> T instantiate(String className, Class<T> base) {
-        throw new UnsupportedOperationException();
-      }
-
-      @Override
-      public String getTableName(TableId tableId) {
-        throw new UnsupportedOperationException();
-      }
-
-      @Override
-      public Configuration getConfiguration(TableId tableId) {
-        return new ConfigurationImpl(config);
-      }
-
-      @Override
-      public Configuration getConfiguration() {
-        return new ConfigurationImpl(config);
-      }
-    };
   }
 }

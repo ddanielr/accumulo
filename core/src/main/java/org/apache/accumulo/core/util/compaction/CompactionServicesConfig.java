@@ -79,7 +79,9 @@ public class CompactionServicesConfig {
     configs.forEach((prefix, props) -> {
       props.forEach((prop, val) -> {
         String[] tokens = prop.split("\\.");
-        if (tokens.length == 2 && tokens[1].equals("planner")) {
+        if (tokens[0].equals("factory")) {
+          LOG.info("Ignoring compaction factory property: {}", prop);
+        } else if (tokens.length == 2 && tokens[1].equals("planner")) {
           plannerPrefixes.put(tokens[0], prefix);
           planners.put(tokens[0], val);
         } else if (tokens.length == 4 && tokens[1].equals("planner") && tokens[2].equals("opts")) {
@@ -89,11 +91,9 @@ public class CompactionServicesConfig {
           if (eprop == null || isSetPredicate.test(eprop)) {
             rateLimits.put(tokens[0], ConfigurationTypeHelper.getFixedMemoryAsBytes(val));
           }
-        } else if (tokens[1].equals("factory")) {
-          LOG.info("Ignoring compaction factory");
         } else {
-          throw new IllegalArgumentException(
-              "Malformed compaction service property " + prefix + prop);
+          throw new IllegalArgumentException("Malformed compaction service property " + prefix
+              + prop + " token count: " + tokens.length);
         }
       });
     });
