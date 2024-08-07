@@ -131,26 +131,6 @@ public class RatioBasedCompactionPlanner implements CompactionPlanner {
     String maxSize;
   }
 
-  private static class CompactionGroup {
-    final CompactorGroupId cgid;
-    final Long maxSize;
-
-    public CompactionGroup(CompactorGroupId cgid, Long maxSize) {
-      Preconditions.checkArgument(maxSize == null || maxSize > 0, "Invalid value for maxSize");
-      this.cgid = Objects.requireNonNull(cgid, "Compaction ID is null");
-      this.maxSize = maxSize;
-    }
-
-    Long getMaxSize() {
-      return maxSize;
-    }
-
-    @Override
-    public String toString() {
-      return "[cgid=" + cgid + ", maxSize=" + maxSize + "]";
-    }
-  }
-
   private static class FakeFileGenerator {
 
     private int count = 0;
@@ -436,7 +416,7 @@ public class RatioBasedCompactionPlanner implements CompactionPlanner {
 
   private long getMaxSizeToCompact(CompactionKind kind) {
     if (kind == CompactionKind.SYSTEM) {
-      Long max = groups.get(groups.size() - 1).maxSize;
+      Long max = groups.get(groups.size() - 1).getMaxSize();
       if (max != null) {
         return max;
       }
@@ -606,12 +586,12 @@ public class RatioBasedCompactionPlanner implements CompactionPlanner {
     long size = files.stream().mapToLong(CompactableFile::getEstimatedSize).sum();
 
     for (CompactionGroup group : groups) {
-      if (group.maxSize == null || size < group.maxSize) {
-        return group.cgid;
+      if (group.getMaxSize() == null || size < group.getMaxSize()) {
+        return group.getGroupId();
       }
     }
 
-    return groups.get(groups.size() - 1).cgid;
+    return groups.get(groups.size() - 1).getGroupId();
   }
 
   private static List<CompactableFile> sortByFileSize(Collection<CompactableFile> files) {
