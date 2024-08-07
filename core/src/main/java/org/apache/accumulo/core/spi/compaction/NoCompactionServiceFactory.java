@@ -39,14 +39,6 @@ public class NoCompactionServiceFactory implements CompactionServiceFactory {
   }
 
   /**
-   * @param env = PluginEnv for the environment
-   */
-  @Override
-  public void validate(PluginEnvironment env) {
-    // no-op
-  }
-
-  /**
    * @return Set of defined compactionGroups
    */
   @Override

@@ -125,64 +125,6 @@ public class SimpleCompactionServiceFactory implements CompactionServiceFactory 
     // should be wiped.
   }
 
-  /**
-   * Validate the configuration
-   *
-   * @param env = PluginEnv for the environment
-   */
-  public void validate(PluginEnvironment env) {
-    this.env = env;
-    var config = env.getConfiguration();
-    String factoryConfig = config.get(COMPACTION_SERVICE_FACTORY_CONFIG.getKey());
-
-    // Generate a list of fields from the desired object.
-    final List<String> serviceFields = Arrays.stream(ServiceConfig.class.getDeclaredFields())
-        .map(Field::getName).collect(Collectors.toList());
-
-    final List<String> groupFields = Arrays.stream(GroupConfig.class.getDeclaredFields())
-        .map(Field::getName).collect(Collectors.toList());
-
-    // Each Service is a unique key, so get the keySet to correctly name the service.
-    var servicesMap = GSON.get().fromJson(factoryConfig, JsonObject.class);
-    Set<Map.Entry<String,JsonElement>> entrySet = servicesMap.entrySet();
-
-    // Find each service in the map and validate its fields
-    for (Map.Entry<String,JsonElement> entry : entrySet) {
-      Map<String,String> options = new HashMap<>();
-      CompactionServiceId csid = CompactionServiceId.of(entry.getKey());
-      Preconditions.checkArgument(!serviceOpts.containsKey(csid),
-          "Duplicate compaction service definition for service: " + entry.getKey());
-
-      validateConfig(entry.getValue(), serviceFields, ServiceConfig.class.getName());
-
-      ServiceConfig serviceConfig = GSON.get().fromJson(entry.getValue(), ServiceConfig.class);
-      var groups = Objects.requireNonNull(serviceConfig.groups,
-          "At least one group must be defined for compaction service: " + csid);
-
-      options.put("maxOpen", serviceConfig.maxOpenFilesPerJob);
-
-      // validate the groups defined for the service
-      for (JsonElement element : GSON.get().fromJson(groups, JsonArray.class)) {
-        validateConfig(element, groupFields, GroupConfig.class.getName());
-        GroupConfig groupConfig = GSON.get().fromJson(element, GroupConfig.class);
-
-        String groupName = Objects.requireNonNull(groupConfig.group, "'group' must be specified");
-        Long maxSize = groupConfig.maxSize == null ? null
-            : ConfigurationTypeHelper.getFixedMemoryAsBytes(groupConfig.maxSize);
-
-        var cgid = CompactorGroupId.of(groupName);
-        // Check if the compaction service has been defined before
-        if (compactionGroups.containsKey(cgid)) {
-          throw new IllegalArgumentException(
-              "Duplicate compaction group definition on service :" + csid);
-        }
-        compactionGroups.put(cgid, new CompactionGroup(cgid, maxSize));
-      }
-      options.put("groups", GSON.get().toJson(groups));
-      serviceOpts.put(csid, options);
-    }
-  }
-
   private void validateConfig(JsonElement json, List<String> fields, String className) {
 
     JsonObject jsonObject = GSON.get().fromJson(json, JsonObject.class);
