@@ -436,9 +436,11 @@ abstract class TabletGroupWatcher extends AccumuloDaemonThread {
     TabletLists tLists = new TabletLists(currentTServers, tableMgmtParams.getGroupedTServers(),
         tableMgmtParams.getServersToShutdown());
 
+    // This should accept the Compaction Factory from the context
     CompactionJobGenerator compactionGenerator =
-        new CompactionJobGenerator(new ServiceEnvironmentImpl(manager.getContext()),
-            tableMgmtParams.getCompactionHints(), tableMgmtParams.getSteadyTime());
+        new CompactionJobGenerator(manager.getContext().getCompactionServiceFactory(),
+            new ServiceEnvironmentImpl(manager.getContext()), tableMgmtParams.getCompactionHints(),
+            tableMgmtParams.getSteadyTime());
 
     Set<TServerInstance> filteredServersToShutdown =
         new HashSet<>(tableMgmtParams.getServersToShutdown());

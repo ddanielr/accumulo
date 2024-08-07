@@ -91,7 +91,6 @@ public class CheckCompactionConfig implements KeywordExecutable {
 
     AccumuloConfiguration config = SiteConfiguration.fromFile(path.toFile()).build();
     var servicesConfig = new CompactionServicesConfig(config);
-    ServiceEnvironment senv = createServiceEnvironment(config);
 
     Set<String> defaultService = Set.of(DEFAULT_COMPACTION_SERVICE_NAME);
     if (servicesConfig.getPlanners().keySet().equals(defaultService)) {
@@ -110,8 +109,7 @@ public class CheckCompactionConfig implements KeywordExecutable {
       CompactionPlanner planner = plannerClass.getDeclaredConstructor().newInstance();
 
       var initParams = new CompactionPlannerInitParams(CompactionServiceId.of(serviceId),
-          servicesConfig.getPlannerPrefix(serviceId), servicesConfig.getOptions().get(serviceId),
-          senv);
+          servicesConfig.getPlannerPrefix(serviceId), servicesConfig.getOptions().get(serviceId));
 
       planner.init(initParams);
 

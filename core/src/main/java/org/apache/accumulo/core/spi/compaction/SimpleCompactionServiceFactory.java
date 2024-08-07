@@ -34,12 +34,8 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.apache.accumulo.core.client.PluginEnvironment;
-import org.apache.accumulo.core.client.TableNotFoundException;
-import org.apache.accumulo.core.conf.AccumuloConfiguration;
 import org.apache.accumulo.core.conf.ConfigurationTypeHelper;
 import org.apache.accumulo.core.data.TableId;
-import org.apache.accumulo.core.spi.common.ServiceEnvironment;
-import org.apache.accumulo.core.util.ConfigurationImpl;
 import org.apache.accumulo.core.util.compaction.CompactionPlannerInitParams;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -150,50 +146,19 @@ public class SimpleCompactionServiceFactory implements CompactionServiceFactory 
   }
 
   @Override
-  public CompactionPlanner getPlanner(CompactionServiceId serviceId) {
+  public CompactionPlanner getPlanner(TableId tableId, CompactionServiceId serviceId) {
     if (!serviceOpts.containsKey(serviceId)) {
       log.error("Compaction service {} does not exist", serviceId);
       return new ProvisionalCompactionPlanner(serviceId);
     }
     var options = serviceOpts.get(serviceId);
 
-    ServiceEnvironment senv = new ServiceEnvironment() {
-
-      @Override
-      public String getTableName(TableId tableId) throws TableNotFoundException {
-        return null;
-      }
-
-      @Override
-      public <T> T instantiate(String className, Class<T> base)
-          throws ReflectiveOperationException {
-        return ConfigurationTypeHelper.getClassInstance(null, className, base);
-      }
-
-      @Override
-      public <T> T instantiate(TableId tableId, String className, Class<T> base)
-          throws ReflectiveOperationException {
-        return null;
-      }
-
-      @Override
-      public Configuration getConfiguration() {
-        return new ConfigurationImpl((AccumuloConfiguration) env.getConfiguration());
-      }
-
-      @Override
-      public Configuration getConfiguration(TableId tableId) {
-        return null;
-      }
-
-    };
-
-    var initParams = new CompactionPlannerInitParams(serviceId, COMPACTION_SERVICE_PREFIX.getKey(),
-        options, senv);
+    var initParams =
+        new CompactionPlannerInitParams(serviceId, COMPACTION_SERVICE_PREFIX.getKey(), options);
 
     CompactionPlanner planner;
     try {
-      planner = env.instantiate(plannerClassName, CompactionPlanner.class);
+      planner = env.instantiate(tableId, plannerClassName, CompactionPlanner.class);
       planner.init(initParams);
     } catch (Exception e) {
       log.error(

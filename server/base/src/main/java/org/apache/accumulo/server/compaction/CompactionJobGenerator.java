@@ -44,6 +44,7 @@ import org.apache.accumulo.core.spi.compaction.CompactionJob;
 import org.apache.accumulo.core.spi.compaction.CompactionKind;
 import org.apache.accumulo.core.spi.compaction.CompactionPlan;
 import org.apache.accumulo.core.spi.compaction.CompactionPlanner;
+import org.apache.accumulo.core.spi.compaction.CompactionServiceFactory;
 import org.apache.accumulo.core.spi.compaction.CompactionServiceId;
 import org.apache.accumulo.core.spi.compaction.CompactionServices;
 import org.apache.accumulo.core.spi.compaction.ProvisionalCompactionPlanner;
@@ -69,6 +70,7 @@ public class CompactionJobGenerator {
   private static final Logger PLANNING_ERROR_LOG =
       new ConditionalLogger.EscalatingLogger(log, Duration.ofMinutes(5), 3000, Level.ERROR);
 
+  private final CompactionServiceFactory compactionServiceFactory;
   private final CompactionServicesConfig servicesConfig;
   private final Map<CompactionServiceId,CompactionPlanner> planners = new HashMap<>();
   private final Cache<TableId,CompactionDispatcher> dispatchers;
@@ -77,11 +79,14 @@ public class CompactionJobGenerator {
   private final Map<FateId,Map<String,String>> allExecutionHints;
   private final SteadyTime steadyTime;
 
-  public CompactionJobGenerator(PluginEnvironment env,
-      Map<FateId,Map<String,String>> executionHints, SteadyTime steadyTime) {
+  public CompactionJobGenerator(CompactionServiceFactory compactionServiceFactory,
+      PluginEnvironment env, Map<FateId,Map<String,String>> executionHints, SteadyTime steadyTime) {
+
+    this.compactionServiceFactory = compactionServiceFactory;
+    this.compactionServiceFactory.init(env);
+
     servicesConfig = new CompactionServicesConfig(env.getConfiguration());
-    serviceIds = servicesConfig.getPlanners().keySet().stream().map(CompactionServiceId::of)
-        .collect(Collectors.toUnmodifiableSet());
+    serviceIds = this.compactionServiceFactory.getCompactionServiceIds();
 
     dispatchers = Caches.getInstance().createNewBuilder(CacheName.COMPACTION_DISPATCHERS, false)
         .maximumSize(10).build();
@@ -306,7 +311,7 @@ public class CompactionJobGenerator {
       planner = env.instantiate(tableId, plannerClassName, CompactionPlanner.class);
       CompactionPlannerInitParams initParameters = new CompactionPlannerInitParams(serviceId,
           servicesConfig.getPlannerPrefix(serviceId.canonical()),
-          servicesConfig.getOptions().get(serviceId.canonical()), (ServiceEnvironment) env);
+          servicesConfig.getOptions().get(serviceId.canonical()));
       planner.init(initParameters);
     } catch (Exception e) {
       PLANNING_INIT_ERROR_LOG.trace(

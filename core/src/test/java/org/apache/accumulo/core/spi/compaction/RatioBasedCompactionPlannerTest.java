@@ -831,11 +831,12 @@ public class RatioBasedCompactionPlannerTest {
       options.put("maxOpen", "15");
     }
 
+    // This might be able to be removed
     ServiceEnvironment senv = EasyMock.createMock(ServiceEnvironment.class);
     EasyMock.expect(senv.getConfiguration()).andReturn(conf).anyTimes();
     EasyMock.replay(senv);
 
-    return new CompactionPlannerInitParams(csid, prefix, options, senv);
+    return new CompactionPlannerInitParams(csid, prefix, options);
   }
 
   private static RatioBasedCompactionPlanner createPlanner(Configuration conf, String groups) {

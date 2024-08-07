@@ -63,7 +63,7 @@ public class CompactionServiceFactoryLoader {
   public static CompactionPlanner getServiceForServer(AccumuloConfiguration conf,
       CompactionServiceId csid) {
     CompactionServiceFactory factory = newInstance(conf);
-    return factory.getPlanner(csid);
+    return factory.getPlanner(null, csid);
   }
 
   private static CompactionServiceFactory loadCompactionServiceFactory(ClassloaderType ct,
