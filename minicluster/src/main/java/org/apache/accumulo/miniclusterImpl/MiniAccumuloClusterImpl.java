@@ -67,7 +67,6 @@ import org.apache.accumulo.core.client.Accumulo;
 import org.apache.accumulo.core.client.AccumuloClient;
 import org.apache.accumulo.core.client.AccumuloException;
 import org.apache.accumulo.core.client.AccumuloSecurityException;
-import org.apache.accumulo.core.client.TableNotFoundException;
 import org.apache.accumulo.core.client.security.tokens.AuthenticationToken;
 import org.apache.accumulo.core.clientImpl.ClientContext;
 import org.apache.accumulo.core.conf.AccumuloConfiguration;
@@ -78,7 +77,6 @@ import org.apache.accumulo.core.conf.DefaultConfiguration;
 import org.apache.accumulo.core.conf.Property;
 import org.apache.accumulo.core.conf.SiteConfiguration;
 import org.apache.accumulo.core.data.InstanceId;
-import org.apache.accumulo.core.data.TableId;
 import org.apache.accumulo.core.fate.zookeeper.ZooReaderWriter;
 import org.apache.accumulo.core.fate.zookeeper.ZooSession;
 import org.apache.accumulo.core.fate.zookeeper.ZooUtil;
@@ -91,14 +89,9 @@ import org.apache.accumulo.core.lock.ServiceLockData.ThriftService;
 import org.apache.accumulo.core.manager.thrift.ManagerGoalState;
 import org.apache.accumulo.core.manager.thrift.ManagerMonitorInfo;
 import org.apache.accumulo.core.rpc.clients.ThriftClientTypes;
-import org.apache.accumulo.core.spi.common.ServiceEnvironment;
-import org.apache.accumulo.core.spi.compaction.CompactionPlanner;
-import org.apache.accumulo.core.spi.compaction.CompactionServiceId;
+import org.apache.accumulo.core.spi.compaction.CompactionServiceFactory;
 import org.apache.accumulo.core.trace.TraceUtil;
-import org.apache.accumulo.core.util.ConfigurationImpl;
 import org.apache.accumulo.core.util.Pair;
-import org.apache.accumulo.core.util.compaction.CompactionPlannerInitParams;
-import org.apache.accumulo.core.util.compaction.CompactionServicesConfig;
 import org.apache.accumulo.manager.state.SetGoalState;
 import org.apache.accumulo.minicluster.MiniAccumuloCluster;
 import org.apache.accumulo.minicluster.ServerType;
@@ -758,55 +751,9 @@ public class MiniAccumuloClusterImpl implements AccumuloCluster {
   private Set<String> getCompactionGroupNames() throws ClassNotFoundException {
 
     Set<String> groupNames = new HashSet<>();
-    AccumuloConfiguration aconf = new ConfigurationCopy(config.getSiteConfig());
-    CompactionServicesConfig csc = new CompactionServicesConfig(aconf);
-
-    ServiceEnvironment senv = new ServiceEnvironment() {
-
-      @Override
-      public String getTableName(TableId tableId) throws TableNotFoundException {
-        return null;
-      }
-
-      @Override
-      public <T> T instantiate(String className, Class<T> base)
-          throws ReflectiveOperationException {
-        return ConfigurationTypeHelper.getClassInstance(null, className, base);
-      }
-
-      @Override
-      public <T> T instantiate(TableId tableId, String className, Class<T> base)
-          throws ReflectiveOperationException {
-        return null;
-      }
-
-      @Override
-      public Configuration getConfiguration() {
-        return new ConfigurationImpl(aconf);
-      }
-
-      @Override
-      public Configuration getConfiguration(TableId tableId) {
-        return null;
-      }
-
-    };
-
-    for (var entry : csc.getPlanners().entrySet()) {
-      String serviceId = entry.getKey();
-      String plannerClass = entry.getValue();
-
-      try {
-        CompactionPlanner cp = senv.instantiate(plannerClass, CompactionPlanner.class);
-        var initParams = new CompactionPlannerInitParams(CompactionServiceId.of(serviceId),
-            csc.getPlannerPrefix(serviceId), csc.getOptions().get(serviceId));
-        cp.init(initParams);
-        initParams.getRequestedGroups().forEach(gid -> groupNames.add(gid.canonical()));
-      } catch (Exception e) {
-        log.error("For compaction service {}, failed to get compactor groups from planner {}.",
-            serviceId, plannerClass, e);
-      }
-    }
+    CompactionServiceFactory compactionServiceFactory = context.get().getCompactionServiceFactory();
+    compactionServiceFactory.getCompactionGroupConfigs()
+        .forEach(group -> groupNames.add(group.getGroupId().canonical()));
     return groupNames;
   }
 
