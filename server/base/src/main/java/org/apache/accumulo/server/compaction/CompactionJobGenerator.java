@@ -83,7 +83,6 @@ public class CompactionJobGenerator {
       PluginEnvironment env, Map<FateId,Map<String,String>> executionHints, SteadyTime steadyTime) {
 
     this.compactionServiceFactory = compactionServiceFactory;
-    this.compactionServiceFactory.init(env);
 
     servicesConfig = new CompactionServicesConfig(env.getConfiguration());
     serviceIds = this.compactionServiceFactory.getCompactionServiceIds();

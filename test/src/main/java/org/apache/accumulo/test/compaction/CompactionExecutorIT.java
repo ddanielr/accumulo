@@ -190,7 +190,6 @@ public class CompactionExecutorIT extends SharedMiniClusterBase {
       cfg.setProperty(csp + "cse2.planner.opts.failInInit", "false");
 
       cfg.setProperty(csp + "cse3.planner", "NonExistentPlanner20240522");
-
       // this is meant to be dynamically reconfigured
       Stream.of("e1", "e2", "e3", "f1", "f2", "g1", "h1", "h2", "i1", "i2")
           .forEach(s -> cfg.getClusterServerConfiguration().addCompactorResourceGroup(s, 0));

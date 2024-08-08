@@ -72,6 +72,7 @@ import org.apache.accumulo.core.metadata.schema.RootTabletMetadata;
 import org.apache.accumulo.core.metadata.schema.TabletMetadata;
 import org.apache.accumulo.core.metadata.schema.TabletMetadata.Location;
 import org.apache.accumulo.core.security.Authorizations;
+import org.apache.accumulo.core.spi.compaction.CompactionServiceFactory;
 import org.apache.accumulo.core.util.threads.Threads;
 import org.apache.accumulo.core.util.threads.Threads.AccumuloDaemonThread;
 import org.apache.accumulo.manager.metrics.ManagerMetrics;
@@ -122,6 +123,8 @@ abstract class TabletGroupWatcher extends AccumuloDaemonThread {
   private WalStateManager walStateManager;
   private volatile Set<TServerInstance> filteredServersToShutdown = Set.of();
 
+  private CompactionServiceFactory compactionServiceFactory;
+
   TabletGroupWatcher(Manager manager, TabletStateStore store, TabletGroupWatcher dependentWatcher,
       ManagerMetrics metrics) {
     super("Watching " + store.name());
@@ -132,6 +135,7 @@ abstract class TabletGroupWatcher extends AccumuloDaemonThread {
     this.walStateManager = new WalStateManager(manager.getContext());
     this.eventHandler = new EventHandler();
     manager.getEventCoordinator().addListener(store.getLevel(), eventHandler);
+    compactionServiceFactory = this.manager.getContext().getCompactionServiceFactory();
   }
 
   /** Should this {@code TabletGroupWatcher} suspend tablets? */
@@ -437,10 +441,9 @@ abstract class TabletGroupWatcher extends AccumuloDaemonThread {
         tableMgmtParams.getServersToShutdown());
 
     // This should accept the Compaction Factory from the context
-    CompactionJobGenerator compactionGenerator =
-        new CompactionJobGenerator(manager.getContext().getCompactionServiceFactory(),
-            new ServiceEnvironmentImpl(manager.getContext()), tableMgmtParams.getCompactionHints(),
-            tableMgmtParams.getSteadyTime());
+    CompactionJobGenerator compactionGenerator = new CompactionJobGenerator(
+        compactionServiceFactory, new ServiceEnvironmentImpl(manager.getContext()),
+        tableMgmtParams.getCompactionHints(), tableMgmtParams.getSteadyTime());
 
     Set<TServerInstance> filteredServersToShutdown =
         new HashSet<>(tableMgmtParams.getServersToShutdown());

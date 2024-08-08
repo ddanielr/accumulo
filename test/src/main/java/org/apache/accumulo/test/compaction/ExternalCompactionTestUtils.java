@@ -83,7 +83,6 @@ import org.apache.accumulo.core.spi.compaction.CompactionServiceFactory;
 import org.apache.accumulo.core.spi.compaction.CompactionServiceId;
 import org.apache.accumulo.core.spi.compaction.CompactorGroupId;
 import org.apache.accumulo.core.spi.compaction.ProvisionalCompactionPlanner;
-import org.apache.accumulo.core.spi.compaction.RatioBasedCompactionPlanner;
 import org.apache.accumulo.core.spi.compaction.SimpleCompactionDispatcher;
 import org.apache.accumulo.core.trace.TraceUtil;
 import org.apache.accumulo.core.util.UtilWaitThread;
@@ -228,7 +227,7 @@ public class ExternalCompactionTestUtils {
     cfg.setProperty(COMPACTION_SERVICE_FACTORY_CONFIG.getKey(), "{ \""
         + DEFAULT_COMPACTION_SERVICE_NAME
         + "\": { \"maxOpenFilesPerJob\": \"30\", \"groups\": [{ \"group\": \""
-        + DEFAULT_RESOURCE_GROUP_NAME + "\", \"maxSize\": \"128M\", \"maxJobs\": \"1000\"}]},"
+        + DEFAULT_RESOURCE_GROUP_NAME + "\", \"maxSize\": \"128M\"}]},"
         + "\"cs1\" : { \"maxOpenFilesPerJob\": \"30\", \"groups\": [{ \"group\": \"" + GROUP1
         + "\"}]}, \"cs2\" : { \"maxOpenFilesPerJob\": \"30\", \"groups\": [{ \"group\": \"" + GROUP2
         + "\"}]}, \"cs3\" : { \"maxOpenFilesPerJob\": \"30\", \"groups\": [{ \"group\": \"" + GROUP3
@@ -239,38 +238,6 @@ public class ExternalCompactionTestUtils {
         + "\"}]}, \"cs8\" : { \"maxOpenFilesPerJob\": \"30\", \"groups\": [{ \"group\": \"" + GROUP8
         + "\"}]}}");
 
-    cfg.setProperty(Property.COMPACTION_SERVICE_PREFIX.getKey() + "cs1.planner",
-        RatioBasedCompactionPlanner.class.getName());
-    cfg.setProperty(Property.COMPACTION_SERVICE_PREFIX.getKey() + "cs1.planner.opts.groups",
-        "[{'group':'" + GROUP1 + "'}]");
-    cfg.setProperty(Property.COMPACTION_SERVICE_PREFIX.getKey() + "cs2.planner",
-        RatioBasedCompactionPlanner.class.getName());
-    cfg.setProperty(Property.COMPACTION_SERVICE_PREFIX.getKey() + "cs2.planner.opts.groups",
-        "[{'group':'" + GROUP2 + "'}]");
-    cfg.setProperty(Property.COMPACTION_SERVICE_PREFIX.getKey() + "cs3.planner",
-        RatioBasedCompactionPlanner.class.getName());
-    cfg.setProperty(Property.COMPACTION_SERVICE_PREFIX.getKey() + "cs3.planner.opts.groups",
-        "[{'group':'" + GROUP3 + "'}]");
-    cfg.setProperty(Property.COMPACTION_SERVICE_PREFIX.getKey() + "cs4.planner",
-        RatioBasedCompactionPlanner.class.getName());
-    cfg.setProperty(Property.COMPACTION_SERVICE_PREFIX.getKey() + "cs4.planner.opts.groups",
-        "[{'group':'" + GROUP4 + "'}]");
-    cfg.setProperty(Property.COMPACTION_SERVICE_PREFIX.getKey() + "cs5.planner",
-        RatioBasedCompactionPlanner.class.getName());
-    cfg.setProperty(Property.COMPACTION_SERVICE_PREFIX.getKey() + "cs5.planner.opts.groups",
-        "[{'group':'" + GROUP5 + "'}]");
-    cfg.setProperty(Property.COMPACTION_SERVICE_PREFIX.getKey() + "cs6.planner",
-        RatioBasedCompactionPlanner.class.getName());
-    cfg.setProperty(Property.COMPACTION_SERVICE_PREFIX.getKey() + "cs6.planner.opts.groups",
-        "[{'group':'" + GROUP6 + "'}]");
-    cfg.setProperty(Property.COMPACTION_SERVICE_PREFIX.getKey() + "cs7.planner",
-        RatioBasedCompactionPlanner.class.getName());
-    cfg.setProperty(Property.COMPACTION_SERVICE_PREFIX.getKey() + "cs7.planner.opts.groups",
-        "[{'group':'" + GROUP7 + "'}]");
-    cfg.setProperty(Property.COMPACTION_SERVICE_PREFIX.getKey() + "cs8.planner",
-        RatioBasedCompactionPlanner.class.getName());
-    cfg.setProperty(Property.COMPACTION_SERVICE_PREFIX.getKey() + "cs8.planner.opts.groups",
-        "[{'group':'" + GROUP8 + "'}]");
     cfg.setProperty(Property.COMPACTION_COORDINATOR_FINALIZER_COMPLETION_CHECK_INTERVAL, "5s");
     cfg.setProperty(Property.COMPACTION_COORDINATOR_DEAD_COMPACTOR_CHECK_INTERVAL, "5s");
     cfg.setProperty(Property.COMPACTION_COORDINATOR_TSERVER_COMPACTION_CHECK_INTERVAL, "3s");
@@ -517,7 +484,6 @@ public class ExternalCompactionTestUtils {
       this.env = env;
       var config = env.getConfiguration();
       String factoryConfig = config.get(COMPACTION_SERVICE_FACTORY_CONFIG.getKey());
-
 
       // Generate a list of fields from the desired object.
       final List<String> serviceFields = Arrays.stream(ServiceConfig.class.getDeclaredFields())

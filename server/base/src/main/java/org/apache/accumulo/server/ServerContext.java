@@ -139,8 +139,8 @@ public class ServerContext extends ClientContext {
         memoize(() -> new AuditedSecurityOperation(this, SecurityOperation.getAuthorizor(this),
             SecurityOperation.getAuthenticator(this), SecurityOperation.getPermHandler(this)));
     lowMemoryDetector = memoize(() -> new LowMemoryDetector());
-    compactionServiceFactory =
-        memoize(() -> CompactionServiceFactoryLoader.newInstance(getConfiguration()));
+    compactionServiceFactory = memoize(() -> CompactionServiceFactoryLoader
+        .newInstance(getConfiguration(), new ServiceEnvironmentImpl(this)));
     metricsInfoSupplier = memoize(() -> new MetricsInfoImpl(this));
 
   }

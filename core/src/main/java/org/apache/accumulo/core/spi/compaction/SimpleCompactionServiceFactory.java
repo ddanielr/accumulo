@@ -66,6 +66,7 @@ public class SimpleCompactionServiceFactory implements CompactionServiceFactory 
 
   @Override
   public void init(PluginEnvironment env) {
+    log.info("SCF: INIT Called in simpleCompationFactory");
     this.env = env;
     var config = env.getConfiguration();
     String factoryConfig = config.get(COMPACTION_SERVICE_FACTORY_CONFIG.getKey());
@@ -80,10 +81,12 @@ public class SimpleCompactionServiceFactory implements CompactionServiceFactory 
     var servicesMap = GSON.get().fromJson(factoryConfig, JsonObject.class);
     Set<Map.Entry<String,JsonElement>> entrySet = servicesMap.entrySet();
 
+    log.info("SCF: Processing Entries");
     // Find each service in the map and validate its fields
     for (Map.Entry<String,JsonElement> entry : entrySet) {
       Map<String,String> options = new HashMap<>();
       CompactionServiceId csid = CompactionServiceId.of(entry.getKey());
+      log.info("SCF: Processing of compaction service: {}", csid);
       Preconditions.checkArgument(!serviceOpts.containsKey(csid),
           "Duplicate compaction service definition for service: " + entry.getKey());
 
@@ -112,6 +115,7 @@ public class SimpleCompactionServiceFactory implements CompactionServiceFactory 
         compactionGroups.put(cgid, new CompactionGroup(cgid, maxSize));
       }
       options.put("groups", GSON.get().toJson(groups));
+      log.info("SCF: Adding compaction Service: {}", csid);
       serviceOpts.put(csid, options);
     }
 

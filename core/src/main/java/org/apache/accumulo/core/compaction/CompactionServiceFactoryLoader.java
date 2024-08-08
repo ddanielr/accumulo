@@ -21,6 +21,7 @@ package org.apache.accumulo.core.compaction;
 import static org.apache.accumulo.core.compaction.CompactionServiceFactoryLoader.ClassloaderType.ACCUMULO;
 import static org.apache.accumulo.core.compaction.CompactionServiceFactoryLoader.ClassloaderType.JAVA;
 
+import org.apache.accumulo.core.client.PluginEnvironment;
 import org.apache.accumulo.core.conf.AccumuloConfiguration;
 import org.apache.accumulo.core.conf.ConfigurationTypeHelper;
 import org.apache.accumulo.core.conf.Property;
@@ -50,9 +51,10 @@ public class CompactionServiceFactoryLoader {
   /**
    * Creates a new server Factory.
    */
-  public static CompactionServiceFactory newInstance(AccumuloConfiguration conf) {
+  public static CompactionServiceFactory newInstance(AccumuloConfiguration conf,
+      PluginEnvironment env) {
     String clazzName = conf.get(Property.COMPACTION_SERVICE_FACTORY);
-    return loadCompactionServiceFactory(ACCUMULO, clazzName);
+    return loadCompactionServiceFactory(ACCUMULO, clazzName, env);
   }
 
   /**
@@ -61,13 +63,13 @@ public class CompactionServiceFactoryLoader {
    * that Factory.
    */
   public static CompactionPlanner getServiceForServer(AccumuloConfiguration conf,
-      CompactionServiceId csid) {
-    CompactionServiceFactory factory = newInstance(conf);
+      CompactionServiceId csid, PluginEnvironment env) {
+    CompactionServiceFactory factory = newInstance(conf, env);
     return factory.getPlanner(null, csid);
   }
 
   private static CompactionServiceFactory loadCompactionServiceFactory(ClassloaderType ct,
-      String clazzName) {
+      String clazzName, PluginEnvironment env) {
     log.debug("Creating new compaction factory class {}", clazzName);
     CompactionServiceFactory newCompactionServiceFactory;
 
@@ -89,6 +91,7 @@ public class CompactionServiceFactoryLoader {
     } else {
       throw new IllegalArgumentException();
     }
+    newCompactionServiceFactory.init(env);
     return newCompactionServiceFactory;
   }
 }

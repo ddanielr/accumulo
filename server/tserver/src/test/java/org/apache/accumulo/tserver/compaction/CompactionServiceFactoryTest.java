@@ -18,7 +18,6 @@
  */
 package org.apache.accumulo.tserver.compaction;
 
-import static org.apache.accumulo.core.Constants.DEFAULT_RESOURCE_GROUP_NAME;
 import static org.easymock.EasyMock.expect;
 import static org.easymock.EasyMock.mock;
 import static org.easymock.EasyMock.replay;
@@ -32,7 +31,6 @@ import org.apache.accumulo.core.conf.ConfigurationCopy;
 import org.apache.accumulo.core.conf.DefaultConfiguration;
 import org.apache.accumulo.core.conf.Property;
 import org.apache.accumulo.core.spi.compaction.CompactionServiceFactory;
-import org.apache.accumulo.core.spi.compaction.CompactionServiceId;
 import org.apache.accumulo.core.spi.compaction.SimpleCompactionServiceFactory;
 import org.apache.accumulo.server.ServerContext;
 import org.apache.accumulo.server.fs.VolumeManager;
@@ -74,8 +72,6 @@ public class CompactionServiceFactoryTest {
   public void getCompactionServiceFactoryTest() throws Exception {
 
     CompactionServiceFactory compactionServiceFactory = context.getCompactionServiceFactory();
-
-    var csids = Set.of(CompactionServiceId.of(DEFAULT_RESOURCE_GROUP_NAME));
     assertEquals(compactionServiceFactory.getCompactionServiceIds(), Set.of());
 
   }
