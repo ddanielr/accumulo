@@ -18,23 +18,30 @@
  */
 package org.apache.accumulo.test;
 
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-
 import java.io.File;
+import java.util.LinkedList;
+import java.util.stream.Collectors;
 
 import org.apache.accumulo.core.Constants;
 import org.apache.accumulo.harness.SharedMiniClusterBase;
 import org.apache.accumulo.minicluster.ServerType;
+import org.apache.accumulo.miniclusterImpl.ProcessReference;
 import org.apache.accumulo.server.AccumuloDataVersion;
 import org.apache.accumulo.start.Main;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.jline.utils.Log;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import static org.junit.jupiter.api.Assertions.*;
 
 public class DataVersionIT extends SharedMiniClusterBase {
+
+  private static Logger LOG = LoggerFactory.getLogger(DataVersionIT.class);
 
   @BeforeAll
   public static void setup() throws Exception {
@@ -58,22 +65,35 @@ public class DataVersionIT extends SharedMiniClusterBase {
     assertTrue(fs.exists(rootPath));
 
     getCluster().stop();
+    LOG.info("Stopped cluster");
 
+    getCluster().getClusterControl().start(ServerType.ZOOKEEPER);
+    Log.info("Started ZooKeeper");
+
+
+    LOG.info("Incrementing Data Version");
     fs.create(newPath, true);
+    fs.delete(rootPath, false);
 
     for (ServerType st : ServerType.values()) {
 
-      if (!st.getDeclaringClass().isAnnotationPresent(Deprecated.class)) {
-        Process p = getCluster().exec(Main.class, st.prettyPrint()).getProcess();
-        p.waitFor();
-        int exitCode = p.exitValue();
+      if (!st.prettyPrint().equals("Master") && !st.prettyPrint().equals("Tracer") && !st.prettyPrint().equals("ZooKeeper")) {
+        var serverClass = st.prettyPrint();
+        LOG.info("Attempting to start process name: {}", serverClass);
 
-        // Check to see if both paths exist at the same time
-        assertTrue(fs.exists(rootPath));
-        assertTrue(fs.exists(newPath));
-        assertNotEquals(0, exitCode, "Expected non-zero exit code for server type "
-            + st.prettyPrint() + ", but got " + exitCode);
+        getCluster().getClusterControl().start(st);
+        var processes = getCluster().getProcesses().get(st).stream().map(ProcessReference::getProcess).collect(
+            Collectors.toList());
+        for (Process p : processes) {
+          p.waitFor();
+          int exitCode = p.exitValue();
 
+          // Check to see if both paths exist at the same time
+          assertFalse(fs.exists(rootPath));
+          assertTrue(fs.exists(newPath));
+          assertNotEquals(0, exitCode, "Expected non-zero exit code for server type "
+              + st.prettyPrint() + ", but got " + exitCode);
+        }
       }
     }
   }
