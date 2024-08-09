@@ -64,8 +64,17 @@ import com.google.common.base.Preconditions;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonParseException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class RatioBasedCompactionPlannerTest {
+
+  private static class GConfig {
+    String group;
+    String maxSize;
+  }
+
+  private static final Logger LOG = LoggerFactory.getLogger(RatioBasedCompactionPlannerTest.class);
 
   private static <T> T getOnlyElement(Collection<T> c) {
     return c.stream().collect(onlyElement());
@@ -827,27 +836,25 @@ public class RatioBasedCompactionPlannerTest {
 
   private static CompactionPlanner.InitParameters getInitParams(Configuration conf,
       String groupArray) {
-    Map<String,String> options = new HashMap<>();
 
-    class GroupConfig {
-      String group;
-      String maxSize;
-    }
+    Preconditions.checkNotNull(groupArray, "groups cannot be null");
+    Map<String,String> options = new HashMap<>();
 
     Set<CompactionGroup> groupMap = new HashSet<>();
     for (JsonElement element : GSON.get().fromJson(groupArray.replaceAll("'", "\""),
         JsonArray.class)) {
-      GroupConfig groupConfig = GSON.get().fromJson(element, GroupConfig.class);
 
-      String groupName = Objects.requireNonNull(groupConfig.group, "'group' must be specified");
+      GConfig gConfig = GSON.get().fromJson(element, GConfig.class);
+      String groupName = Objects.requireNonNull(gConfig.group, "'group' must be specified");
       Long maxSize =
-          groupConfig.maxSize == null ? null : ConfigurationTypeHelper.getFixedMemoryAsBytes("15");
+          gConfig.maxSize == null ? null : ConfigurationTypeHelper.getFixedMemoryAsBytes(gConfig.maxSize);
 
       var cgid = CompactorGroupId.of(groupName);
       // Check if the compaction service has been defined before
-      if (groupMap.stream().map(CompactionGroup::getGroupId).anyMatch(Predicate.isEqual(cgid))) {
-        throw new IllegalArgumentException(
-            "Duplicate compaction group definition on service :" + csid);
+      if (!groupMap.isEmpty()) {
+        if (groupMap.stream().map(CompactionGroup::getGroupId).anyMatch(Predicate.isEqual(cgid))) {
+          throw new IllegalArgumentException("Duplicate compaction group definition on service :" + csid);
+        }
       }
       var compactionGroup = new CompactionGroup(cgid, maxSize);
       groupMap.add(compactionGroup);
@@ -863,7 +870,9 @@ public class RatioBasedCompactionPlannerTest {
 
   private static RatioBasedCompactionPlanner createPlanner(Configuration conf, String groups) {
     RatioBasedCompactionPlanner planner = new RatioBasedCompactionPlanner();
+    LOG.info("Init Planner Params");
     var initParams = getInitParams(conf, groups);
+    LOG.info("Init Planner");
     planner.init(initParams);
     return planner;
   }
