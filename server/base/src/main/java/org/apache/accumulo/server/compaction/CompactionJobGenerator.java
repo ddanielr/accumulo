@@ -52,7 +52,6 @@ import org.apache.accumulo.core.util.cache.Caches;
 import org.apache.accumulo.core.util.cache.Caches.CacheName;
 import org.apache.accumulo.core.util.compaction.CompactionJobImpl;
 import org.apache.accumulo.core.util.compaction.CompactionPlanImpl;
-import org.apache.accumulo.core.util.compaction.CompactionPlannerInitParams;
 import org.apache.accumulo.core.util.compaction.CompactionServicesConfig;
 import org.apache.accumulo.core.util.time.SteadyTime;
 import org.slf4j.Logger;
@@ -302,22 +301,13 @@ public class CompactionJobGenerator {
   private CompactionPlanner createPlanner(TableId tableId, CompactionServiceId serviceId) {
 
     CompactionPlanner planner;
-    String plannerClassName = null;
-    Map<String,String> options = null;
     try {
-      plannerClassName = servicesConfig.getPlanners().get(serviceId.canonical());
-      options = servicesConfig.getOptions().get(serviceId.canonical());
-      planner = env.instantiate(tableId, plannerClassName, CompactionPlanner.class);
-      CompactionPlannerInitParams initParameters = new CompactionPlannerInitParams(serviceId,
-          servicesConfig.getPlannerPrefix(serviceId.canonical()),
-          servicesConfig.getOptions().get(serviceId.canonical()));
-      planner.init(initParameters);
+      planner = compactionServiceFactory.getPlanner(tableId, serviceId);
     } catch (Exception e) {
-      PLANNING_INIT_ERROR_LOG.trace(
-          "Failed to create compaction planner for service:{} tableId:{} using class:{} options:{}.  Compaction "
+      PLANNING_INIT_ERROR_LOG
+          .trace("Failed to create compaction planner for service:{} tableId:{}.  Compaction "
               + "service will not start any new compactions until its configuration is fixed. This log message is "
-              + "temporarily suppressed.",
-          serviceId, tableId, plannerClassName, options, e);
+              + "temporarily suppressed.", serviceId, tableId, e);
       planner = new ProvisionalCompactionPlanner(serviceId);
     }
     return planner;

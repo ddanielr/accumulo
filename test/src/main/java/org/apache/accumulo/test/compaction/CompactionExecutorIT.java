@@ -112,8 +112,9 @@ public class CompactionExecutorIT extends SharedMiniClusterBase {
 
       for (JsonElement element : GSON.get().fromJson(groups, JsonArray.class)) {
         GroupConfig groupConfig = GSON.get().fromJson(element, GroupConfig.class);
-        var cgid = params.getGroupManager().getGroup(groupConfig.group);
-        groupIds.add(cgid);
+        // This is probably why it's completely failing
+        // var cgid = params.getGroupManager().getGroup(groupConfig.group);
+        // groupIds.add(cgid);
       }
 
     }

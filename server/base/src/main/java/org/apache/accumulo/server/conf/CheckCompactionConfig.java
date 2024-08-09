@@ -28,8 +28,6 @@ import org.apache.accumulo.core.cli.Help;
 import org.apache.accumulo.core.conf.AccumuloConfiguration;
 import org.apache.accumulo.core.conf.SiteConfiguration;
 import org.apache.accumulo.core.spi.compaction.CompactionPlanner;
-import org.apache.accumulo.core.spi.compaction.CompactionServiceId;
-import org.apache.accumulo.core.util.compaction.CompactionPlannerInitParams;
 import org.apache.accumulo.core.util.compaction.CompactionServicesConfig;
 import org.apache.accumulo.start.spi.KeywordExecutable;
 import org.slf4j.Logger;
@@ -103,14 +101,14 @@ public class CheckCompactionConfig implements KeywordExecutable {
           Class.forName(plannerClassName).asSubclass(CompactionPlanner.class);
       CompactionPlanner planner = plannerClass.getDeclaredConstructor().newInstance();
 
-      var initParams = new CompactionPlannerInitParams(CompactionServiceId.of(serviceId),
-          servicesConfig.getPlannerPrefix(serviceId), servicesConfig.getOptions().get(serviceId));
+      // var initParams = new
+      // CompactionPlannerInitParams(servicesConfig.getOptions().get(serviceId), );
 
-      planner.init(initParams);
-
-      initParams.getRequestedGroups().forEach(
-          (groupId -> log.info("Compaction service '{}' requested with compactor group '{}'",
-              serviceId, groupId)));
+      // Remove this for later: Per Service Groups, not Per Planner Groups
+      // planner.init(initParams);
+      // initParams.getCompactorGroupIds().forEach(
+      // (groupId -> log.info("Compaction service '{}' requested with compactor group '{}'",
+      // serviceId, groupId)));
     }
 
     log.info("Properties file has passed all checks.");

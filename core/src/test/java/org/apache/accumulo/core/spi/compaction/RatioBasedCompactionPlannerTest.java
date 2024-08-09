@@ -20,6 +20,7 @@ package org.apache.accumulo.core.spi.compaction;
 
 import static com.google.common.collect.MoreCollectors.onlyElement;
 import static java.util.stream.Collectors.toSet;
+import static org.apache.accumulo.core.util.LazySingletons.GSON;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -34,8 +35,10 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.stream.IntStream;
 
 import org.apache.accumulo.core.client.admin.compaction.CompactableFile;
@@ -58,6 +61,8 @@ import org.easymock.EasyMock;
 import org.junit.jupiter.api.Test;
 
 import com.google.common.base.Preconditions;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonParseException;
 
 public class RatioBasedCompactionPlannerTest {
@@ -820,15 +825,32 @@ public class RatioBasedCompactionPlannerTest {
     };
   }
 
-  private static CompactionPlanner.InitParameters getInitParams(Configuration conf, String groups) {
-    String maxOpen = conf.get(prefix + "cs1.planner.opts.maxOpen");
+  private static CompactionPlanner.InitParameters getInitParams(Configuration conf,
+      String groupArray) {
     Map<String,String> options = new HashMap<>();
-    options.put("groups", groups.replaceAll("'", "\""));
 
-    if (maxOpen != null) {
-      options.put("maxOpen", maxOpen);
-    } else {
-      options.put("maxOpen", "15");
+    class GroupConfig {
+      String group;
+      String maxSize;
+    }
+
+    Set<CompactionGroup> groupMap = new HashSet<>();
+    for (JsonElement element : GSON.get().fromJson(groupArray.replaceAll("'", "\""),
+        JsonArray.class)) {
+      GroupConfig groupConfig = GSON.get().fromJson(element, GroupConfig.class);
+
+      String groupName = Objects.requireNonNull(groupConfig.group, "'group' must be specified");
+      Long maxSize =
+          groupConfig.maxSize == null ? null : ConfigurationTypeHelper.getFixedMemoryAsBytes("15");
+
+      var cgid = CompactorGroupId.of(groupName);
+      // Check if the compaction service has been defined before
+      if (groupMap.stream().map(CompactionGroup::getGroupId).anyMatch(Predicate.isEqual(cgid))) {
+        throw new IllegalArgumentException(
+            "Duplicate compaction group definition on service :" + csid);
+      }
+      var compactionGroup = new CompactionGroup(cgid, maxSize);
+      groupMap.add(compactionGroup);
     }
 
     // This might be able to be removed
@@ -836,7 +858,7 @@ public class RatioBasedCompactionPlannerTest {
     EasyMock.expect(senv.getConfiguration()).andReturn(conf).anyTimes();
     EasyMock.replay(senv);
 
-    return new CompactionPlannerInitParams(csid, prefix, options);
+    return new CompactionPlannerInitParams(options, groupMap);
   }
 
   private static RatioBasedCompactionPlanner createPlanner(Configuration conf, String groups) {

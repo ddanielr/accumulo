@@ -34,38 +34,32 @@ import org.easymock.EasyMock;
 import org.junit.jupiter.api.Test;
 
 public class SimpleCompactionServiceFactoryTest {
-  public static final String GROUP1 = "DCQ1";
-  public static final String GROUP2 = "DCQ2";
-  public static final String GROUP3 = "DCQ3";
-  public static final String GROUP4 = "DCQ4";
-  public static final String GROUP5 = "DCQ5";
-  public static final String GROUP6 = "DCQ6";
-  public static final String GROUP7 = "DCQ7";
-  public static final String GROUP8 = "DCQ8";
 
   @Test
   public void testSimpleImplementation() throws ReflectiveOperationException {
     Map<String,String> overrides = new HashMap<>();
     overrides.put(COMPACTION_SERVICE_FACTORY.getKey(),
         COMPACTION_SERVICE_FACTORY.getDefaultValue());
-    overrides.put(COMPACTION_SERVICE_FACTORY_CONFIG.getKey(),
-        "{ \"default\": { \"maxOpenFilesPerJob\": \"30\", \"groups\": [{ \"group\": \""
-            + DEFAULT_RESOURCE_GROUP_NAME + "\", \"maxSize\": \"128M\"}]},"
-            + "\"csf1\" : { \"maxOpenFilesPerJob\": \"30\", \"groups\": [{ \"group\": \"" + GROUP1
-            + "\"}]}, \"csf2\" : { \"maxOpenFilesPerJob\": \"30\", \"groups\": [{ \"group\": \""
-            + GROUP2
-            + "\"}]}, \"csf3\" : { \"maxOpenFilesPerJob\": \"30\", \"groups\": [{ \"group\": \""
-            + GROUP3
-            + "\"}]}, \"csf4\" : { \"maxOpenFilesPerJob\": \"30\", \"groups\": [{ \"group\": \""
-            + GROUP4
-            + "\"}]}, \"csf5\" : { \"maxOpenFilesPerJob\": \"30\", \"groups\": [{ \"group\": \""
-            + GROUP5
-            + "\"}]}, \"csf6\" : { \"maxOpenFilesPerJob\": \"30\", \"groups\": [{ \"group\": \""
-            + GROUP6
-            + "\"}]}, \"csf7\" : { \"maxOpenFilesPerJob\": \"30\", \"groups\": [{ \"group\": \""
-            + GROUP7
-            + "\"}]}, \"csf8\" : { \"maxOpenFilesPerJob\": \"30\", \"groups\": [{ \"group\": \""
-            + GROUP8 + "\"}]}}");
+    overrides.put(COMPACTION_SERVICE_FACTORY_CONFIG.getKey(), "{ \"default\": {\"planner\": \""
+        + RatioBasedCompactionPlanner.class.getName()
+        + "\", \"opts\": {\"maxOpenFilesPerJob\": \"30\"}, \"groups\": [{\"group\": \""
+        + DEFAULT_RESOURCE_GROUP_NAME + "\", \"maxSize\": \"128M\"}]},"
+        + "\"csf1\" : {\"planner\": \"" + RatioBasedCompactionPlanner.class.getName()
+        + "\", \"opts\": {\"maxOpenFilesPerJob\": \"30\"}, \"groups\": [{\"group\": \"DCQ1\"}]},"
+        + "\"csf2\" : {\"planner\": \"" + RatioBasedCompactionPlanner.class.getName()
+        + "\", \"opts\": {\"maxOpenFilesPerJob\": \"30\"}, \"groups\": [{\"group\": \"DCQ2\"}]},"
+        + "\"}]}, \"csf3\" : {\"planner\": \"" + RatioBasedCompactionPlanner.class.getName()
+        + "\", \"opts\": {\"maxOpenFilesPerJob\": \"30\"}, \"groups\": [{\"group\": \"DCQ3\"}]},"
+        + "\"}]}, \"csf4\" : {\"planner\": \"" + RatioBasedCompactionPlanner.class.getName()
+        + "\", \"opts\": {\"maxOpenFilesPerJob\": \"30\"}, \"groups\": [{\"group\": \"DCQ4\"}]},"
+        + "\"}]}, \"csf5\" : {\"planner\": \"" + RatioBasedCompactionPlanner.class.getName()
+        + "\", \"opts\": {\"maxOpenFilesPerJob\": \"30\"}, \"groups\": [{\"group\": \"DCQ5\"}]},"
+        + "\"}]}, \"csf6\" : {\"planner\": \"" + RatioBasedCompactionPlanner.class.getName()
+        + "\", \"opts\": {\"maxOpenFilesPerJob\": \"30\"}, \"groups\": [{\"group\": \"DCQ6\"}]},"
+        + "\"}]}, \"csf7\" : {\"planner\": \"" + RatioBasedCompactionPlanner.class.getName()
+        + "\", \"opts\": {\"maxOpenFilesPerJob\": \"30\"}, \"groups\": [{\"group\": \"DCQ7\"}]},"
+        + "\"}]}, \"csf8\" : { \"planner\": \"" + RatioBasedCompactionPlanner.class.getName()
+        + "\", \"opts\": {\"maxOpenFilesPerJob\": \"30\"}, \"groups\": [{\"group\": \"DCQ8\"}]}}");
     var conf = new ConfigurationImpl(SiteConfiguration.empty().withOverrides(overrides).build());
     var testCSF = new SimpleCompactionServiceFactory();
 
@@ -77,7 +71,7 @@ public class SimpleCompactionServiceFactoryTest {
     EasyMock.expect(env.instantiate(tableId, RatioBasedCompactionPlanner.class.getName(),
         CompactionPlanner.class)).andReturn(new RatioBasedCompactionPlanner()).anyTimes();
     EasyMock.replay(env);
-    CompactionServiceFactory csf = null;
+    CompactionServiceFactory csf;
     assertEquals(testCSF.getClass().getName(), conf.get(COMPACTION_SERVICE_FACTORY.getKey()));
     csf = testCSF;
     csf.init(env);

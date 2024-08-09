@@ -18,6 +18,7 @@
  */
 package org.apache.accumulo.core.spi.compaction;
 
+import java.util.Collection;
 import java.util.Set;
 
 import org.apache.accumulo.core.client.PluginEnvironment;
@@ -39,7 +40,7 @@ public interface CompactionServiceFactory {
   void init(PluginEnvironment env);
 
   // Use this for a top level groups pull from the compaction-coordinator
-  Set<CompactionGroup> getCompactionGroupConfigs();
+  Collection<CompactionGroup> getCompactionGroups(CompactionServiceId csid);
 
   Set<CompactionServiceId> getCompactionServiceIds();
 

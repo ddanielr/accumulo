@@ -18,6 +18,8 @@
  */
 package org.apache.accumulo.core.spi.compaction;
 
+import java.util.Collection;
+
 /**
  * Offered to a Compaction Planner at initialization time, so it can create compactor groups.
  *
@@ -30,4 +32,6 @@ public interface GroupManager {
    * @return an id for a configured compactor group.
    */
   CompactorGroupId getGroup(String name);
+
+  Collection<CompactionGroup> getGroups();
 }

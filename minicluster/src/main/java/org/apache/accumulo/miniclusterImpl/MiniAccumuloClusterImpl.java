@@ -90,6 +90,7 @@ import org.apache.accumulo.core.manager.thrift.ManagerGoalState;
 import org.apache.accumulo.core.manager.thrift.ManagerMonitorInfo;
 import org.apache.accumulo.core.rpc.clients.ThriftClientTypes;
 import org.apache.accumulo.core.spi.compaction.CompactionServiceFactory;
+import org.apache.accumulo.core.spi.compaction.CompactionServiceId;
 import org.apache.accumulo.core.trace.TraceUtil;
 import org.apache.accumulo.core.util.Pair;
 import org.apache.accumulo.manager.state.SetGoalState;
@@ -752,8 +753,10 @@ public class MiniAccumuloClusterImpl implements AccumuloCluster {
 
     Set<String> groupNames = new HashSet<>();
     CompactionServiceFactory compactionServiceFactory = context.get().getCompactionServiceFactory();
-    compactionServiceFactory.getCompactionGroupConfigs()
-        .forEach(group -> groupNames.add(group.getGroupId().canonical()));
+    for (CompactionServiceId csid : compactionServiceFactory.getCompactionServiceIds()) {
+      compactionServiceFactory.getCompactionGroups(csid)
+          .forEach(group -> groupNames.add(group.getGroupId().canonical()));
+    }
     return groupNames;
   }
 

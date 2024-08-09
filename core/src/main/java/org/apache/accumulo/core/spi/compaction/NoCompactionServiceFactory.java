@@ -43,7 +43,7 @@ public class NoCompactionServiceFactory implements CompactionServiceFactory {
    * @return Set of defined compactionGroups
    */
   @Override
-  public Set<CompactionGroup> getCompactionGroupConfigs() {
+  public Set<CompactionGroup> getCompactionGroups(CompactionServiceId csid) {
     return Set.of(compactionGroup);
   }
 
