@@ -19,19 +19,37 @@
 package org.apache.accumulo.core.spi.compaction;
 
 import java.util.Collection;
+import java.util.Set;
+
+import org.apache.accumulo.core.client.PluginEnvironment;
+import org.apache.accumulo.core.data.TableId;
 
 /**
- * Offered to a Compaction Planner at initialization time, so it can create compactor groups.
+ * A Factory that returns a CompactionService based on the environment and configuration.
  *
- * @since 3.1.0
- * @see CompactionPlanner#init(org.apache.accumulo.core.spi.compaction.CompactionPlanner.InitParameters)
- * @see org.apache.accumulo.core.spi.compaction
+ * @since 4.0.0
  */
-public interface GroupManager {
-  /**
-   * @return an id for a configured compactor group.
-   */
-  CompactorGroupId getGroup(String name);
+public interface CompactionServiceFactory {
 
-  Collection<CompactionGroup> getGroups();
+  /**
+   * Initializer for compaction factory
+   *
+   * @param env PluginEnv for the environment
+   */
+
+  void init(PluginEnvironment env);
+
+  // Use this for a top level groups pull from the compaction-coordinator
+  Collection<CompactionGroup> getCompactionGroups(CompactionServiceId csid);
+
+  Set<CompactionServiceId> getCompactionServiceIds();
+
+  /**
+   * Return the appropriate CompactionPlanner.
+   *
+   * @param tableId ID of table
+   * @param serviceId ID of the desired compaction service
+   * @return CompactionPlanner object
+   */
+  CompactionPlanner getPlanner(TableId tableId, CompactionServiceId serviceId);
 }

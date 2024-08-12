@@ -41,7 +41,6 @@ public interface CompactionPlanner {
    * @since 2.1.0
    */
   public interface InitParameters {
-    ServiceEnvironment getServiceEnvironment();
 
     /**
      * @return The configured options. For example if the system properties
@@ -51,14 +50,6 @@ public interface CompactionPlanner {
      *         identifier for the compaction service. Each compaction service has a single planner.
      */
     Map<String,String> getOptions();
-
-    /**
-     * @return For a given key from the map returned by {@link #getOptions()} determines the fully
-     *         qualified tablet property for that key. For example if a planner was being
-     *         initialized for compaction service {@code CS9} and this method were passed
-     *         {@code prop1} then it would return {@code compaction.service.CS9.planner.opts.prop1}.
-     */
-    String getFullyQualifiedOption(String key);
 
     /**
      * @return a group manager that can be used to create groups for a compaction service.

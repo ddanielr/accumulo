@@ -18,20 +18,37 @@
  */
 package org.apache.accumulo.core.spi.compaction;
 
-import java.util.Collection;
+import java.util.Objects;
 
-/**
- * Offered to a Compaction Planner at initialization time, so it can create compactor groups.
- *
- * @since 3.1.0
- * @see CompactionPlanner#init(org.apache.accumulo.core.spi.compaction.CompactionPlanner.InitParameters)
- * @see org.apache.accumulo.core.spi.compaction
- */
-public interface GroupManager {
+import com.google.common.base.Preconditions;
+
+public class CompactionGroup {
+
+  private final CompactorGroupId cgid;
+  private final Long maxSize;
+
   /**
-   * @return an id for a configured compactor group.
+   * Defines the concept of a CompactionGroup for the compaction coordinator.
+   *
+   * @param cgid ID of the compactor group
+   * @param maxSize Max Size of the compaction jobs submitted to this group
    */
-  CompactorGroupId getGroup(String name);
+  public CompactionGroup(CompactorGroupId cgid, Long maxSize) {
+    Preconditions.checkArgument(maxSize == null || maxSize > 0, "Invalid value for maxSize");
+    this.cgid = Objects.requireNonNull(cgid, "Compaction Group ID is null");
+    this.maxSize = maxSize;
+  }
 
-  Collection<CompactionGroup> getGroups();
+  public CompactorGroupId getGroupId() {
+    return cgid;
+  }
+
+  public Long getMaxSize() {
+    return maxSize;
+  }
+
+  @Override
+  public String toString() {
+    return "[cgid=" + cgid + ", maxSize=" + maxSize + "]";
+  }
 }

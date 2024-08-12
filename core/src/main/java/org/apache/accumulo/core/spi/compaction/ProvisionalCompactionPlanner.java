@@ -16,14 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.accumulo.server.compaction;
+package org.apache.accumulo.core.spi.compaction;
 
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
-import org.apache.accumulo.core.spi.compaction.CompactionPlan;
-import org.apache.accumulo.core.spi.compaction.CompactionPlanner;
-import org.apache.accumulo.core.spi.compaction.CompactionServiceId;
 import org.slf4j.LoggerFactory;
 
 /**
@@ -41,7 +38,7 @@ public class ProvisionalCompactionPlanner implements CompactionPlanner {
 
   @Override
   public void init(InitParameters params) {
-
+    // No-op init since params don't matter
   }
 
   @Override
