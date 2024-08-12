@@ -190,8 +190,6 @@ public class MiniAccumuloConfigImpl {
 
       mergeProp(Property.MANAGER_COMPACTION_SERVICE_PRIORITY_QUEUE_INITIAL_SIZE.getKey(),
           Property.MANAGER_COMPACTION_SERVICE_PRIORITY_QUEUE_INITIAL_SIZE.getDefaultValue());
-      mergeProp(Property.COMPACTION_SERVICE_DEFAULT_PLANNER.getKey(),
-          Property.COMPACTION_SERVICE_DEFAULT_PLANNER.getDefaultValue());
 
       mergeProp(Property.COMPACTION_SERVICE_FACTORY.getKey(),
           Property.COMPACTION_SERVICE_FACTORY.getDefaultValue());

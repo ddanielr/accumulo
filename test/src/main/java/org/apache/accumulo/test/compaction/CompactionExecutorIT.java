@@ -171,8 +171,6 @@ public class CompactionExecutorIT extends SharedMiniClusterBase {
   public static class CompactionExecutorITConfig implements MiniClusterConfigurationCallback {
     @Override
     public void configureMiniCluster(MiniAccumuloConfigImpl cfg, Configuration conf) {
-      var csp = Property.COMPACTION_SERVICE_PREFIX.getKey();
-
       cfg.setProperty(Property.COMPACTION_SERVICE_FACTORY,
           ExternalCompactionTestUtils.TestCompactionServiceFactory.class.getName());
       cfg.setProperty(Property.COMPACTION_SERVICE_FACTORY_CONFIG.getKey(),
@@ -184,13 +182,13 @@ public class CompactionExecutorIT extends SharedMiniClusterBase {
 
       // Setup three planner that fail to initialize or plan, these planners should not impede
       // tablet assignment.
-      cfg.setProperty(csp + "cse1.planner", ErroringPlanner.class.getName());
-      cfg.setProperty(csp + "cse1.planner.opts.failInInit", "true");
+      // cfg.setProperty(csp + "cse1.planner", ErroringPlanner.class.getName());
+      // cfg.setProperty(csp + "cse1.planner.opts.failInInit", "true");
 
-      cfg.setProperty(csp + "cse2.planner", ErroringPlanner.class.getName());
-      cfg.setProperty(csp + "cse2.planner.opts.failInInit", "false");
+      // cfg.setProperty(csp + "cse2.planner", ErroringPlanner.class.getName());
+      // cfg.setProperty(csp + "cse2.planner.opts.failInInit", "false");
 
-      cfg.setProperty(csp + "cse3.planner", "NonExistentPlanner20240522");
+      // cfg.setProperty(csp + "cse3.planner", "NonExistentPlanner20240522");
       // this is meant to be dynamically reconfigured
       Stream.of("e1", "e2", "e3", "f1", "f2", "g1", "h1", "h2", "i1", "i2")
           .forEach(s -> cfg.getClusterServerConfiguration().addCompactorResourceGroup(s, 0));
@@ -287,6 +285,7 @@ public class CompactionExecutorIT extends SharedMiniClusterBase {
 
       assertEquals(2, getFiles(client, "rctt").size());
 
+      // Change Factory Config here:
       client.instanceOperations().setProperty(
           Property.COMPACTION_SERVICE_PREFIX.getKey() + "recfg.planner.opts.filesPerCompaction",
           "5");

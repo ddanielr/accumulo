@@ -171,8 +171,7 @@ public class RatioBasedCompactionPlanner implements CompactionPlanner {
     Set<Long> maxSizes = new HashSet<>();
     groups.forEach(g -> {
       if (!maxSizes.add(g.getMaxSize())) {
-        throw new IllegalArgumentException(
-            "Duplicate maxSize set in groups. " + tmpGroups);
+        throw new IllegalArgumentException("Duplicate maxSize set in groups. " + tmpGroups);
       }
     });
 
