@@ -44,14 +44,16 @@ import org.apache.accumulo.core.spi.compaction.CompactionJob;
 import org.apache.accumulo.core.spi.compaction.CompactionKind;
 import org.apache.accumulo.core.spi.compaction.CompactionPlan;
 import org.apache.accumulo.core.spi.compaction.CompactionPlanner;
+import org.apache.accumulo.core.spi.compaction.CompactionServiceFactory;
 import org.apache.accumulo.core.spi.compaction.CompactionServiceId;
 import org.apache.accumulo.core.spi.compaction.CompactionServices;
+import org.apache.accumulo.core.spi.compaction.ProvisionalCompactionPlanner;
+import org.apache.accumulo.core.util.Pair;
 import org.apache.accumulo.core.util.cache.Caches;
 import org.apache.accumulo.core.util.cache.Caches.CacheName;
 import org.apache.accumulo.core.util.compaction.CompactionJobImpl;
 import org.apache.accumulo.core.util.compaction.CompactionPlanImpl;
 import org.apache.accumulo.core.util.compaction.CompactionPlannerInitParams;
-import org.apache.accumulo.core.util.compaction.CompactionServicesConfig;
 import org.apache.accumulo.core.util.time.SteadyTime;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -68,19 +70,32 @@ public class CompactionJobGenerator {
   private static final Logger PLANNING_ERROR_LOG =
       new ConditionalLogger.EscalatingLogger(log, Duration.ofMinutes(5), 3000, Level.ERROR);
 
-  private final CompactionServicesConfig servicesConfig;
   private final Map<CompactionServiceId,CompactionPlanner> planners = new HashMap<>();
   private final Cache<TableId,CompactionDispatcher> dispatchers;
   private final Set<CompactionServiceId> serviceIds;
+  private final CompactionServiceFactory csf;
   private final PluginEnvironment env;
   private final Map<FateId,Map<String,String>> allExecutionHints;
   private final SteadyTime steadyTime;
 
   public CompactionJobGenerator(PluginEnvironment env,
       Map<FateId,Map<String,String>> executionHints, SteadyTime steadyTime) {
-    servicesConfig = new CompactionServicesConfig(env.getConfiguration());
-    serviceIds = servicesConfig.getPlanners().keySet().stream().map(CompactionServiceId::of)
-        .collect(Collectors.toUnmodifiableSet());
+
+    // This gets replaced with the CompactionServiceFactory vs individual planners.
+    String compactionFactoryName =
+        env.getConfiguration().get(Property.COMPACTION_SERVICE_FACTORY.getKey());
+    Set<CompactionServiceId> csids = new HashSet<>();
+    CompactionServiceFactory tempCSF = null;
+    try {
+      tempCSF = env.instantiate(compactionFactoryName, CompactionServiceFactory.class);
+      tempCSF.init(env);
+      csids.addAll(
+          tempCSF.getCompactionServiceIds().stream().collect(Collectors.toUnmodifiableSet()));
+    } catch (Exception e) {
+      log.error("Failed to instantiate the compaction factory: {}", compactionFactoryName, e);
+    }
+    serviceIds = csids;
+    csf = tempCSF;
 
     dispatchers = Caches.getInstance().createNewBuilder(CacheName.COMPACTION_DISPATCHERS, false)
         .maximumSize(10).build();
@@ -165,17 +180,28 @@ public class CompactionJobGenerator {
   private Collection<CompactionJob> planCompactions(CompactionServiceId serviceId,
       CompactionKind kind, TabletMetadata tablet, Map<String,String> executionHints) {
 
-    if (!servicesConfig.getPlanners().containsKey(serviceId.canonical())) {
-      UNKNOWN_SERVICE_ERROR_LOG.trace(
-          "Table {} returned non-existent compaction service {} for compaction type {}.  Check"
-              + " the table compaction dispatcher configuration. No compactions will happen"
-              + " until the configuration is fixed. This log message is temporarily suppressed.",
-          tablet.getExtent().tableId(), serviceId, kind);
+    if (csf.getPlanner(serviceId).getClass().equals(ProvisionalCompactionPlanner.class)) {
+      var cacheKey = new Pair<>(tablet.getTableId(), serviceId);
+      var last = unknownCompactionServiceErrorCache.getIfPresent(cacheKey);
+      if (last == null) {
+        // have not logged an error recently for this, so lets log one
+        UNKNOWN_SERVICE_ERROR_LOG.error(
+            "Tablet {} returned non-existent compaction service {} for compaction type {}.  Check"
+                + " the table compaction dispatcher configuration. No compactions will happen"
+                + " until the configuration is fixed. This log message is temporarily suppressed for the"
+                + " entire table.",
+            tablet.getExtent(), serviceId, kind);
+        unknownCompactionServiceErrorCache.put(cacheKey, System.currentTimeMillis());
+      }
+
       return Set.of();
     }
 
+    // Replace with a getPlanner for service(CompactionServiceId ?)
+    // Or this gets a compactionService with a "Plan" option.
+
     CompactionPlanner planner =
-        planners.computeIfAbsent(serviceId, sid -> createPlanner(tablet.getTableId(), serviceId));
+        planners.computeIfAbsent(serviceId, sid -> csf.getPlanner(serviceId));
 
     // selecting indicator
     // selected files
@@ -294,6 +320,9 @@ public class CompactionJobGenerator {
     return planCompactions(planner, params, serviceId);
   }
 
+  // This is the current loader used by the compaction Job Generator for the compaction Planner.
+  // This would be replaced with the CompactionServiceFactory iirc.
+
   private CompactionPlanner createPlanner(TableId tableId, CompactionServiceId serviceId) {
 
     CompactionPlanner planner;
@@ -305,7 +334,7 @@ public class CompactionJobGenerator {
       planner = env.instantiate(tableId, plannerClassName, CompactionPlanner.class);
       CompactionPlannerInitParams initParameters = new CompactionPlannerInitParams(serviceId,
           servicesConfig.getPlannerPrefix(serviceId.canonical()),
-          servicesConfig.getOptions().get(serviceId.canonical()), (ServiceEnvironment) env);
+          servicesConfig.getOptions().get(serviceId.canonical()));
       planner.init(initParameters);
     } catch (Exception e) {
       PLANNING_INIT_ERROR_LOG.trace(

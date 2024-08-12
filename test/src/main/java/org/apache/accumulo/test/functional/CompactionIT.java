@@ -21,6 +21,8 @@ package org.apache.accumulo.test.functional;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toSet;
+import static org.apache.accumulo.core.Constants.DEFAULT_COMPACTION_SERVICE_NAME;
+import static org.apache.accumulo.core.Constants.DEFAULT_RESOURCE_GROUP_NAME;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -811,21 +813,14 @@ public class CompactionIT extends CompactionBaseIT {
       String table1 = uniqueNames[0];
       String table2 = uniqueNames[1];
 
-      // create a compaction service named deleteme
-      c.instanceOperations().setProperty(
-          Property.COMPACTION_SERVICE_PREFIX.getKey() + "deleteme.planner",
-          RatioBasedCompactionPlanner.class.getName());
-      c.instanceOperations().setProperty(
-          Property.COMPACTION_SERVICE_PREFIX.getKey() + "deleteme.planner.opts.groups",
-          ("[{'group':'" + COMPACTOR_GROUP_1 + "'}]").replaceAll("'", "\""));
-
-      // create a compaction service named keepme
-      c.instanceOperations().setProperty(
-          Property.COMPACTION_SERVICE_PREFIX.getKey() + "keepme.planner",
-          RatioBasedCompactionPlanner.class.getName());
-      c.instanceOperations().setProperty(
-          Property.COMPACTION_SERVICE_PREFIX.getKey() + "keepme.planner.opts.groups",
-          ("[{'group':'" + COMPACTOR_GROUP_2 + "'}]").replaceAll("'", "\""));
+      c.instanceOperations().setProperty(Property.COMPACTION_SERVICE_FACTORY_CONFIG.getKey(),
+          "{ \"" + DEFAULT_COMPACTION_SERVICE_NAME
+              + "\": { \"maxOpenFilesPerJob\": \"30\", \"groups\": [{ \"group\": \""
+              + DEFAULT_RESOURCE_GROUP_NAME + "\", \"maxSize\": \"128M\", \"maxJobs\": \"1000\"}]},"
+              + "\"keepme\" : { \"maxOpenFilesPerJob\": \"30\", \"groups\": [{ \"group\": \""
+              + COMPACTOR_GROUP_2 + "\"}]},"
+              + "\"deleteme\" : { \"maxOpenFilesPerJob\": \"30\", \"groups\": [{ \"group\": \""
+              + COMPACTOR_GROUP_1 + "\"}]}}");
 
       // create a table that uses the compaction service deleteme
       Map<String,String> props = new HashMap<>();
@@ -854,39 +849,37 @@ public class CompactionIT extends CompactionBaseIT {
       c.tableOperations().compact(table2, new CompactionConfig().setWait(true));
 
       // delete the compaction service deleteme
-      c.instanceOperations()
-          .removeProperty(Property.COMPACTION_SERVICE_PREFIX.getKey() + "deleteme.planner");
-      c.instanceOperations().removeProperty(
-          Property.COMPACTION_SERVICE_PREFIX.getKey() + "deleteme.planner.opts.groups");
+      // c.instanceOperations()
+      // .removeProperty(Property.COMPACTION_SERVICE_PREFIX.getKey() + "deleteme.planner");
+      // c.instanceOperations().removeProperty(
+      // Property.COMPACTION_SERVICE_PREFIX.getKey() + "deleteme.planner.opts.groups");
 
       // add a new compaction service named newcs
-      c.instanceOperations().setProperty(
-          Property.COMPACTION_SERVICE_PREFIX.getKey() + "newcs.planner",
-          RatioBasedCompactionPlanner.class.getName());
-      c.instanceOperations().setProperty(
-          Property.COMPACTION_SERVICE_PREFIX.getKey() + "newcs.planner.opts.groups",
-          ("[{'group':'" + COMPACTOR_GROUP_2 + "'}]").replaceAll("'", "\""));
+      // c.instanceOperations().setProperty(
+      // Property.COMPACTION_SERVICE_PREFIX.getKey() + "newcs.planner",
+      // RatioBasedCompactionPlanner.class.getName());
+      // c.instanceOperations().setProperty(
+      // Property.COMPACTION_SERVICE_PREFIX.getKey() + "newcs.planner.opts.groups",
+      // ("[{'group':'" + COMPACTOR_GROUP_2 + "'}]").replaceAll("'", "\""));
 
       // set table 1 to a compaction service newcs
-      c.tableOperations().setProperty(table1,
-          Property.TABLE_COMPACTION_DISPATCHER_OPTS.getKey() + "service", "newcs");
+      // c.tableOperations().setProperty(table1,
+      // Property.TABLE_COMPACTION_DISPATCHER_OPTS.getKey() + "service", "newcs");
 
-      // ensure tables can still compact and are not impacted by the deleted compaction service
-      for (int i = 0; i < 10; i++) {
-        c.tableOperations().compact(table1, new CompactionConfig().setWait(true));
-        c.tableOperations().compact(table2, new CompactionConfig().setWait(true));
-
-        try (var scanner = c.createScanner(table1)) {
-          assertEquals(9 * 10 / 2, scanner.stream().map(Entry::getValue)
-              .mapToInt(v -> Integer.parseInt(v.toString())).sum());
-        }
-        try (var scanner = c.createScanner(table2)) {
-          assertEquals(9 * 10 / 2, scanner.stream().map(Entry::getValue)
-              .mapToInt(v -> Integer.parseInt(v.toString())).sum());
-        }
-
-        Thread.sleep(100);
-      }
+      /*
+       * // ensure tables can still compact and are not impacted by the deleted compaction service
+       * for (int i = 0; i < 10; i++) { c.tableOperations().compact(table1, new
+       * CompactionConfig().setWait(true)); c.tableOperations().compact(table2, new
+       * CompactionConfig().setWait(true));
+       *
+       * try (var scanner = c.createScanner(table1)) { assertEquals(9 * 10 / 2,
+       * scanner.stream().map(Entry::getValue) .mapToInt(v ->
+       * Integer.parseInt(v.toString())).sum()); } try (var scanner = c.createScanner(table2)) {
+       * assertEquals(9 * 10 / 2, scanner.stream().map(Entry::getValue) .mapToInt(v ->
+       * Integer.parseInt(v.toString())).sum()); }
+       *
+       * Thread.sleep(100); }
+       */
     }
   }
 

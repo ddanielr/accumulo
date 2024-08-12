@@ -76,6 +76,7 @@ public class ConfigCheckUtil {
             + " must be greater than 0 and less than " + Integer.MAX_VALUE + " but was: " + bsize);
       }
 
+      // See how config is checked here vs higher up?
       if (key.equals(Property.INSTANCE_CRYPTO_FACTORY.getKey())) {
         String cryptoStrategy = Objects.requireNonNull(value);
         verifyValidClassName(key, cryptoStrategy, CryptoServiceFactory.class);

@@ -16,21 +16,26 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.accumulo.core.util.compaction;
+package org.apache.accumulo.server.validation.table;
 
-import java.util.Map;
+import org.apache.accumulo.core.data.TableId;
+import org.apache.accumulo.server.ServerContext;
+import org.apache.accumulo.server.validation.TablePluginValidator;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import org.apache.accumulo.core.spi.compaction.CompactionPlanner;
+public class CompactionDispatcherValidator implements TablePluginValidator {
 
-public class CompactionPlannerInitParams implements CompactionPlanner.InitParameters {
-  private final Map<String,String> plannerOpts;
-
-  public CompactionPlannerInitParams(Map<String,String> plannerOpts) {
-    this.plannerOpts = plannerOpts;
-  }
+  private static final Logger log = LoggerFactory.getLogger(CompactionDispatcherValidator.class);
 
   @Override
-  public Map<String,String> getOptions() {
-    return plannerOpts;
+  public boolean validate(TableId tableId, ServerContext context) {
+    try {
+      context.getTableConfiguration(tableId).getCompactionDispatcher();
+      return true;
+    } catch (Exception e) {
+      log.warn("Failed to validate compaction dispatcher for table {}", tableId, e);
+      return false;
+    }
   }
 }
