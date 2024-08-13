@@ -180,7 +180,7 @@ public class CompactionExecutorIT extends SharedMiniClusterBase {
           + "\"cse1\": { \"planner\": \"" + ErroringPlanner.class.getName()
           + "\", \"opts\": { \"failInInit\" : \"true\"}}, \"cse2\": { \"planner\": \""
           + ErroringPlanner.class.getName() + "\", \"opts\": { \"failInInit\" : \"false\"}},"
-          + "\"cse3\": { \"planner\": \" NonExistentPlanner20240522"
+          + "\"cse3\": { \"planner\": \"NonExistentPlanner20240522"
           + "\", \"opts\": { \"failInInit\" : \"false\"}}}");
 
       // this is meant to be dynamically reconfigured
