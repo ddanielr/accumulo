@@ -51,5 +51,6 @@ public interface CompactionServiceFactory {
    * @param serviceId ID of the desired compaction service
    * @return CompactionPlanner object
    */
-  CompactionPlanner getPlanner(TableId tableId, CompactionServiceId serviceId);
+  CompactionPlanner getPlanner(TableId tableId, CompactionServiceId serviceId,
+      PluginEnvironment env);
 }

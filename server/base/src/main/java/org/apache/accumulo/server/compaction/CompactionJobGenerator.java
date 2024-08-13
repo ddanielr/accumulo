@@ -104,6 +104,8 @@ public class CompactionJobGenerator {
 
     log.debug("Planning for {} {} {}", tablet.getExtent(), kinds, this.hashCode());
 
+    // Two Different calls (dispatch and then plan) which could be combined into the same
+    // CompactionTBDFactory
     if (kinds.contains(CompactionKind.SYSTEM)) {
       CompactionServiceId serviceId = dispatch(CompactionKind.SYSTEM, tablet, Map.of());
       systemJobs = planCompactions(serviceId, CompactionKind.SYSTEM, tablet, Map.of());
@@ -131,9 +133,12 @@ public class CompactionJobGenerator {
     }
   }
 
+  // Dispatcher is used here in the CompactionJobGenerator.
+  //
   private CompactionServiceId dispatch(CompactionKind kind, TabletMetadata tablet,
       Map<String,String> executionHints) {
 
+    // Call the compaction factory instead?
     CompactionDispatcher dispatcher = dispatchers.get(tablet.getTableId(),
         tableId -> CompactionPluginUtils.createDispatcher((ServiceEnvironment) env, tableId));
 
@@ -167,7 +172,7 @@ public class CompactionJobGenerator {
       CompactionKind kind, TabletMetadata tablet, Map<String,String> executionHints) {
 
     CompactionPlanner planner = planners.computeIfAbsent(serviceId,
-        sid -> compactionServiceFactory.getPlanner(tablet.getTableId(), serviceId));
+        sid -> compactionServiceFactory.getPlanner(tablet.getTableId(), serviceId, env));
 
     if (planner.getClass().equals(ProvisionalCompactionPlanner.class)) {
       UNKNOWN_SERVICE_ERROR_LOG.trace(
@@ -239,6 +244,8 @@ public class CompactionJobGenerator {
       return Set.of();
     }
 
+    // Once files are selected, then call the planner.
+
     CompactionPlanner.PlanningParameters params = new CompactionPlanner.PlanningParameters() {
       @Override
       public TableId getTableId() {
@@ -299,7 +306,7 @@ public class CompactionJobGenerator {
 
     CompactionPlanner planner;
     try {
-      planner = compactionServiceFactory.getPlanner(tableId, serviceId);
+      planner = compactionServiceFactory.getPlanner(tableId, serviceId, env);
     } catch (Exception e) {
       PLANNING_INIT_ERROR_LOG
           .trace("Failed to create compaction planner for service:{} tableId:{}.  Compaction "
@@ -310,6 +317,7 @@ public class CompactionJobGenerator {
     return planner;
   }
 
+  // This could be internal to the Factory
   private Collection<CompactionJob> planCompactions(CompactionPlanner planner,
       CompactionPlanner.PlanningParameters params, CompactionServiceId serviceId) {
     try {

@@ -48,17 +48,17 @@ public class SimpleCompactionServiceFactoryTest {
         + "\", \"opts\": {\"maxOpenFilesPerJob\": \"30\"}, \"groups\": [{\"group\": \"DCQ1\"}]},"
         + "\"csf2\" : {\"planner\": \"" + RatioBasedCompactionPlanner.class.getName()
         + "\", \"opts\": {\"maxOpenFilesPerJob\": \"30\"}, \"groups\": [{\"group\": \"DCQ2\"}]},"
-        + "\"}]}, \"csf3\" : {\"planner\": \"" + RatioBasedCompactionPlanner.class.getName()
+        + "\"csf3\" : {\"planner\": \"" + RatioBasedCompactionPlanner.class.getName()
         + "\", \"opts\": {\"maxOpenFilesPerJob\": \"30\"}, \"groups\": [{\"group\": \"DCQ3\"}]},"
-        + "\"}]}, \"csf4\" : {\"planner\": \"" + RatioBasedCompactionPlanner.class.getName()
+        + "\"csf4\" : {\"planner\": \"" + RatioBasedCompactionPlanner.class.getName()
         + "\", \"opts\": {\"maxOpenFilesPerJob\": \"30\"}, \"groups\": [{\"group\": \"DCQ4\"}]},"
-        + "\"}]}, \"csf5\" : {\"planner\": \"" + RatioBasedCompactionPlanner.class.getName()
+        + "\"csf5\" : {\"planner\": \"" + RatioBasedCompactionPlanner.class.getName()
         + "\", \"opts\": {\"maxOpenFilesPerJob\": \"30\"}, \"groups\": [{\"group\": \"DCQ5\"}]},"
-        + "\"}]}, \"csf6\" : {\"planner\": \"" + RatioBasedCompactionPlanner.class.getName()
+        + "\"csf6\" : {\"planner\": \"" + RatioBasedCompactionPlanner.class.getName()
         + "\", \"opts\": {\"maxOpenFilesPerJob\": \"30\"}, \"groups\": [{\"group\": \"DCQ6\"}]},"
-        + "\"}]}, \"csf7\" : {\"planner\": \"" + RatioBasedCompactionPlanner.class.getName()
+        + "\"csf7\" : {\"planner\": \"" + RatioBasedCompactionPlanner.class.getName()
         + "\", \"opts\": {\"maxOpenFilesPerJob\": \"30\"}, \"groups\": [{\"group\": \"DCQ7\"}]},"
-        + "\"}]}, \"csf8\" : { \"planner\": \"" + RatioBasedCompactionPlanner.class.getName()
+        + "\"csf8\" : { \"planner\": \"" + RatioBasedCompactionPlanner.class.getName()
         + "\", \"opts\": {\"maxOpenFilesPerJob\": \"30\"}, \"groups\": [{\"group\": \"DCQ8\"}]}}");
     var conf = new ConfigurationImpl(SiteConfiguration.empty().withOverrides(overrides).build());
     var testCSF = new SimpleCompactionServiceFactory();
@@ -76,13 +76,13 @@ public class SimpleCompactionServiceFactoryTest {
     csf = testCSF;
     csf.init(env);
 
-    var planner = csf.getPlanner(tableId, CompactionServiceId.of("default"));
+    var planner = csf.getPlanner(tableId, CompactionServiceId.of("default"), env);
     assertEquals(planner.getClass().getName(), RatioBasedCompactionPlanner.class.getName());
 
-    planner = csf.getPlanner(tableId, CompactionServiceId.of("Unknown"));
+    planner = csf.getPlanner(tableId, CompactionServiceId.of("Unknown"), env);
     assertEquals(planner.getClass().getName(), ProvisionalCompactionPlanner.class.getName());
 
-    planner = csf.getPlanner(tableId, CompactionServiceId.of("csf1"));
+    planner = csf.getPlanner(tableId, CompactionServiceId.of("csf1"), env);
     assertEquals(planner.getClass().getName(), RatioBasedCompactionPlanner.class.getName());
   }
 

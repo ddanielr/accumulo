@@ -60,7 +60,8 @@ public class NoCompactionServiceFactory implements CompactionServiceFactory {
    * @return CompactionPlanner that is set for the specified CompactionServiceId
    */
   @Override
-  public CompactionPlanner getPlanner(TableId tableId, CompactionServiceId serviceId) {
+  public CompactionPlanner getPlanner(TableId tableId, CompactionServiceId serviceId,
+      PluginEnvironment env) {
     return NONE;
   }
 }

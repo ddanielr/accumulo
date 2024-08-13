@@ -22,7 +22,6 @@ import static org.apache.accumulo.core.compaction.CompactionServiceFactoryLoader
 import static org.apache.accumulo.core.compaction.CompactionServiceFactoryLoader.ClassloaderType.JAVA;
 
 import org.apache.accumulo.core.client.PluginEnvironment;
-import org.apache.accumulo.core.conf.AccumuloConfiguration;
 import org.apache.accumulo.core.conf.ConfigurationTypeHelper;
 import org.apache.accumulo.core.conf.Property;
 import org.apache.accumulo.core.spi.compaction.CompactionPlanner;
@@ -51,10 +50,9 @@ public class CompactionServiceFactoryLoader {
   /**
    * Creates a new server Factory.
    */
-  public static CompactionServiceFactory newInstance(AccumuloConfiguration conf,
-      PluginEnvironment env) {
-    String clazzName = conf.get(Property.COMPACTION_SERVICE_FACTORY);
-    return loadCompactionServiceFactory(ACCUMULO, clazzName, env);
+  public static CompactionServiceFactory newInstance(PluginEnvironment env) {
+    String clazzName = env.getConfiguration().get(Property.COMPACTION_SERVICE_FACTORY.getKey());
+    return loadCompactionServiceFactory(ACCUMULO, clazzName);
   }
 
   /**
@@ -62,14 +60,14 @@ public class CompactionServiceFactoryLoader {
    * configuration. Creates a new Factory from the configuration and gets the CompactionPlanner from
    * that Factory.
    */
-  public static CompactionPlanner getServiceForServer(AccumuloConfiguration conf,
-      CompactionServiceId csid, PluginEnvironment env) {
-    CompactionServiceFactory factory = newInstance(conf, env);
-    return factory.getPlanner(null, csid);
+  public static CompactionPlanner getServiceForServer(CompactionServiceId csid,
+      PluginEnvironment env) {
+    CompactionServiceFactory factory = newInstance(env);
+    return factory.getPlanner(null, csid, env);
   }
 
   private static CompactionServiceFactory loadCompactionServiceFactory(ClassloaderType ct,
-      String clazzName, PluginEnvironment env) {
+      String clazzName) {
     log.debug("Creating new compaction factory class {}", clazzName);
     CompactionServiceFactory newCompactionServiceFactory;
 
@@ -91,7 +89,6 @@ public class CompactionServiceFactoryLoader {
     } else {
       throw new IllegalArgumentException();
     }
-    newCompactionServiceFactory.init(env);
     return newCompactionServiceFactory;
   }
 }

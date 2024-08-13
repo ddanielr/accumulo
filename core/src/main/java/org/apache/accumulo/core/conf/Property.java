@@ -847,6 +847,7 @@ public enum Property {
       "Setting this property to true will call"
           + "FSDataOutputStream.setDropBehind(true) on the major compaction output stream.",
       "2.1.1"),
+  // Is this a top level property that should be separate vs internal to the compaction factory?
   TABLE_MAJC_RATIO("table.compaction.major.ratio", "3", PropertyType.FRACTION,
       "Minimum ratio of total input size to maximum input RFile size for"
           + " running a major compaction.",

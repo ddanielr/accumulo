@@ -464,7 +464,6 @@ public class ExternalCompactionTestUtils {
 
     private static final Logger log = LoggerFactory
         .getLogger(org.apache.accumulo.core.spi.compaction.SimpleCompactionServiceFactory.class);
-    private PluginEnvironment env;
     private final String plannerClassName = TestPlanner.class.getName();
     private Map<String,String> plannerOpts = new HashMap<>();
     private final Map<CompactionServiceId,Map<String,String>> serviceOpts = new HashMap<>();
@@ -482,7 +481,6 @@ public class ExternalCompactionTestUtils {
 
     @Override
     public void init(PluginEnvironment env) {
-      this.env = env;
       var config = env.getConfiguration();
       String factoryConfig = config.get(COMPACTION_SERVICE_FACTORY_CONFIG.getKey());
 
@@ -575,7 +573,8 @@ public class ExternalCompactionTestUtils {
     }
 
     @Override
-    public CompactionPlanner getPlanner(TableId tableId, CompactionServiceId serviceId) {
+    public CompactionPlanner getPlanner(TableId tableId, CompactionServiceId serviceId,
+        PluginEnvironment env) {
       if (!serviceOpts.containsKey(serviceId)) {
         log.error("Compaction service {} does not exist", serviceId);
         return new ProvisionalCompactionPlanner(serviceId);
