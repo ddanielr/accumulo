@@ -98,6 +98,7 @@ import org.apache.accumulo.minicluster.MiniAccumuloCluster;
 import org.apache.accumulo.minicluster.ServerType;
 import org.apache.accumulo.server.ServerContext;
 import org.apache.accumulo.server.ServerDirs;
+import org.apache.accumulo.server.ServiceEnvironmentImpl;
 import org.apache.accumulo.server.fs.VolumeManager;
 import org.apache.accumulo.server.init.Initialize;
 import org.apache.accumulo.server.util.AccumuloStatus;
@@ -753,6 +754,8 @@ public class MiniAccumuloClusterImpl implements AccumuloCluster {
 
     Set<String> groupNames = new HashSet<>();
     CompactionServiceFactory compactionServiceFactory = context.get().getCompactionServiceFactory();
+    // Not sure if we should do this now or put init back in the serverContext.
+    compactionServiceFactory.init(new ServiceEnvironmentImpl(context.get()));
     for (CompactionServiceId csid : compactionServiceFactory.getCompactionServiceIds()) {
       compactionServiceFactory.getCompactionGroups(csid)
           .forEach(group -> groupNames.add(group.getGroupId().canonical()));
