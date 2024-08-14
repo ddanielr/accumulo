@@ -50,8 +50,8 @@ public class CompactionPlannerInitParams implements CompactionPlanner.InitParame
       @Override
       public CompactorGroupId getGroup(String name) {
         var cgid = CompactorGroupId.of(name);
-        Preconditions.checkArgument(!compactorGroups.contains(cgid),
-            "Duplicate compactor group for group: " + name);
+        Preconditions.checkArgument(compactorGroups.stream().map(CompactionGroup::getGroupId)
+            .noneMatch(id -> id.equals(cgid)), "Duplicate compactor group for group: " + name);
         return cgid;
       }
 

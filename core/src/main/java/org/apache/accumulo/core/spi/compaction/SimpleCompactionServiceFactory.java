@@ -168,13 +168,16 @@ public class SimpleCompactionServiceFactory implements CompactionServiceFactory 
 
   @Override
   public Collection<CompactionGroup> getCompactionGroups(CompactionServiceId serviceId) {
-    Preconditions.checkNotNull(factoryConfig.get().serviceGroups.get(serviceId),
+    Objects.requireNonNull(factoryConfig.get().serviceGroups.get(serviceId),
         "Compaction Service " + serviceId + "is not defined");
     return factoryConfig.get().serviceGroups.get(serviceId);
   }
 
   @Override
   public Set<CompactionServiceId> getCompactionServiceIds() {
+    if (factoryConfig.get().serviceGroups.isEmpty()) {
+      return Set.of();
+    }
     return factoryConfig.get().serviceGroups.keySet();
   }
 

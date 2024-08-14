@@ -31,8 +31,11 @@ import org.apache.accumulo.core.conf.ConfigurationCopy;
 import org.apache.accumulo.core.conf.DefaultConfiguration;
 import org.apache.accumulo.core.conf.Property;
 import org.apache.accumulo.core.spi.compaction.CompactionServiceFactory;
+import org.apache.accumulo.core.spi.compaction.CompactionServiceId;
 import org.apache.accumulo.core.spi.compaction.SimpleCompactionServiceFactory;
+import org.apache.accumulo.core.util.cache.Caches;
 import org.apache.accumulo.server.ServerContext;
+import org.apache.accumulo.server.ServiceEnvironmentImpl;
 import org.apache.accumulo.server.fs.VolumeManager;
 import org.apache.accumulo.server.fs.VolumeManagerImpl;
 import org.apache.hadoop.conf.Configuration;
@@ -52,8 +55,9 @@ public class CompactionServiceFactoryTest {
     config.set(Property.INSTANCE_VOLUMES.getKey(), "file:///");
 
     context = mock(ServerContext.class);
-    expect(context.getCompactionServiceFactory()).andReturn(compactionServiceFactory).anyTimes();
     expect(context.getConfiguration()).andReturn(config).anyTimes();
+    expect(context.getCaches()).andReturn(Caches.getInstance()).anyTimes();
+    expect(context.getCompactionServiceFactory()).andReturn(compactionServiceFactory).anyTimes();
     expect(context.getHadoopConf()).andReturn(new Configuration()).anyTimes();
     VolumeManager volumeManager = VolumeManagerImpl.get(config, new Configuration());
     expect(context.getVolumeManager()).andReturn(volumeManager).anyTimes();
@@ -72,7 +76,12 @@ public class CompactionServiceFactoryTest {
   public void getCompactionServiceFactoryTest() throws Exception {
 
     CompactionServiceFactory compactionServiceFactory = context.getCompactionServiceFactory();
-    assertEquals(compactionServiceFactory.getCompactionServiceIds(), Set.of());
+    var serviceEnv = new ServiceEnvironmentImpl(context);
+    compactionServiceFactory.init(serviceEnv);
+
+    assertEquals(1, compactionServiceFactory.getCompactionServiceIds().size());
+    assertEquals(Set.of(CompactionServiceId.of("default")),
+        compactionServiceFactory.getCompactionServiceIds());
 
   }
 
