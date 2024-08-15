@@ -168,6 +168,7 @@ public class SimpleCompactionServiceFactory implements CompactionServiceFactory 
 
   @Override
   public Collection<CompactionGroup> getCompactionGroups(CompactionServiceId serviceId) {
+    Objects.requireNonNull(factoryConfig.get(), "Factory Config has not been initialized");
     Objects.requireNonNull(factoryConfig.get().serviceGroups.get(serviceId),
         "Compaction Service " + serviceId + "is not defined");
     return factoryConfig.get().serviceGroups.get(serviceId);
@@ -175,6 +176,7 @@ public class SimpleCompactionServiceFactory implements CompactionServiceFactory 
 
   @Override
   public Set<CompactionServiceId> getCompactionServiceIds() {
+    Objects.requireNonNull(factoryConfig.get(), "Factory Config has not been initialized");
     if (factoryConfig.get().serviceGroups.isEmpty()) {
       return Set.of();
     }
@@ -184,6 +186,8 @@ public class SimpleCompactionServiceFactory implements CompactionServiceFactory 
   @Override
   public CompactionPlanner getPlanner(TableId tableId, CompactionServiceId serviceId,
       PluginEnvironment env) {
+    Objects.requireNonNull(factoryConfig.get(), "Factory Config has not been initialized");
+
     if (!factoryConfig.get().serviceOpts.containsKey(serviceId)) {
       log.error("Compaction service {} does not exist", serviceId);
       return new ProvisionalCompactionPlanner(serviceId);
@@ -193,7 +197,7 @@ public class SimpleCompactionServiceFactory implements CompactionServiceFactory 
     // These get internalized into the planner.
     // Planners require a validation method.
     Set<CompactionGroup> groups = factoryConfig.get().serviceGroups.get(serviceId);
-    Preconditions.checkNotNull(groups, "Compaction groups are not defined for: " + serviceId);
+    Objects.requireNonNull(groups, "Compaction groups are not defined for: " + serviceId);
 
     // Parse the Planner OPTS here vs up in init?
     var plannerOpts = GSON.get().fromJson(options.get("plannerOpts"), PlannerOpts.class);
