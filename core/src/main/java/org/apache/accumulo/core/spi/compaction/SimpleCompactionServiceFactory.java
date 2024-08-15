@@ -193,7 +193,7 @@ public class SimpleCompactionServiceFactory implements CompactionServiceFactory 
     // These get internalized into the planner.
     // Planners require a validation method.
     Set<CompactionGroup> groups = factoryConfig.get().serviceGroups.get(serviceId);
-    Preconditions.checkNotNull(groups, "Compaction groups are not defined for: {}", serviceId);
+    Preconditions.checkNotNull(groups, "Compaction groups are not defined for: " + serviceId);
 
     // Parse the Planner OPTS here vs up in init?
     var plannerOpts = GSON.get().fromJson(options.get("plannerOpts"), PlannerOpts.class);
