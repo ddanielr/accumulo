@@ -37,6 +37,7 @@ import org.apache.accumulo.core.iteratorsImpl.system.DeletingIterator;
 import org.apache.accumulo.core.metadata.AccumuloTable;
 import org.apache.accumulo.core.spi.compaction.RatioBasedCompactionPlanner;
 import org.apache.accumulo.core.spi.compaction.SimpleCompactionDispatcher;
+import org.apache.accumulo.core.spi.compaction.SimpleCompactionServiceFactory;
 import org.apache.accumulo.core.spi.fs.RandomVolumeChooser;
 import org.apache.accumulo.core.spi.scan.ScanDispatcher;
 import org.apache.accumulo.core.spi.scan.ScanPrioritizer;
@@ -62,6 +63,10 @@ public enum Property {
           + "`compaction.service.newService.opts.maxOpen=50`.\n"
           + "Additional options can be defined using the `compaction.service.<service>.opts.<option>` property.",
       "3.1.0"),
+  COMPACTION_SERVICE_FACTORY(COMPACTION_SERVICE_PREFIX + "factory",
+      SimpleCompactionServiceFactory.class.getName(), PropertyType.CLASSNAME,
+      "Compaction Service Factory class to use for generating compaction services.", "4.0.0"),
+
   COMPACTION_SERVICE_DEFAULT_PLANNER(
       COMPACTION_SERVICE_PREFIX + DEFAULT_COMPACTION_SERVICE_NAME + ".planner",
       RatioBasedCompactionPlanner.class.getName(), PropertyType.CLASSNAME,
