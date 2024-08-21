@@ -80,8 +80,6 @@ public class CompactionJobGenerator {
       PluginEnvironment env, Map<FateId,Map<String,String>> executionHints, SteadyTime steadyTime) {
 
     this.compactionServiceFactory = compactionServiceFactory;
-    compactionServiceFactory.init(env);
-
     serviceIds = this.compactionServiceFactory.getCompactionServiceIds();
 
     dispatchers = Caches.getInstance().createNewBuilder(CacheName.COMPACTION_DISPATCHERS, false)

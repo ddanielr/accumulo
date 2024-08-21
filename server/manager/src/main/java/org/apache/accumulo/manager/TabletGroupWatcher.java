@@ -73,6 +73,7 @@ import org.apache.accumulo.core.metadata.schema.TabletMetadata;
 import org.apache.accumulo.core.metadata.schema.TabletMetadata.Location;
 import org.apache.accumulo.core.security.Authorizations;
 import org.apache.accumulo.core.spi.compaction.CompactionServiceFactory;
+import org.apache.accumulo.core.spi.compaction.NoCompactionServiceFactory;
 import org.apache.accumulo.core.util.threads.Threads;
 import org.apache.accumulo.core.util.threads.Threads.AccumuloDaemonThread;
 import org.apache.accumulo.manager.metrics.ManagerMetrics;
@@ -135,7 +136,16 @@ abstract class TabletGroupWatcher extends AccumuloDaemonThread {
     this.walStateManager = new WalStateManager(manager.getContext());
     this.eventHandler = new EventHandler();
     manager.getEventCoordinator().addListener(store.getLevel(), eventHandler);
-    compactionServiceFactory = this.manager.getContext().getCompactionServiceFactory();
+    ServiceEnvironmentImpl senv = new ServiceEnvironmentImpl(manager.getContext());
+    try {
+      compactionServiceFactory =
+          senv.instantiate(manager.getConfiguration().get(Property.COMPACTION_SERVICE_FACTORY),
+              CompactionServiceFactory.class);
+      compactionServiceFactory.init(senv);
+    } catch (ReflectiveOperationException e) {
+      // Not sure if we want to use this generic CompactionService
+      compactionServiceFactory = new NoCompactionServiceFactory();
+    }
   }
 
   /** Should this {@code TabletGroupWatcher} suspend tablets? */

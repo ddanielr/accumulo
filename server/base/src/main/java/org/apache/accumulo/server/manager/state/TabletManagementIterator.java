@@ -187,9 +187,9 @@ public class TabletManagementIterator extends WholeRowIterator {
     try {
       compactionServiceFactory = env.getPluginEnv().instantiate(
           conf.get(Property.COMPACTION_SERVICE_FACTORY), CompactionServiceFactory.class);
-      // Init this class here. Need to figure out how to get the serverContext here
       compactionServiceFactory.init(env.getPluginEnv());
     } catch (ReflectiveOperationException e) {
+      // Not sure if we want to use this generic CompactionService
       compactionServiceFactory = new NoCompactionServiceFactory();
     }
     compactionGenerator = new CompactionJobGenerator(compactionServiceFactory, env.getPluginEnv(),

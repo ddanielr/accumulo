@@ -18,7 +18,6 @@
  */
 package org.apache.accumulo.test.compaction;
 
-import static org.apache.accumulo.core.Constants.DEFAULT_COMPACTION_SERVICE_NAME;
 import static org.apache.accumulo.core.Constants.DEFAULT_RESOURCE_GROUP_NAME;
 import static org.apache.accumulo.core.conf.Property.COMPACTION_SERVICE_FACTORY_CONFIG;
 import static org.apache.accumulo.core.util.LazySingletons.GSON;
@@ -84,6 +83,7 @@ import org.apache.accumulo.core.spi.compaction.CompactionServiceFactory;
 import org.apache.accumulo.core.spi.compaction.CompactionServiceId;
 import org.apache.accumulo.core.spi.compaction.CompactorGroupId;
 import org.apache.accumulo.core.spi.compaction.ProvisionalCompactionPlanner;
+import org.apache.accumulo.core.spi.compaction.RatioBasedCompactionPlanner;
 import org.apache.accumulo.core.spi.compaction.SimpleCompactionDispatcher;
 import org.apache.accumulo.core.trace.TraceUtil;
 import org.apache.accumulo.core.util.UtilWaitThread;
@@ -225,18 +225,26 @@ public class ExternalCompactionTestUtils {
 
     // configure the compaction services to use the queues
 
-    cfg.setProperty(COMPACTION_SERVICE_FACTORY_CONFIG.getKey(), "{ \""
-        + DEFAULT_COMPACTION_SERVICE_NAME
-        + "\": { \"maxOpenFilesPerJob\": \"30\", \"groups\": [{ \"group\": \""
+    cfg.setProperty(COMPACTION_SERVICE_FACTORY_CONFIG.getKey(), "{ \"default\": {\"planner\": \""
+        + RatioBasedCompactionPlanner.class.getName()
+        + "\", \"opts\": {\"maxOpenFilesPerJob\": \"30\"}, \"groups\": [{\"group\": \""
         + DEFAULT_RESOURCE_GROUP_NAME + "\", \"maxSize\": \"128M\"}]},"
-        + "\"cs1\" : { \"maxOpenFilesPerJob\": \"30\", \"groups\": [{ \"group\": \"" + GROUP1
-        + "\"}]}, \"cs2\" : { \"maxOpenFilesPerJob\": \"30\", \"groups\": [{ \"group\": \"" + GROUP2
-        + "\"}]}, \"cs3\" : { \"maxOpenFilesPerJob\": \"30\", \"groups\": [{ \"group\": \"" + GROUP3
-        + "\"}]}, \"cs4\" : { \"maxOpenFilesPerJob\": \"30\", \"groups\": [{ \"group\": \"" + GROUP4
-        + "\"}]}, \"cs5\" : { \"maxOpenFilesPerJob\": \"30\", \"groups\": [{ \"group\": \"" + GROUP5
-        + "\"}]}, \"cs6\" : { \"maxOpenFilesPerJob\": \"30\", \"groups\": [{ \"group\": \"" + GROUP6
-        + "\"}]}, \"cs7\" : { \"maxOpenFilesPerJob\": \"30\", \"groups\": [{ \"group\": \"" + GROUP7
-        + "\"}]}, \"cs8\" : { \"maxOpenFilesPerJob\": \"30\", \"groups\": [{ \"group\": \"" + GROUP8
+        + "\"cs1\" : {\"planner\": \"" + RatioBasedCompactionPlanner.class.getName() + "\","
+        + "\"opts\": {\"maxOpenFilesPerJob\": \"30\"}, \"groups\": [{\"group\": \"" + GROUP1
+        + "\"}]}, \"cs2\" : { \"planner\": \"" + RatioBasedCompactionPlanner.class.getName() + "\","
+        + "\"opts\": {\"maxOpenFilesPerJob\": \"30\"}, \"groups\": [{\"group\": \"" + GROUP2
+        + "\"}]}, \"cs3\" : { \"planner\": \"" + RatioBasedCompactionPlanner.class.getName() + "\","
+        + "\"opts\": {\"maxOpenFilesPerJob\": \"30\"}, \"groups\": [{\"group\": \"" + GROUP3
+        + "\"}]}, \"cs4\" : { \"planner\": \"" + RatioBasedCompactionPlanner.class.getName() + "\","
+        + "\"opts\": {\"maxOpenFilesPerJob\": \"30\"}, \"groups\": [{\"group\": \"" + GROUP4
+        + "\"}]}, \"cs5\" : { \"planner\": \"" + RatioBasedCompactionPlanner.class.getName() + "\","
+        + "\"opts\": {\"maxOpenFilesPerJob\": \"30\"}, \"groups\": [{\"group\": \"" + GROUP5
+        + "\"}]}, \"cs6\" : { \"planner\": \"" + RatioBasedCompactionPlanner.class.getName() + "\","
+        + "\"opts\": {\"maxOpenFilesPerJob\": \"30\"}, \"groups\": [{\"group\": \"" + GROUP6
+        + "\"}]}, \"cs7\" : { \"planner\": \"" + RatioBasedCompactionPlanner.class.getName() + "\","
+        + "\"opts\": {\"maxOpenFilesPerJob\": \"30\"}, \"groups\": [{\"group\": \"" + GROUP7
+        + "\"}]}, \"cs8\" : { \"planner\": \"" + RatioBasedCompactionPlanner.class.getName() + "\","
+        + "\"opts\": {\"maxOpenFilesPerJob\": \"30\"}, \"groups\": [{\"group\": \"" + GROUP8
         + "\"}]}}");
 
     cfg.setProperty(Property.COMPACTION_COORDINATOR_FINALIZER_COMPLETION_CHECK_INTERVAL, "5s");

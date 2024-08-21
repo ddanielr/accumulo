@@ -32,7 +32,8 @@ import org.apache.accumulo.core.data.TableId;
 public interface CompactionServiceFactory {
 
   /**
-   * Initializer for compaction factory
+   * Initializer for compaction factory. This would also initialize any planners that are defined
+   * within the compaction factory
    *
    * @param env PluginEnv for the environment
    */

@@ -91,6 +91,7 @@ import org.apache.accumulo.core.manager.thrift.ManagerMonitorInfo;
 import org.apache.accumulo.core.rpc.clients.ThriftClientTypes;
 import org.apache.accumulo.core.spi.compaction.CompactionServiceFactory;
 import org.apache.accumulo.core.spi.compaction.CompactionServiceId;
+import org.apache.accumulo.core.spi.compaction.NoCompactionServiceFactory;
 import org.apache.accumulo.core.trace.TraceUtil;
 import org.apache.accumulo.core.util.Pair;
 import org.apache.accumulo.manager.state.SetGoalState;
@@ -753,8 +754,9 @@ public class MiniAccumuloClusterImpl implements AccumuloCluster {
   private Set<String> getCompactionGroupNames() throws ClassNotFoundException {
 
     Set<String> groupNames = new HashSet<>();
-    CompactionServiceFactory compactionServiceFactory = context.get().getCompactionServiceFactory();
-    // Not sure if we should do this now or put init back in the serverContext.
+    CompactionServiceFactory compactionServiceFactory = Property.createInstanceFromPropertyName(
+        getServerContext().getConfiguration(), Property.COMPACTION_SERVICE_FACTORY,
+        CompactionServiceFactory.class, new NoCompactionServiceFactory());
     compactionServiceFactory.init(new ServiceEnvironmentImpl(context.get()));
     for (CompactionServiceId csid : compactionServiceFactory.getCompactionServiceIds()) {
       compactionServiceFactory.getCompactionGroups(csid)
