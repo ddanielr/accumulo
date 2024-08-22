@@ -76,6 +76,7 @@ import org.apache.accumulo.core.metadata.schema.TabletsMetadata;
 import org.apache.accumulo.core.rpc.ThriftUtil;
 import org.apache.accumulo.core.rpc.clients.ThriftClientTypes;
 import org.apache.accumulo.core.spi.compaction.CompactionGroup;
+import org.apache.accumulo.core.spi.compaction.CompactionJob;
 import org.apache.accumulo.core.spi.compaction.CompactionKind;
 import org.apache.accumulo.core.spi.compaction.CompactionPlan;
 import org.apache.accumulo.core.spi.compaction.CompactionPlanner;
@@ -470,6 +471,7 @@ public class ExternalCompactionTestUtils {
 
   public static class TestCompactionServiceFactory implements CompactionServiceFactory {
 
+    private PluginEnvironment env;
     private static final Logger log = LoggerFactory
         .getLogger(org.apache.accumulo.core.spi.compaction.SimpleCompactionServiceFactory.class);
     private final String plannerClassName = TestPlanner.class.getName();
@@ -489,6 +491,7 @@ public class ExternalCompactionTestUtils {
 
     @Override
     public void init(PluginEnvironment env) {
+      this.env = env;
       var config = env.getConfiguration();
       String factoryConfig = config.get(COMPACTION_SERVICE_FACTORY_CONFIG.getKey());
 
@@ -580,8 +583,7 @@ public class ExternalCompactionTestUtils {
       return serviceOpts.keySet();
     }
 
-    @Override
-    public CompactionPlanner getPlanner(TableId tableId, CompactionServiceId serviceId,
+    private CompactionPlanner getPlanner(TableId tableId, CompactionServiceId serviceId,
         PluginEnvironment env) {
       if (!serviceOpts.containsKey(serviceId)) {
         log.error("Compaction service {} does not exist", serviceId);
@@ -603,6 +605,24 @@ public class ExternalCompactionTestUtils {
       }
       return planner;
     }
+
+    @Override
+    public Collection<CompactionJob> planCompactions(CompactionPlanner.PlanningParameters params,
+        CompactionServiceId serviceId) {
+      try {
+        CompactionPlanner planner = getPlanner(params.getTableId(), serviceId, env);
+        return planner.makePlan(params).getJobs();
+      } catch (Exception e) {
+        // PLANNING_ERROR_LOG.trace(
+        log.trace(
+            "Failed to plan compactions for service:{} kind:{} tableId:{} hints:{}.  Compaction service may not start any"
+                + " new compactions until this issue is resolved. Duplicates of this log message are temporarily"
+                + " suppressed.",
+            serviceId, params.getKind(), params.getTableId(), params.getExecutionHints(), e);
+        return Set.of();
+      }
+    }
+
   }
 
 }

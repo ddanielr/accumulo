@@ -20,10 +20,10 @@ package org.apache.accumulo.core.spi.compaction;
 
 import static org.apache.accumulo.core.Constants.DEFAULT_RESOURCE_GROUP_NAME;
 
+import java.util.Collection;
 import java.util.Set;
 
 import org.apache.accumulo.core.client.PluginEnvironment;
-import org.apache.accumulo.core.data.TableId;
 
 public class NoCompactionServiceFactory implements CompactionServiceFactory {
   public static final CompactionServiceId csid = CompactionServiceId.of("NoCompactionService");
@@ -55,13 +55,9 @@ public class NoCompactionServiceFactory implements CompactionServiceFactory {
     return Set.of(csid);
   }
 
-  /**
-   * @param serviceId ID of the desired compaction service
-   * @return CompactionPlanner that is set for the specified CompactionServiceId
-   */
   @Override
-  public CompactionPlanner getPlanner(TableId tableId, CompactionServiceId serviceId,
-      PluginEnvironment env) {
-    return NONE;
+  public Collection<CompactionJob> planCompactions(CompactionPlanner.PlanningParameters params,
+      CompactionServiceId serviceId) {
+    return Set.of();
   }
 }

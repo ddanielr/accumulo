@@ -18,7 +18,6 @@
  */
 package org.apache.accumulo.server.compaction;
 
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -35,7 +34,6 @@ import org.apache.accumulo.core.conf.ConfigurationTypeHelper;
 import org.apache.accumulo.core.conf.Property;
 import org.apache.accumulo.core.data.TableId;
 import org.apache.accumulo.core.fate.FateId;
-import org.apache.accumulo.core.logging.ConditionalLogger;
 import org.apache.accumulo.core.metadata.CompactableFileImpl;
 import org.apache.accumulo.core.metadata.schema.TabletMetadata;
 import org.apache.accumulo.core.spi.common.ServiceEnvironment;
@@ -47,7 +45,6 @@ import org.apache.accumulo.core.spi.compaction.CompactionPlanner;
 import org.apache.accumulo.core.spi.compaction.CompactionServiceFactory;
 import org.apache.accumulo.core.spi.compaction.CompactionServiceId;
 import org.apache.accumulo.core.spi.compaction.CompactionServices;
-import org.apache.accumulo.core.spi.compaction.ProvisionalCompactionPlanner;
 import org.apache.accumulo.core.util.cache.Caches;
 import org.apache.accumulo.core.util.cache.Caches.CacheName;
 import org.apache.accumulo.core.util.compaction.CompactionJobImpl;
@@ -55,18 +52,11 @@ import org.apache.accumulo.core.util.compaction.CompactionPlanImpl;
 import org.apache.accumulo.core.util.time.SteadyTime;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.slf4j.event.Level;
 
 import com.github.benmanes.caffeine.cache.Cache;
 
 public class CompactionJobGenerator {
   private static final Logger log = LoggerFactory.getLogger(CompactionJobGenerator.class);
-  private static final Logger UNKNOWN_SERVICE_ERROR_LOG =
-      new ConditionalLogger.EscalatingLogger(log, Duration.ofMinutes(5), 3000, Level.ERROR);
-  private static final Logger PLANNING_INIT_ERROR_LOG =
-      new ConditionalLogger.EscalatingLogger(log, Duration.ofMinutes(5), 3000, Level.ERROR);
-  private static final Logger PLANNING_ERROR_LOG =
-      new ConditionalLogger.EscalatingLogger(log, Duration.ofMinutes(5), 3000, Level.ERROR);
 
   private final CompactionServiceFactory compactionServiceFactory;
   private final Map<CompactionServiceId,CompactionPlanner> planners = new HashMap<>();
@@ -169,18 +159,6 @@ public class CompactionJobGenerator {
 
   private Collection<CompactionJob> planCompactions(CompactionServiceId serviceId,
       CompactionKind kind, TabletMetadata tablet, Map<String,String> executionHints) {
-
-    CompactionPlanner planner = planners.computeIfAbsent(serviceId,
-        sid -> compactionServiceFactory.getPlanner(tablet.getTableId(), serviceId, env));
-
-    if (planner.getClass().equals(ProvisionalCompactionPlanner.class)) {
-      UNKNOWN_SERVICE_ERROR_LOG.trace(
-          "Table {} returned non-existent compaction service {} for compaction type {}.  Check"
-              + " the table compaction dispatcher configuration. No compactions will happen"
-              + " until the configuration is fixed. This log message is temporarily suppressed.",
-          tablet.getExtent().tableId(), serviceId, kind);
-      return Set.of();
-    }
 
     // selecting indicator
     // selected files
@@ -298,36 +276,6 @@ public class CompactionJobGenerator {
         return new CompactionPlanImpl.BuilderImpl(kind, allFiles, candidates);
       }
     };
-    return planCompactions(planner, params, serviceId);
-  }
-
-  private CompactionPlanner createPlanner(TableId tableId, CompactionServiceId serviceId) {
-
-    CompactionPlanner planner;
-    try {
-      planner = compactionServiceFactory.getPlanner(tableId, serviceId, env);
-    } catch (Exception e) {
-      PLANNING_INIT_ERROR_LOG
-          .trace("Failed to create compaction planner for service:{} tableId:{}.  Compaction "
-              + "service will not start any new compactions until its configuration is fixed. This log message is "
-              + "temporarily suppressed.", serviceId, tableId, e);
-      planner = new ProvisionalCompactionPlanner(serviceId);
-    }
-    return planner;
-  }
-
-  // This could be internal to the Factory
-  private Collection<CompactionJob> planCompactions(CompactionPlanner planner,
-      CompactionPlanner.PlanningParameters params, CompactionServiceId serviceId) {
-    try {
-      return planner.makePlan(params).getJobs();
-    } catch (Exception e) {
-      PLANNING_ERROR_LOG.trace(
-          "Failed to plan compactions for service:{} kind:{} tableId:{} hints:{}.  Compaction service may not start any"
-              + " new compactions until this issue is resolved. Duplicates of this log message are temporarily"
-              + " suppressed.",
-          serviceId, params.getKind(), params.getTableId(), params.getExecutionHints(), e);
-      return Set.of();
-    }
+    return compactionServiceFactory.planCompactions(params, serviceId);
   }
 }

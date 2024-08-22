@@ -51,7 +51,15 @@ import com.google.gson.JsonParseException;
 public class SimpleCompactionServiceFactory implements CompactionServiceFactory {
   private static final Logger log = LoggerFactory.getLogger(SimpleCompactionServiceFactory.class);
 
+  // private static final Logger UNKNOWN_SERVICE_ERROR_LOG =
+  // new ConditionalLogger.EscalatingLogger(log, Duration.ofMinutes(5), 3000, Level.ERROR);
+  // private static final Logger PLANNING_INIT_ERROR_LOG =
+  // new ConditionalLogger.EscalatingLogger(log, Duration.ofMinutes(5), 3000, Level.ERROR);
+  // private static final Logger PLANNING_ERROR_LOG =
+  // new ConditionalLogger.EscalatingLogger(log, Duration.ofMinutes(5), 3000, Level.ERROR);
+
   private Supplier<CompactionServiceConf> factoryConfig;
+  private PluginEnvironment env;
 
   private static class PlannerOpts {
     String maxOpenFilesPerJob;
@@ -163,6 +171,7 @@ public class SimpleCompactionServiceFactory implements CompactionServiceFactory 
   @Override
   public void init(PluginEnvironment env) {
     log.info("SCF: INIT Called in SimpleCompactionFactory");
+    this.env = env;
     this.factoryConfig = env.getConfiguration().getDerived(CompactionServiceConf::new);
   }
 
@@ -183,8 +192,7 @@ public class SimpleCompactionServiceFactory implements CompactionServiceFactory 
     return factoryConfig.get().serviceGroups.keySet();
   }
 
-  @Override
-  public CompactionPlanner getPlanner(TableId tableId, CompactionServiceId serviceId,
+  private CompactionPlanner getPlanner(TableId tableId, CompactionServiceId serviceId,
       PluginEnvironment env) {
     Objects.requireNonNull(factoryConfig.get(), "Factory Config has not been initialized");
 
@@ -215,5 +223,22 @@ public class SimpleCompactionServiceFactory implements CompactionServiceFactory 
       planner = new ProvisionalCompactionPlanner(serviceId);
     }
     return planner;
+  }
+
+  @Override
+  public Collection<CompactionJob> planCompactions(CompactionPlanner.PlanningParameters params,
+      CompactionServiceId serviceId) {
+    try {
+      CompactionPlanner planner = getPlanner(params.getTableId(), serviceId, env);
+      return planner.makePlan(params).getJobs();
+    } catch (Exception e) {
+      // PLANNING_ERROR_LOG.trace(
+      log.trace(
+          "Failed to plan compactions for service:{} kind:{} tableId:{} hints:{}.  Compaction service may not start any"
+              + " new compactions until this issue is resolved. Duplicates of this log message are temporarily"
+              + " suppressed.",
+          serviceId, params.getKind(), params.getTableId(), params.getExecutionHints(), e);
+      return Set.of();
+    }
   }
 }

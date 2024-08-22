@@ -22,7 +22,6 @@ import java.util.Collection;
 import java.util.Set;
 
 import org.apache.accumulo.core.client.PluginEnvironment;
-import org.apache.accumulo.core.data.TableId;
 
 /**
  * A Factory that returns a CompactionService based on the environment and configuration.
@@ -45,13 +44,6 @@ public interface CompactionServiceFactory {
 
   Set<CompactionServiceId> getCompactionServiceIds();
 
-  /**
-   * Return the appropriate CompactionPlanner.
-   *
-   * @param tableId ID of table
-   * @param serviceId ID of the desired compaction service
-   * @return CompactionPlanner object
-   */
-  CompactionPlanner getPlanner(TableId tableId, CompactionServiceId serviceId,
-      PluginEnvironment env);
+  Collection<CompactionJob> planCompactions(CompactionPlanner.PlanningParameters params,
+      CompactionServiceId serviceId);
 }
