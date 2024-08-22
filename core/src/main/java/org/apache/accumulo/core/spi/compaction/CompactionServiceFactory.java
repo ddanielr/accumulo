@@ -44,6 +44,6 @@ public interface CompactionServiceFactory {
 
   Set<CompactionServiceId> getCompactionServiceIds();
 
-  Collection<CompactionJob> planCompactions(CompactionPlanner.PlanningParameters params,
+  Collection<CompactionJob> getJobs(CompactionPlanner.PlanningParameters params,
       CompactionServiceId serviceId);
 }

@@ -41,7 +41,7 @@ import org.apache.accumulo.core.spi.compaction.CompactionDispatcher;
 import org.apache.accumulo.core.spi.compaction.CompactionJob;
 import org.apache.accumulo.core.spi.compaction.CompactionKind;
 import org.apache.accumulo.core.spi.compaction.CompactionPlan;
-import org.apache.accumulo.core.spi.compaction.CompactionPlanner;
+import org.apache.accumulo.core.spi.compaction.CompactionPlanner.PlanningParameters;
 import org.apache.accumulo.core.spi.compaction.CompactionServiceFactory;
 import org.apache.accumulo.core.spi.compaction.CompactionServiceId;
 import org.apache.accumulo.core.spi.compaction.CompactionServices;
@@ -59,7 +59,6 @@ public class CompactionJobGenerator {
   private static final Logger log = LoggerFactory.getLogger(CompactionJobGenerator.class);
 
   private final CompactionServiceFactory compactionServiceFactory;
-  private final Map<CompactionServiceId,CompactionPlanner> planners = new HashMap<>();
   private final Cache<TableId,CompactionDispatcher> dispatchers;
   private final Set<CompactionServiceId> serviceIds;
   private final PluginEnvironment env;
@@ -223,7 +222,7 @@ public class CompactionJobGenerator {
 
     // Once files are selected, then call the planner.
 
-    CompactionPlanner.PlanningParameters params = new CompactionPlanner.PlanningParameters() {
+    PlanningParameters params = new PlanningParameters() {
       @Override
       public TableId getTableId() {
         return tablet.getTableId();
@@ -276,6 +275,6 @@ public class CompactionJobGenerator {
         return new CompactionPlanImpl.BuilderImpl(kind, allFiles, candidates);
       }
     };
-    return compactionServiceFactory.planCompactions(params, serviceId);
+    return compactionServiceFactory.getJobs(params, serviceId);
   }
 }

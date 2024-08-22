@@ -68,8 +68,10 @@ public class SimpleCompactionServiceFactoryTest {
     PluginEnvironment env = EasyMock.createMock(PluginEnvironment.class);
     EasyMock.expect(env.getConfiguration()).andReturn(conf).anyTimes();
     EasyMock.expect(env.getConfiguration(tableId)).andReturn(conf).anyTimes();
-    EasyMock.expect(env.instantiate(tableId, RatioBasedCompactionPlanner.class.getName(),
-        CompactionPlanner.class)).andReturn(new RatioBasedCompactionPlanner()).anyTimes();
+    EasyMock
+        .expect(
+            env.instantiate(RatioBasedCompactionPlanner.class.getName(), CompactionPlanner.class))
+        .andReturn(new RatioBasedCompactionPlanner()).anyTimes();
     EasyMock.replay(env);
     CompactionServiceFactory csf;
     assertEquals(testCSF.getClass().getName(), conf.get(COMPACTION_SERVICE_FACTORY.getKey()));

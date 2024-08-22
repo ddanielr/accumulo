@@ -607,7 +607,7 @@ public class ExternalCompactionTestUtils {
     }
 
     @Override
-    public Collection<CompactionJob> planCompactions(CompactionPlanner.PlanningParameters params,
+    public Collection<CompactionJob> getJobs(CompactionPlanner.PlanningParameters params,
         CompactionServiceId serviceId) {
       try {
         CompactionPlanner planner = getPlanner(params.getTableId(), serviceId, env);

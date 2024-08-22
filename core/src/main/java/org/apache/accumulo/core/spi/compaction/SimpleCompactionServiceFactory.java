@@ -37,7 +37,6 @@ import java.util.stream.Collectors;
 
 import org.apache.accumulo.core.client.PluginEnvironment;
 import org.apache.accumulo.core.conf.ConfigurationTypeHelper;
-import org.apache.accumulo.core.data.TableId;
 import org.apache.accumulo.core.util.compaction.CompactionPlannerInitParams;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -59,7 +58,7 @@ public class SimpleCompactionServiceFactory implements CompactionServiceFactory 
   // new ConditionalLogger.EscalatingLogger(log, Duration.ofMinutes(5), 3000, Level.ERROR);
 
   private Supplier<CompactionServiceConf> factoryConfig;
-  private PluginEnvironment env;
+  private final Map<CompactionServiceId,CompactionPlanner> planners = new HashMap<>();
 
   private static class PlannerOpts {
     String maxOpenFilesPerJob;
@@ -171,8 +170,28 @@ public class SimpleCompactionServiceFactory implements CompactionServiceFactory 
   @Override
   public void init(PluginEnvironment env) {
     log.info("SCF: INIT Called in SimpleCompactionFactory");
-    this.env = env;
     this.factoryConfig = env.getConfiguration().getDerived(CompactionServiceConf::new);
+
+    for (Map.Entry<CompactionServiceId,Map<String,String>> entry : factoryConfig.get().serviceOpts
+        .entrySet()) {
+      var options = entry.getValue();
+      Set<CompactionGroup> groups = factoryConfig.get().serviceGroups.get(entry.getKey());
+      Objects.requireNonNull(groups, "Compaction groups are not defined for: " + entry.getKey());
+      var plannerOpts = GSON.get().fromJson(options.get("plannerOpts"), PlannerOpts.class);
+      var initParams = new CompactionPlannerInitParams(
+          Map.of("maxOpenFilesPerJob", plannerOpts.maxOpenFilesPerJob), groups);
+      CompactionPlanner planner;
+      try {
+        planner = env.instantiate(options.get("planner"), CompactionPlanner.class);
+        planner.init(initParams);
+      } catch (Exception e) {
+        log.error(
+            "Failed to create compaction planner for {} using class:{} options:{}.  Compaction service will not start any new compactions until its configuration is fixed.",
+            entry.getKey(), options.get("planner"), options, e);
+        planner = new ProvisionalCompactionPlanner(entry.getKey());
+      }
+      planners.putIfAbsent(entry.getKey(), planner);
+    }
   }
 
   @Override
@@ -186,51 +205,18 @@ public class SimpleCompactionServiceFactory implements CompactionServiceFactory 
   @Override
   public Set<CompactionServiceId> getCompactionServiceIds() {
     Objects.requireNonNull(factoryConfig.get(), "Factory Config has not been initialized");
-    if (factoryConfig.get().serviceGroups.isEmpty()) {
+    if (planners.isEmpty()) {
       return Set.of();
     }
-    return factoryConfig.get().serviceGroups.keySet();
-  }
-
-  private CompactionPlanner getPlanner(TableId tableId, CompactionServiceId serviceId,
-      PluginEnvironment env) {
-    Objects.requireNonNull(factoryConfig.get(), "Factory Config has not been initialized");
-
-    if (!factoryConfig.get().serviceOpts.containsKey(serviceId)) {
-      log.error("Compaction service {} does not exist", serviceId);
-      return new ProvisionalCompactionPlanner(serviceId);
-    }
-    var options = factoryConfig.get().serviceOpts.get(serviceId);
-
-    // These get internalized into the planner.
-    // Planners require a validation method.
-    Set<CompactionGroup> groups = factoryConfig.get().serviceGroups.get(serviceId);
-    Objects.requireNonNull(groups, "Compaction groups are not defined for: " + serviceId);
-
-    // Parse the Planner OPTS here vs up in init?
-    var plannerOpts = GSON.get().fromJson(options.get("plannerOpts"), PlannerOpts.class);
-    var initParams = new CompactionPlannerInitParams(
-        Map.of("maxOpenFilesPerJob", plannerOpts.maxOpenFilesPerJob), groups);
-
-    CompactionPlanner planner;
-    try {
-      planner = env.instantiate(tableId, options.get("planner"), CompactionPlanner.class);
-      planner.init(initParams);
-    } catch (Exception e) {
-      log.error(
-          "Failed to create compaction planner for {} using class:{} options:{}.  Compaction service will not start any new compactions until its configuration is fixed.",
-          serviceId, options.get("planner"), options, e);
-      planner = new ProvisionalCompactionPlanner(serviceId);
-    }
-    return planner;
+    return planners.keySet();
   }
 
   @Override
-  public Collection<CompactionJob> planCompactions(CompactionPlanner.PlanningParameters params,
+  public Collection<CompactionJob> getJobs(CompactionPlanner.PlanningParameters params,
       CompactionServiceId serviceId) {
     try {
-      CompactionPlanner planner = getPlanner(params.getTableId(), serviceId, env);
-      return planner.makePlan(params).getJobs();
+      return planners.getOrDefault(serviceId, new ProvisionalCompactionPlanner(serviceId))
+          .makePlan(params).getJobs();
     } catch (Exception e) {
       // PLANNING_ERROR_LOG.trace(
       log.trace(
