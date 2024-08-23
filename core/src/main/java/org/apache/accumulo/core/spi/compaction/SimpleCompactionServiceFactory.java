@@ -74,11 +74,10 @@ public class SimpleCompactionServiceFactory implements CompactionServiceFactory 
 
     private static class GroupConfig {
       String group;
-      String maxSize;
+      JsonObject opts;
     }
 
     private final Map<CompactionServiceId,Map<String,String>> serviceOpts = new HashMap<>();
-    // This feels clever vs having a second Map.
     private final Map<CompactionServiceId,Set<CompactionGroup>> serviceGroups = new HashMap<>();
 
     CompactionServiceConf(PluginEnvironment.Configuration conf) {
@@ -147,8 +146,17 @@ public class SimpleCompactionServiceFactory implements CompactionServiceFactory 
         GroupConfig groupConfig = GSON.get().fromJson(element, GroupConfig.class);
 
         String groupName = Objects.requireNonNull(groupConfig.group, "'group' must be specified");
-        Long maxSize = groupConfig.maxSize == null ? null
-            : ConfigurationTypeHelper.getFixedMemoryAsBytes(groupConfig.maxSize);
+
+        Long maxSize = null;
+        // Parse for various group options
+        if (groupConfig.opts != null) {
+          for (Map.Entry<String,JsonElement> entry : groupConfig.opts.entrySet()) {
+            if (Objects.equals(entry.getKey(), "maxSize")) {
+              maxSize =
+                  ConfigurationTypeHelper.getFixedMemoryAsBytes(entry.getValue().getAsString());
+            }
+          }
+        }
 
         var cgid = CompactorGroupId.of(groupName);
         // Check if the compaction service has been defined before

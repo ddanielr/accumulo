@@ -64,6 +64,7 @@ import org.apache.accumulo.core.compaction.thrift.TCompactionState;
 import org.apache.accumulo.core.compaction.thrift.TExternalCompaction;
 import org.apache.accumulo.core.compaction.thrift.TExternalCompactionList;
 import org.apache.accumulo.core.conf.ClientProperty;
+import org.apache.accumulo.core.conf.ConfigurationTypeHelper;
 import org.apache.accumulo.core.conf.Property;
 import org.apache.accumulo.core.data.Key;
 import org.apache.accumulo.core.data.Mutation;
@@ -229,7 +230,7 @@ public class ExternalCompactionTestUtils {
     cfg.setProperty(COMPACTION_SERVICE_FACTORY_CONFIG.getKey(), "{ \"default\": {\"planner\": \""
         + RatioBasedCompactionPlanner.class.getName()
         + "\", \"opts\": {\"maxOpenFilesPerJob\": \"30\"}, \"groups\": [{\"group\": \""
-        + DEFAULT_RESOURCE_GROUP_NAME + "\", \"maxSize\": \"128M\"}]},"
+        + DEFAULT_RESOURCE_GROUP_NAME + "\", \"opts\": { \"maxSize\": \"128M\"}}]},"
         + "\"cs1\" : {\"planner\": \"" + RatioBasedCompactionPlanner.class.getName() + "\","
         + "\"opts\": {\"maxOpenFilesPerJob\": \"30\"}, \"groups\": [{\"group\": \"" + GROUP1
         + "\"}]}, \"cs2\" : { \"planner\": \"" + RatioBasedCompactionPlanner.class.getName() + "\","
@@ -471,13 +472,12 @@ public class ExternalCompactionTestUtils {
 
   public static class TestCompactionServiceFactory implements CompactionServiceFactory {
 
-    private PluginEnvironment env;
     private static final Logger log = LoggerFactory
         .getLogger(org.apache.accumulo.core.spi.compaction.SimpleCompactionServiceFactory.class);
-    private final String plannerClassName = TestPlanner.class.getName();
     private Map<String,String> plannerOpts = new HashMap<>();
     private final Map<CompactionServiceId,Map<String,String>> serviceOpts = new HashMap<>();
     private final Map<CompactionServiceId,Set<CompactionGroup>> serviceGroups = new HashMap<>();
+    private final Map<CompactionServiceId,CompactionPlanner> planners = new HashMap<>();
 
     private static class ServiceConfig {
       String process;
@@ -487,18 +487,16 @@ public class ExternalCompactionTestUtils {
 
     private static class GroupConfig {
       String group;
+      JsonObject opts;
     }
 
     @Override
     public void init(PluginEnvironment env) {
-      this.env = env;
       var config = env.getConfiguration();
       String factoryConfig = config.get(COMPACTION_SERVICE_FACTORY_CONFIG.getKey());
 
       // Generate a list of fields from the desired object.
       final List<String> serviceFields = Arrays.stream(ServiceConfig.class.getDeclaredFields())
-          .map(Field::getName).collect(Collectors.toList());
-      final List<String> groupFields = Arrays.stream(GroupConfig.class.getDeclaredFields())
           .map(Field::getName).collect(Collectors.toList());
 
       // Each Service is a unique key, so get the keySet to correctly name the service.
@@ -525,10 +523,24 @@ public class ExternalCompactionTestUtils {
         serviceOpts.put(csid, options);
       }
 
-      // TODO:
-      // if changes are detected to services,
-      // then the compactionGroups and compactionServices objects
-      // should be wiped.
+      for (Map.Entry<CompactionServiceId,Map<String,String>> entry : serviceOpts.entrySet()) {
+        var options = entry.getValue();
+        Set<CompactionGroup> groups = serviceGroups.get(entry.getKey());
+        Objects.requireNonNull(groups, "Compaction groups are not defined for: " + entry.getKey());
+        var initParams = new CompactionPlannerInitParams(plannerOpts, groups);
+        CompactionPlanner planner;
+        try {
+          planner = env.instantiate(options.get("planner"), CompactionPlanner.class);
+          planner.init(initParams);
+        } catch (Exception e) {
+          log.error(
+              "Failed to create compaction planner for {} using class:{} options:{}.  Compaction service will not start any new compactions until its configuration is fixed.",
+              entry.getKey(), options.get("planner"), options, e);
+          planner = new ProvisionalCompactionPlanner(entry.getKey());
+        }
+        planners.putIfAbsent(entry.getKey(), planner);
+      }
+
     }
 
     private void validateConfig(JsonElement json, List<String> fields, String className) {
@@ -557,6 +569,17 @@ public class ExternalCompactionTestUtils {
 
         String groupName = Objects.requireNonNull(groupConfig.group, "'group' must be specified");
 
+        Long maxSize = null;
+        // Parse for various group options
+        if (groupConfig.opts != null) {
+          for (Map.Entry<String,JsonElement> entry : groupConfig.opts.entrySet()) {
+            if (Objects.equals(entry.getKey(), "maxSize")) {
+              maxSize =
+                  ConfigurationTypeHelper.getFixedMemoryAsBytes(entry.getValue().getAsString());
+            }
+          }
+        }
+
         var cgid = CompactorGroupId.of(groupName);
         // Check if the compaction service has been defined before
         if (serviceGroups.get(csid) != null) {
@@ -567,7 +590,7 @@ public class ExternalCompactionTestUtils {
                 "Duplicate compaction group definition on service : " + csid);
           }
         }
-        var compactionGroup = new CompactionGroup(cgid, null);
+        var compactionGroup = new CompactionGroup(cgid, maxSize);
         groups.add(compactionGroup);
       }
       serviceGroups.put(csid, groups);
@@ -583,35 +606,12 @@ public class ExternalCompactionTestUtils {
       return serviceOpts.keySet();
     }
 
-    private CompactionPlanner getPlanner(TableId tableId, CompactionServiceId serviceId,
-        PluginEnvironment env) {
-      if (!serviceOpts.containsKey(serviceId)) {
-        log.error("Compaction service {} does not exist", serviceId);
-        return new ProvisionalCompactionPlanner(serviceId);
-      }
-
-      Set<CompactionGroup> groups = serviceGroups.get(serviceId);
-      var initParams = new CompactionPlannerInitParams(plannerOpts, groups);
-
-      CompactionPlanner planner;
-      try {
-        planner = env.instantiate(tableId, plannerClassName, CompactionPlanner.class);
-        planner.init(initParams);
-      } catch (Exception e) {
-        log.error(
-            "Failed to create compaction planner for {} using class:{} options:{}.  Compaction service will not start any new compactions until its configuration is fixed.",
-            serviceId, plannerClassName, plannerOpts, e);
-        planner = new ProvisionalCompactionPlanner(serviceId);
-      }
-      return planner;
-    }
-
     @Override
     public Collection<CompactionJob> getJobs(CompactionPlanner.PlanningParameters params,
         CompactionServiceId serviceId) {
       try {
-        CompactionPlanner planner = getPlanner(params.getTableId(), serviceId, env);
-        return planner.makePlan(params).getJobs();
+        return planners.getOrDefault(serviceId, new ProvisionalCompactionPlanner(serviceId))
+            .makePlan(params).getJobs();
       } catch (Exception e) {
         // PLANNING_ERROR_LOG.trace(
         log.trace(

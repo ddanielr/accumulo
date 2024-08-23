@@ -18,8 +18,6 @@
  */
 package org.apache.accumulo.core.spi.compaction;
 
-import static org.apache.accumulo.core.util.LazySingletons.GSON;
-
 import java.lang.reflect.Field;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -39,9 +37,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.google.common.base.Preconditions;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParseException;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
@@ -122,11 +117,6 @@ public class RatioBasedCompactionPlanner implements CompactionPlanner {
   private final static Logger log = LoggerFactory.getLogger(RatioBasedCompactionPlanner.class);
   private final static String DEFAULT_MAX_OPEN = "10";
 
-  private static class GroupConfig {
-    String group;
-    String maxSize;
-  }
-
   private static class FakeFileGenerator {
 
     private int count = 0;
@@ -186,20 +176,6 @@ public class RatioBasedCompactionPlanner implements CompactionPlanner {
       maxOpen = DEFAULT_MAX_OPEN;
     }
     this.maxFilesToCompact = Integer.parseInt(maxOpen);
-  }
-
-  private void validateConfig(JsonElement json, List<String> fields, String className) {
-
-    JsonObject jsonObject = GSON.get().fromJson(json, JsonObject.class);
-
-    List<String> objectProperties = new ArrayList<>(jsonObject.keySet());
-    HashSet<String> classFieldNames = new HashSet<>(fields);
-
-    if (!classFieldNames.containsAll(objectProperties)) {
-      objectProperties.removeAll(classFieldNames);
-      throw new JsonParseException(
-          "Invalid fields: " + objectProperties + " provided for class: " + className);
-    }
   }
 
   @Override

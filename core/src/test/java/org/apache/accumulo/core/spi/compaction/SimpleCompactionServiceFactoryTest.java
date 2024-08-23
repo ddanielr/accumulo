@@ -43,7 +43,7 @@ public class SimpleCompactionServiceFactoryTest {
     overrides.put(COMPACTION_SERVICE_FACTORY_CONFIG.getKey(), "{ \"default\": {\"planner\": \""
         + RatioBasedCompactionPlanner.class.getName()
         + "\", \"opts\": {\"maxOpenFilesPerJob\": \"30\"}, \"groups\": [{\"group\": \""
-        + DEFAULT_RESOURCE_GROUP_NAME + "\", \"maxSize\": \"128M\"}]},"
+        + DEFAULT_RESOURCE_GROUP_NAME + "\", \"opts\": {\"maxSize\": \"128M\"}}]},"
         + "\"csf1\" : {\"planner\": \"" + RatioBasedCompactionPlanner.class.getName()
         + "\", \"opts\": {\"maxOpenFilesPerJob\": \"30\"}, \"groups\": [{\"group\": \"DCQ1\"}]},"
         + "\"csf2\" : {\"planner\": \"" + RatioBasedCompactionPlanner.class.getName()
