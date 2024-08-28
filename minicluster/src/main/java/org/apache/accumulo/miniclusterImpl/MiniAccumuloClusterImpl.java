@@ -754,7 +754,7 @@ public class MiniAccumuloClusterImpl implements AccumuloCluster {
 
     Set<String> groupNames = new HashSet<>();
     CompactionServiceFactory compactionServiceFactory = Property.createInstanceFromPropertyName(
-        getServerContext().getConfiguration(), Property.COMPACTION_SERVICE_FACTORY,
+        getServerContext().getConfiguration(), Property.COMPACTION_SERVICE,
         CompactionServiceFactory.class, new NoCompactionServiceFactory());
     compactionServiceFactory.init(new ServiceEnvironmentImpl(context.get()));
     compactionServiceFactory.getCompactorGroupIds()

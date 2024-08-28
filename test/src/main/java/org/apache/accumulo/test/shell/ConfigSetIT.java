@@ -18,7 +18,7 @@
  */
 package org.apache.accumulo.test.shell;
 
-import static org.apache.accumulo.core.conf.Property.COMPACTION_SERVICE_FACTORY_CONFIG;
+import static org.apache.accumulo.core.conf.Property.COMPACTION_SERVICE_CONFIG;
 import static org.apache.accumulo.core.conf.Property.MONITOR_RESOURCES_EXTERNAL;
 import static org.apache.accumulo.harness.AccumuloITBase.MINI_CLUSTER_ONLY;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -53,14 +53,13 @@ public class ConfigSetIT extends SharedMiniClusterBase {
   public void setInvalidJson() throws Exception {
     log.debug("Starting setInvalidJson test ------------------");
 
-    String validJson = COMPACTION_SERVICE_FACTORY_CONFIG.getDefaultValue();
+    String validJson = COMPACTION_SERVICE_CONFIG.getDefaultValue();
     // missing first value
     String invalidJson = "notJson";
 
     try (AccumuloClient client =
         getCluster().createAccumuloClient("root", new PasswordToken(getRootPassword()))) {
-      client.instanceOperations().setProperty(COMPACTION_SERVICE_FACTORY_CONFIG.getKey(),
-          validJson);
+      client.instanceOperations().setProperty(COMPACTION_SERVICE_CONFIG.getKey(), validJson);
       assertThrows(AccumuloException.class, () -> client.instanceOperations()
           .setProperty(MONITOR_RESOURCES_EXTERNAL.getKey(), invalidJson));
 

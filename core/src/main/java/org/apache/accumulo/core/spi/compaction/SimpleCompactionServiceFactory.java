@@ -18,7 +18,7 @@
  */
 package org.apache.accumulo.core.spi.compaction;
 
-import static org.apache.accumulo.core.conf.Property.COMPACTION_SERVICE_FACTORY_CONFIG;
+import static org.apache.accumulo.core.conf.Property.COMPACTION_SERVICE_CONFIG;
 import static org.apache.accumulo.core.util.LazySingletons.GSON;
 
 import java.lang.reflect.Field;
@@ -83,7 +83,7 @@ public class SimpleCompactionServiceFactory implements CompactionServiceFactory 
 
     CompactionServiceConf(PluginEnvironment.Configuration conf) {
       log.info("Building Compaction Services Conf");
-      var config = conf.get(COMPACTION_SERVICE_FACTORY_CONFIG.getKey());
+      var config = conf.get(COMPACTION_SERVICE_CONFIG.getKey());
 
       // Generate a list of fields from the desired object.
       final List<String> serviceFields = Arrays.stream(ServiceConfig.class.getDeclaredFields())
@@ -237,7 +237,7 @@ public class SimpleCompactionServiceFactory implements CompactionServiceFactory 
       var config = env.getConfiguration().getDerived(CompactionServiceConf::new);
       validatePlanners(env, config, validatedPlanners);
     } catch (Exception e) {
-      log.error("Property {} failed validation with class {}", COMPACTION_SERVICE_FACTORY_CONFIG,
+      log.error("Property {} failed validation with class {}", COMPACTION_SERVICE_CONFIG,
           this.getClass().getName());
       return false;
     }

@@ -161,9 +161,9 @@ public class CompactionExecutorIT extends SharedMiniClusterBase {
   public static class CompactionExecutorITConfig implements MiniClusterConfigurationCallback {
     @Override
     public void configureMiniCluster(MiniAccumuloConfigImpl cfg, Configuration conf) {
-      cfg.setProperty(Property.COMPACTION_SERVICE_FACTORY,
+      cfg.setProperty(Property.COMPACTION_SERVICE,
           ExternalCompactionTestUtils.TestCompactionServiceFactory.class.getName());
-      cfg.setProperty(Property.COMPACTION_SERVICE_FACTORY_CONFIG, "{ \"default\": {\"planner\": \""
+      cfg.setProperty(Property.COMPACTION_SERVICE_CONFIG, "{ \"default\": {\"planner\": \""
           + RatioBasedCompactionPlanner.class.getName()
           + "\", \"opts\": {\"maxOpenFilesPerJob\": \"30\"}, \"groups\": [{\"group\": \""
           + DEFAULT_RESOURCE_GROUP_NAME + "\", \"maxSize\": \"128M\"}]},"

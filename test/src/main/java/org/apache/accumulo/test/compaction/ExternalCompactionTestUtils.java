@@ -19,7 +19,7 @@
 package org.apache.accumulo.test.compaction;
 
 import static org.apache.accumulo.core.Constants.DEFAULT_RESOURCE_GROUP_NAME;
-import static org.apache.accumulo.core.conf.Property.COMPACTION_SERVICE_FACTORY_CONFIG;
+import static org.apache.accumulo.core.conf.Property.COMPACTION_SERVICE_CONFIG;
 import static org.apache.accumulo.core.util.LazySingletons.GSON;
 import static org.apache.accumulo.core.util.LazySingletons.RANDOM;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -227,7 +227,7 @@ public class ExternalCompactionTestUtils {
 
     // configure the compaction services to use the queues
 
-    cfg.setProperty(COMPACTION_SERVICE_FACTORY_CONFIG.getKey(), "{ \"default\": {\"planner\": \""
+    cfg.setProperty(COMPACTION_SERVICE_CONFIG.getKey(), "{ \"default\": {\"planner\": \""
         + RatioBasedCompactionPlanner.class.getName()
         + "\", \"opts\": {\"maxOpenFilesPerJob\": \"30\"}, \"groups\": [{\"group\": \""
         + DEFAULT_RESOURCE_GROUP_NAME + "\", \"opts\": { \"maxSize\": \"128M\"}}]},"
@@ -501,7 +501,7 @@ public class ExternalCompactionTestUtils {
     @Override
     public void init(PluginEnvironment env) {
       var config = env.getConfiguration();
-      String factoryConfig = config.get(COMPACTION_SERVICE_FACTORY_CONFIG.getKey());
+      String factoryConfig = config.get(COMPACTION_SERVICE_CONFIG.getKey());
 
       // Generate a list of fields from the desired object.
       final List<String> serviceFields = Arrays.stream(ServiceConfig.class.getDeclaredFields())

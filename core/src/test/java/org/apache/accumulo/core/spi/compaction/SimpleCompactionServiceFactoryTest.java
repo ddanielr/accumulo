@@ -19,8 +19,8 @@
 package org.apache.accumulo.core.spi.compaction;
 
 import static org.apache.accumulo.core.Constants.DEFAULT_RESOURCE_GROUP_NAME;
-import static org.apache.accumulo.core.conf.Property.COMPACTION_SERVICE_FACTORY;
-import static org.apache.accumulo.core.conf.Property.COMPACTION_SERVICE_FACTORY_CONFIG;
+import static org.apache.accumulo.core.conf.Property.COMPACTION_SERVICE;
+import static org.apache.accumulo.core.conf.Property.COMPACTION_SERVICE_CONFIG;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.util.HashMap;
@@ -38,9 +38,8 @@ public class SimpleCompactionServiceFactoryTest {
   @Test
   public void testSimpleImplementation() throws ReflectiveOperationException {
     Map<String,String> overrides = new HashMap<>();
-    overrides.put(COMPACTION_SERVICE_FACTORY.getKey(),
-        COMPACTION_SERVICE_FACTORY.getDefaultValue());
-    overrides.put(COMPACTION_SERVICE_FACTORY_CONFIG.getKey(), "{ \"default\": {\"planner\": \""
+    overrides.put(COMPACTION_SERVICE.getKey(), COMPACTION_SERVICE.getDefaultValue());
+    overrides.put(COMPACTION_SERVICE_CONFIG.getKey(), "{ \"default\": {\"planner\": \""
         + RatioBasedCompactionPlanner.class.getName()
         + "\", \"opts\": {\"maxOpenFilesPerJob\": \"30\"}, \"groups\": [{\"group\": \""
         + DEFAULT_RESOURCE_GROUP_NAME + "\", \"opts\": {\"maxSize\": \"128M\"}}]},"
@@ -74,7 +73,7 @@ public class SimpleCompactionServiceFactoryTest {
         .andReturn(new RatioBasedCompactionPlanner()).anyTimes();
     EasyMock.replay(env);
     CompactionServiceFactory csf;
-    assertEquals(testCSF.getClass().getName(), conf.get(COMPACTION_SERVICE_FACTORY.getKey()));
+    assertEquals(testCSF.getClass().getName(), conf.get(COMPACTION_SERVICE.getKey()));
     csf = testCSF;
     csf.init(env);
 

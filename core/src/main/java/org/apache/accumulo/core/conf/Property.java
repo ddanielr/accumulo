@@ -52,8 +52,8 @@ public enum Property {
   COMPACTION_PREFIX("compaction.", null, PropertyType.PREFIX,
       "Both major and minor compaction properties can be included under this prefix.", "3.1.0"),
   COMPACTION_SERVICE_PREFIX(COMPACTION_PREFIX + "service.", null, PropertyType.PREFIX,
-      "This prefix should be used to define all properties for the compaction services."
-          + "See {% jlink -f org.apache.accumulo.core.spi.compaction.RatioBasedCompactionPlanner %}.\n"
+      "This prefix should be used to define all properties related to for the compaction  ."
+          + "See {% jlink -f org.apache.accumulo.core.spi.compaction.SimpleCompactionFactory %}.\n"
           + "A new external compaction service would be defined like the following:\n"
           + "`compaction.service.newService.planner="
           + "\"org.apache.accumulo.core.spi.compaction.RatioBasedCompactionPlanner\".`\n"
@@ -63,10 +63,10 @@ public enum Property {
           + "`compaction.service.newService.opts.maxOpen=50`.\n"
           + "Additional options can be defined using the `compaction.service.<service>.opts.<option>` property.",
       "3.1.0"),
-  COMPACTION_SERVICE_FACTORY(COMPACTION_SERVICE_PREFIX + "factory",
+  COMPACTION_SERVICE(COMPACTION_SERVICE_PREFIX + "factory",
       SimpleCompactionServiceFactory.class.getName(), PropertyType.CLASSNAME,
       "Compaction Service Factory class to use for generating compaction services.", "4.0.0"),
-  COMPACTION_SERVICE_FACTORY_CONFIG(COMPACTION_SERVICE_FACTORY + ".config",
+  COMPACTION_SERVICE_CONFIG(COMPACTION_SERVICE + ".config",
       "{ \"" + DEFAULT_COMPACTION_SERVICE_NAME + "\": { \"planner\": \""
           + RatioBasedCompactionPlanner.class.getName()
           + "\", \"opts\": {\"maxOpenFilesPerJob\": \"30\"}, \"groups\": [{ \"group\": \""

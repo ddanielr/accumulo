@@ -139,7 +139,7 @@ abstract class TabletGroupWatcher extends AccumuloDaemonThread {
     ServiceEnvironmentImpl senv = new ServiceEnvironmentImpl(manager.getContext());
     try {
       compactionServiceFactory =
-          senv.instantiate(manager.getConfiguration().get(Property.COMPACTION_SERVICE_FACTORY),
+          senv.instantiate(manager.getConfiguration().get(Property.COMPACTION_SERVICE),
               CompactionServiceFactory.class);
       compactionServiceFactory.init(senv);
     } catch (ReflectiveOperationException e) {

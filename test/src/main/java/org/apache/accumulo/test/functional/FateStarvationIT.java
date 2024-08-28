@@ -55,7 +55,7 @@ public class FateStarvationIT extends AccumuloClusterHarness {
   @Override
   public void configureMiniCluster(MiniAccumuloConfigImpl cfg, Configuration hadoopCoreSite) {
     // Add this check in case the config changes
-    Preconditions.checkState(Property.COMPACTION_SERVICE_FACTORY_CONFIG.getDefaultValue()
+    Preconditions.checkState(Property.COMPACTION_SERVICE_CONFIG.getDefaultValue()
         .contains(Constants.DEFAULT_RESOURCE_GROUP_NAME));
     // This test creates around ~1300 compaction task, so start more compactors. There is randomness
     // so the exact number of task varies.

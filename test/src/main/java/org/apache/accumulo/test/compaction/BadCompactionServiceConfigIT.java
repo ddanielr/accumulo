@@ -20,7 +20,7 @@ package org.apache.accumulo.test.compaction;
 
 import static org.apache.accumulo.core.Constants.DEFAULT_COMPACTION_SERVICE_NAME;
 import static org.apache.accumulo.core.Constants.DEFAULT_RESOURCE_GROUP_NAME;
-import static org.apache.accumulo.core.conf.Property.COMPACTION_SERVICE_FACTORY_CONFIG;
+import static org.apache.accumulo.core.conf.Property.COMPACTION_SERVICE_CONFIG;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.util.Collections;
@@ -88,7 +88,7 @@ public class BadCompactionServiceConfigIT extends AccumuloClusterHarness {
   @Override
   public void configureMiniCluster(MiniAccumuloConfigImpl cfg, Configuration hadoopCoreSite) {
     Map<String,String> siteCfg = new HashMap<>();
-    siteCfg.put(COMPACTION_SERVICE_FACTORY_CONFIG.getKey(),
+    siteCfg.put(COMPACTION_SERVICE_CONFIG.getKey(),
         "{ \"" + DEFAULT_COMPACTION_SERVICE_NAME + "\": { \"planner\": \""
             + RatioBasedCompactionPlanner.class.getName()
             + "\", \"opts\": {\"maxOpenFilesPerJob\": \"30\"}, \"groups\": [{ \"group\": \""
@@ -197,8 +197,7 @@ public class BadCompactionServiceConfigIT extends AccumuloClusterHarness {
                 .collect(MoreCollectors.onlyElement()));
           }
 
-          client.instanceOperations().setProperty(COMPACTION_SERVICE_FACTORY_CONFIG.getKey(),
-              goodValue);
+          client.instanceOperations().setProperty(COMPACTION_SERVICE_CONFIG.getKey(), goodValue);
 
           // start the compactor, it was not started initially because of bad config
           ((MiniAccumuloClusterImpl) getCluster()).getConfig().getClusterServerConfiguration()
@@ -225,7 +224,7 @@ public class BadCompactionServiceConfigIT extends AccumuloClusterHarness {
 
       // misconfigure the service, test how going from good config to bad config works. The test
       // started with an initial state of bad config.
-      client.instanceOperations().setProperty(COMPACTION_SERVICE_FACTORY_CONFIG.getKey(), "]o.o[");
+      client.instanceOperations().setProperty(COMPACTION_SERVICE_CONFIG.getKey(), "]o.o[");
       Wait.waitFor(() -> serviceMisconfigured.get() == true);
 
       try (var writer = client.createBatchWriter(table)) {
@@ -239,8 +238,7 @@ public class BadCompactionServiceConfigIT extends AccumuloClusterHarness {
       fixerFuture = executorService.submit(() -> {
         try {
           Thread.sleep(2000);
-          client.instanceOperations().setProperty(COMPACTION_SERVICE_FACTORY_CONFIG.getKey(),
-              goodValue);
+          client.instanceOperations().setProperty(COMPACTION_SERVICE_CONFIG.getKey(), goodValue);
         } catch (Exception e) {
           throw new RuntimeException(e);
         }

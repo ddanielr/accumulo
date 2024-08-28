@@ -185,8 +185,8 @@ public class TabletManagementIterator extends WholeRowIterator {
     final AccumuloConfiguration conf = new ConfigurationCopy(env.getPluginEnv().getConfiguration());
     CompactionServiceFactory compactionServiceFactory;
     try {
-      compactionServiceFactory = env.getPluginEnv().instantiate(
-          conf.get(Property.COMPACTION_SERVICE_FACTORY), CompactionServiceFactory.class);
+      compactionServiceFactory = env.getPluginEnv()
+          .instantiate(conf.get(Property.COMPACTION_SERVICE), CompactionServiceFactory.class);
       compactionServiceFactory.init(env.getPluginEnv());
     } catch (ReflectiveOperationException e) {
       // Not sure if we want to use this generic CompactionService

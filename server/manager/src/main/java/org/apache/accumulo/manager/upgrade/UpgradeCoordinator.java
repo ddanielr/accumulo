@@ -266,7 +266,7 @@ public class UpgradeCoordinator {
     ServiceEnvironmentImpl senv = new ServiceEnvironmentImpl(context);
     try {
       CompactionServiceFactory compactionServiceFactory =
-          senv.instantiate(context.getConfiguration().get(Property.COMPACTION_SERVICE_FACTORY),
+          senv.instantiate(context.getConfiguration().get(Property.COMPACTION_SERVICE),
               CompactionServiceFactory.class);
       compactionServiceFactory.validate(senv);
     } catch (RuntimeException | ReflectiveOperationException e) {

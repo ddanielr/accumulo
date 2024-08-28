@@ -209,9 +209,8 @@ public class CompactionCoordinator
 
     ServiceEnvironmentImpl senv = new ServiceEnvironmentImpl(ctx);
     try {
-      compactionServiceFactory =
-          senv.instantiate(ctx.getConfiguration().get(Property.COMPACTION_SERVICE_FACTORY),
-              CompactionServiceFactory.class);
+      compactionServiceFactory = senv.instantiate(
+          ctx.getConfiguration().get(Property.COMPACTION_SERVICE), CompactionServiceFactory.class);
       compactionServiceFactory.init(senv);
     } catch (ReflectiveOperationException e) {
       // Use an noop Compaction Service Factory
