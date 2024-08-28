@@ -72,7 +72,6 @@ import com.google.common.collect.MoreCollectors;
 public class BadCompactionServiceConfigIT extends AccumuloClusterHarness {
 
   private static final Logger LOG = LoggerFactory.getLogger(BadCompactionServiceConfigIT.class);
-  private static final String CSP = Property.COMPACTION_SERVICE_PREFIX.getKey();
   private static TestStatsDSink sink;
 
   @BeforeAll
@@ -300,8 +299,14 @@ public class BadCompactionServiceConfigIT extends AccumuloClusterHarness {
       Wait.waitFor(() -> serviceMisconfigured.get() == true);
 
       // The setup of this test creates an invalid configuration, fix this first thing.
-      var value = "[{'group':'cs1q1'}]".replaceAll("'", "\"");
-      client.instanceOperations().setProperty(CSP + "cs1.planner.opts.groups", value);
+      String goodValue = "{ \"" + DEFAULT_COMPACTION_SERVICE_NAME + "\": { \"planner\": \""
+          + RatioBasedCompactionPlanner.class.getName()
+          + "\", \"opts\": {\"maxOpenFilesPerJob\": \"30\"}, \"groups\": [{ \"group\": \""
+          + DEFAULT_RESOURCE_GROUP_NAME + "\", \"maxSize\": \"128M\"}]},"
+          + "\"cs1\" : { \"planner\": \"" + RatioBasedCompactionPlanner.class.getName() + "\","
+          + "\"groups\" : [{ \"group\": \"cs1q1\"}]}}";
+
+      client.instanceOperations().setProperty(COMPACTION_SERVICE_CONFIG.getKey(), goodValue);
 
       Wait.waitFor(() -> serviceMisconfigured.get() == false);
 

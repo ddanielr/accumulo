@@ -18,6 +18,7 @@
  */
 package org.apache.accumulo.test.compaction;
 
+import static org.apache.accumulo.core.Constants.DEFAULT_COMPACTION_SERVICE_NAME;
 import static org.apache.accumulo.core.Constants.DEFAULT_RESOURCE_GROUP_NAME;
 import static org.apache.accumulo.core.util.LazySingletons.RANDOM;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -239,14 +240,16 @@ public class CompactionExecutorIT extends SharedMiniClusterBase {
 
       // Setup three planner that fail to initialize or plan, these planners should not impede
       // tablet assignment.
-      var csp = Property.COMPACTION_SERVICE_PREFIX.getKey();
-      client.instanceOperations().setProperty(csp + "cse1.planner",
-          ErroringPlanner.class.getName());
-      client.instanceOperations().setProperty(csp + "cse1.planner.opts.failInInit", "true");
-      client.instanceOperations().setProperty(csp + "cse2.planner",
-          ErroringPlanner.class.getName());
-      client.instanceOperations().setProperty(csp + "cse2.planner.opts.failInInit", "false");
-      client.instanceOperations().setProperty(csp + "cse3.planner", "NonExistentPlanner20240522");
+      client.instanceOperations().setProperty(Property.COMPACTION_SERVICE_CONFIG.getKey(), "{ \""
+          + DEFAULT_COMPACTION_SERVICE_NAME + "\": { \"planner\": \""
+          + RatioBasedCompactionPlanner.class.getName()
+          + "\", \"opts\": {\"maxOpenFilesPerJob\": \"30\"}, \"groups\": [{ \"group\": \""
+          + DEFAULT_RESOURCE_GROUP_NAME + "\",  \"opts\": {\"maxSize\": \"128M\"}}]},"
+          + "\"cse1\": { \"planner\": \"" + ErroringPlanner.class.getName()
+          + "\", \"opts\": {\"failInInit\":\"true\"}, \"groups\": [{ \"group\": \"test\"}]},"
+          + "\"cse2\": { \"planner\": \"" + ErroringPlanner.class.getName()
+          + "\", \"opts\": {\"failInInit\":\"false\"}, \"groups\": [{ \"group\": \"test2\"}]},"
+          + "\"cse3\": { \"planner\": \"NonExistentPlanner20240522\", \"groups\": [{ \"group\": \"test3\"}]}}");
 
       createTable(client, "fail1", "cse1");
       createTable(client, "fail2", "cse2");
@@ -271,11 +274,8 @@ public class CompactionExecutorIT extends SharedMiniClusterBase {
       assertEquals(30, getFiles(client, "fail3").size());
 
       // Remove the properties for the invalid planners
-      client.instanceOperations().removeProperty(csp + "cse1.planner");
-      client.instanceOperations().removeProperty(csp + "cse1.planner.opts.failInInit");
-      client.instanceOperations().removeProperty(csp + "cse2.planner");
-      client.instanceOperations().removeProperty(csp + "cse2.planner.opts.failInInit");
-      client.instanceOperations().removeProperty(csp + "cse3.planner");
+      client.instanceOperations().setProperty(Property.COMPACTION_SERVICE_CONFIG.getKey(),
+          Property.COMPACTION_SERVICE_CONFIG.getDefaultValue());
 
     }
   }

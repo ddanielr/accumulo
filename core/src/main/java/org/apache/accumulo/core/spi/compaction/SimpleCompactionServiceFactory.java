@@ -110,7 +110,9 @@ public class SimpleCompactionServiceFactory implements CompactionServiceFactory 
         // Validate that planner is a class here
         options.put("planner", planner);
         // Validation for these opts has to be moved down to the planner creation stage.
-        options.put("plannerOpts", serviceConfig.opts.toString());
+        if (serviceConfig.opts != null) {
+          options.put("plannerOpts", serviceConfig.opts.toString());
+        }
 
         var groups = Objects.requireNonNull(serviceConfig.groups,
             "At least one group must be defined for compaction service: " + csid);
@@ -198,9 +200,14 @@ public class SimpleCompactionServiceFactory implements CompactionServiceFactory 
       var options = entry.getValue();
       Set<CompactionGroup> groups = config.get().serviceGroups.get(entry.getKey());
       Objects.requireNonNull(groups, "Compaction groups are not defined for: " + entry.getKey());
-      var plannerOpts = GSON.get().fromJson(options.get("plannerOpts"), PlannerOpts.class);
-      var initParams = new CompactionPlannerInitParams(
-          Map.of("maxOpenFilesPerJob", plannerOpts.maxOpenFilesPerJob), groups);
+
+      HashMap<String,String> plannerOpts = new HashMap<>();
+
+      if (options.get("plannerOpts") != null) {
+        var plannerOptsClass = GSON.get().fromJson(options.get("plannerOpts"), PlannerOpts.class);
+        plannerOpts.put("maxOpenFilesPerJob", plannerOptsClass.maxOpenFilesPerJob);
+      }
+      var initParams = new CompactionPlannerInitParams(plannerOpts, groups);
       CompactionPlanner planner;
       try {
         planner = env.instantiate(options.get("planner"), CompactionPlanner.class);

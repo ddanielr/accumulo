@@ -136,7 +136,6 @@ public class ServerContext extends ClientContext {
             SecurityOperation.getAuthenticator(this), SecurityOperation.getPermHandler(this)));
     lowMemoryDetector = memoize(() -> new LowMemoryDetector());
     metricsInfoSupplier = memoize(() -> new MetricsInfoImpl(this));
-
   }
 
   /**

@@ -58,7 +58,7 @@ public class SimpleCompactionServiceFactoryTest {
         + "\"csf7\" : {\"planner\": \"" + RatioBasedCompactionPlanner.class.getName()
         + "\", \"opts\": {\"maxOpenFilesPerJob\": \"30\"}, \"groups\": [{\"group\": \"DCQ7\"}]},"
         + "\"csf8\" : { \"planner\": \"" + RatioBasedCompactionPlanner.class.getName()
-        + "\", \"opts\": {\"maxOpenFilesPerJob\": \"30\"}, \"groups\": [{\"group\": \"DCQ8\"}]}}");
+        + "\", \"groups\": [{\"group\": \"DCQ8\"}]}}");
     var conf = new ConfigurationImpl(SiteConfiguration.empty().withOverrides(overrides).build());
     var testCSF = new SimpleCompactionServiceFactory();
 
