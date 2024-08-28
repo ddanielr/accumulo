@@ -167,7 +167,7 @@ public class CompactionExecutorIT extends SharedMiniClusterBase {
       cfg.setProperty(Property.COMPACTION_SERVICE_CONFIG, "{ \"default\": {\"planner\": \""
           + RatioBasedCompactionPlanner.class.getName()
           + "\", \"opts\": {\"maxOpenFilesPerJob\": \"30\"}, \"groups\": [{\"group\": \""
-          + DEFAULT_RESOURCE_GROUP_NAME + "\", \"maxSize\": \"128M\"}]},"
+          + DEFAULT_RESOURCE_GROUP_NAME + "\", \"opts\": { \"maxSize\": \"128M\"}}]},"
           + "\"cs1\" : {\"planner\": \"" + TestPlanner.class.getName() + "\","
           + "\"opts\": { \"filesPerCompaction\" : \"5\", \"process\" : \"SYSTEM\"}, \"groups\" : [{\"group\" : \"e1\"}, {\"group\" : \"e2\"}, {\"group\" : \"e3\"}]},"
           + "\"cs2\" : { \"planner\": \"" + TestPlanner.class.getName() + "\","

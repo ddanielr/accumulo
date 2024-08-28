@@ -58,7 +58,6 @@ public class SimpleCompactionServiceFactory implements CompactionServiceFactory 
   // new ConditionalLogger.EscalatingLogger(log, Duration.ofMinutes(5), 3000, Level.ERROR);
 
   private Supplier<CompactionServiceConf> factoryConfig;
-  private final Map<CompactionServiceId,CompactionPlanner> planners = new HashMap<>();
 
   private static class PlannerOpts {
     String maxOpenFilesPerJob;
@@ -80,6 +79,7 @@ public class SimpleCompactionServiceFactory implements CompactionServiceFactory 
     private final Map<CompactionServiceId,Map<String,String>> serviceOpts = new HashMap<>();
     private final Map<CompactionServiceId,Set<CompactionGroup>> serviceGroups = new HashMap<>();
     private final Set<CompactionGroup> compactionGroups = new HashSet<>();
+    private final Map<CompactionServiceId,CompactionPlanner> planners = new HashMap<>();
 
     CompactionServiceConf(PluginEnvironment.Configuration conf) {
       log.info("Building Compaction Services Conf");
@@ -181,7 +181,7 @@ public class SimpleCompactionServiceFactory implements CompactionServiceFactory 
     log.info("SCF: INIT Called in SimpleCompactionFactory");
     this.factoryConfig = env.getConfiguration().getDerived(CompactionServiceConf::new);
     // Maybe we don't use the planner map and instead just directly call the derived config?
-    validatePlanners(env, this.factoryConfig, planners);
+    validatePlanners(env, this.factoryConfig);
   }
 
   /**
@@ -189,12 +189,10 @@ public class SimpleCompactionServiceFactory implements CompactionServiceFactory 
    *
    * @param env environment used to create the planners
    * @param config configuration that is parsed from the property value
-   * @param plannerMap Map of planners that were generated from the config
    */
 
   private static void validatePlanners(PluginEnvironment env,
-      Supplier<CompactionServiceConf> config,
-      Map<CompactionServiceId,CompactionPlanner> plannerMap) {
+      Supplier<CompactionServiceConf> config) {
     for (Map.Entry<CompactionServiceId,Map<String,String>> entry : config.get().serviceOpts
         .entrySet()) {
       var options = entry.getValue();
@@ -218,17 +216,18 @@ public class SimpleCompactionServiceFactory implements CompactionServiceFactory 
             entry.getKey(), options.get("planner"), options, e);
         planner = new ProvisionalCompactionPlanner(entry.getKey());
       }
-      plannerMap.putIfAbsent(entry.getKey(), planner);
+      config.get().planners.putIfAbsent(entry.getKey(), planner);
     }
   }
 
   @Override
   public Set<CompactionServiceId> getCompactionServiceIds() {
+
     Objects.requireNonNull(factoryConfig.get(), "Factory Config has not been initialized");
-    if (planners.isEmpty()) {
+    if (factoryConfig.get().planners.isEmpty()) {
       return Set.of();
     }
-    return planners.keySet();
+    return factoryConfig.get().planners.keySet();
   }
 
   @Override
@@ -239,16 +238,16 @@ public class SimpleCompactionServiceFactory implements CompactionServiceFactory 
 
   @Override
   public Boolean validate(PluginEnvironment env) {
-    Map<CompactionServiceId,CompactionPlanner> validatedPlanners = new HashMap<>();
+    Supplier<CompactionServiceConf> config;
     try {
-      var config = env.getConfiguration().getDerived(CompactionServiceConf::new);
-      validatePlanners(env, config, validatedPlanners);
+      config = env.getConfiguration().getDerived(CompactionServiceConf::new);
+      validatePlanners(env, config);
     } catch (Exception e) {
       log.error("Property {} failed validation with class {}", COMPACTION_SERVICE_CONFIG,
-          this.getClass().getName());
+          this.getClass().getName(), e);
       return false;
     }
-    if (validatedPlanners.isEmpty()) {
+    if (config.get() != null && config.get().planners.isEmpty()) {
       log.warn("No valid planners were created from the config");
     }
     return true;
@@ -258,8 +257,9 @@ public class SimpleCompactionServiceFactory implements CompactionServiceFactory 
   public Collection<CompactionJob> getJobs(CompactionPlanner.PlanningParameters params,
       CompactionServiceId serviceId) {
     try {
-      return planners.getOrDefault(serviceId, new ProvisionalCompactionPlanner(serviceId))
-          .makePlan(params).getJobs();
+      return factoryConfig.get().planners
+          .getOrDefault(serviceId, new ProvisionalCompactionPlanner(serviceId)).makePlan(params)
+          .getJobs();
     } catch (Exception e) {
       // PLANNING_ERROR_LOG.trace(
       log.trace(

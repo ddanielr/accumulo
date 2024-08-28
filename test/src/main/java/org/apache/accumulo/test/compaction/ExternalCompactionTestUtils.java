@@ -45,6 +45,7 @@ import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import org.apache.accumulo.core.client.AccumuloClient;
@@ -479,13 +480,8 @@ public class ExternalCompactionTestUtils {
 
   public static class TestCompactionServiceFactory implements CompactionServiceFactory {
 
-    private static final Logger log = LoggerFactory
-        .getLogger(org.apache.accumulo.core.spi.compaction.SimpleCompactionServiceFactory.class);
-    private Map<String,String> plannerOpts = new HashMap<>();
-    private final Map<CompactionServiceId,Map<String,String>> serviceOpts = new HashMap<>();
-    private final Map<CompactionServiceId,Set<CompactionGroup>> serviceGroups = new HashMap<>();
-    private final Set<CompactionGroup> compactionGroups = new HashSet<>();
-    private final Map<CompactionServiceId,CompactionPlanner> planners = new HashMap<>();
+    private static final Logger log = LoggerFactory.getLogger(TestCompactionServiceFactory.class);
+    private Supplier<TestCompactionServiceConf> factoryConfig;
 
     private static class ServiceConfig {
       String process;
@@ -498,44 +494,108 @@ public class ExternalCompactionTestUtils {
       JsonObject opts;
     }
 
-    @Override
-    public void init(PluginEnvironment env) {
-      var config = env.getConfiguration();
-      String factoryConfig = config.get(COMPACTION_SERVICE_CONFIG.getKey());
+    static class TestCompactionServiceConf {
 
-      // Generate a list of fields from the desired object.
-      final List<String> serviceFields = Arrays.stream(ServiceConfig.class.getDeclaredFields())
-          .map(Field::getName).collect(Collectors.toList());
+      private final Map<CompactionServiceId,Map<String,String>> serviceOpts = new HashMap<>();
+      private final Map<String,String> plannerOpts = new HashMap<>();
 
-      // Each Service is a unique key, so get the keySet to correctly name the service.
-      var servicesMap = GSON.get().fromJson(factoryConfig, JsonObject.class);
-      Set<Map.Entry<String,JsonElement>> entrySet = servicesMap.entrySet();
+      private final Map<CompactionServiceId,Set<CompactionGroup>> serviceGroups = new HashMap<>();
+      private final Set<CompactionGroup> compactionGroups = new HashSet<>();
+      private final Map<CompactionServiceId,CompactionPlanner> planners = new HashMap<>();
 
-      // Find each service in the map and validate its fields
-      for (Map.Entry<String,JsonElement> entry : entrySet) {
-        Map<String,String> options = new HashMap<>();
-        CompactionServiceId csid = CompactionServiceId.of(entry.getKey());
-        Preconditions.checkArgument(!serviceOpts.containsKey(csid),
-            "Duplicate compaction service definition for service: " + entry.getKey());
+      TestCompactionServiceConf(PluginEnvironment.Configuration conf) {
+        log.info("Building Compaction Service Config");
+        String factoryConfig = conf.get(COMPACTION_SERVICE_CONFIG.getKey());
 
-        validateConfig(entry.getValue(), serviceFields, ServiceConfig.class.getName());
-        ServiceConfig serviceConfig = GSON.get().fromJson(entry.getValue(), ServiceConfig.class);
-        var groups = Objects.requireNonNull(serviceConfig.groups,
-            "At least one group must be defined for compaction service: " + csid);
+        // Generate a list of fields from the desired object.
+        final List<String> serviceFields = Arrays.stream(ServiceConfig.class.getDeclaredFields())
+            .map(Field::getName).collect(Collectors.toList());
 
-        plannerOpts.put("process", serviceConfig.process);
-        plannerOpts.put("filesPerCompaction", serviceConfig.filesPerCompaction);
+        // Each Service is a unique key, so get the keySet to correctly name the service.
+        var servicesMap = GSON.get().fromJson(factoryConfig, JsonObject.class);
+        Set<Map.Entry<String,JsonElement>> entrySet = servicesMap.entrySet();
 
-        // validate the groups defined for the service
-        mapGroups(csid, groups);
-        serviceOpts.put(csid, options);
+        // Find each service in the map and validate its fields
+        for (Map.Entry<String,JsonElement> entry : entrySet) {
+          Map<String,String> options = new HashMap<>();
+          CompactionServiceId csid = CompactionServiceId.of(entry.getKey());
+          Preconditions.checkArgument(!serviceOpts.containsKey(csid),
+              "Duplicate compaction service definition for service: " + entry.getKey());
+
+          validateConfig(entry.getValue(), serviceFields, ServiceConfig.class.getName());
+          ServiceConfig serviceConfig = GSON.get().fromJson(entry.getValue(), ServiceConfig.class);
+          var groups = Objects.requireNonNull(serviceConfig.groups,
+              "At least one group must be defined for compaction service: " + csid);
+
+          plannerOpts.put("process", serviceConfig.process);
+          plannerOpts.put("filesPerCompaction", serviceConfig.filesPerCompaction);
+
+          // validate the groups defined for the service
+          mapGroups(csid, groups);
+          serviceOpts.put(csid, options);
+        }
       }
 
-      for (Map.Entry<CompactionServiceId,Map<String,String>> entry : serviceOpts.entrySet()) {
+      private void mapGroups(CompactionServiceId csid, JsonArray groupArray) {
+        final List<String> groupFields = Arrays.stream(GroupConfig.class.getDeclaredFields())
+            .map(Field::getName).collect(Collectors.toList());
+
+        HashSet<CompactionGroup> groups = new HashSet<>();
+
+        for (JsonElement element : GSON.get().fromJson(groupArray, JsonArray.class)) {
+          validateConfig(element, groupFields, GroupConfig.class.getName());
+          GroupConfig groupConfig = GSON.get().fromJson(element, GroupConfig.class);
+
+          String groupName = Objects.requireNonNull(groupConfig.group, "'group' must be specified");
+
+          Long maxSize = null;
+          // Parse for various group options
+          if (groupConfig.opts != null) {
+            for (Map.Entry<String,JsonElement> entry : groupConfig.opts.entrySet()) {
+              if (Objects.equals(entry.getKey(), "maxSize")) {
+                maxSize =
+                    ConfigurationTypeHelper.getFixedMemoryAsBytes(entry.getValue().getAsString());
+              }
+            }
+          }
+
+          var cgid = CompactorGroupId.of(groupName);
+          // Check if the compaction service has been defined before
+          if (!compactionGroups.isEmpty() && compactionGroups.stream()
+              .map(CompactionGroup::getGroupId).anyMatch(Predicate.isEqual(cgid))) {
+            throw new IllegalArgumentException(
+                "Duplicate compaction group definition on service : " + csid);
+          }
+          var compactionGroup = new CompactionGroup(cgid, maxSize);
+          groups.add(compactionGroup);
+        }
+        serviceGroups.put(csid, groups);
+        compactionGroups.addAll(groups);
+      }
+
+      private void validateConfig(JsonElement json, List<String> fields, String className) {
+
+        JsonObject jsonObject = GSON.get().fromJson(json, JsonObject.class);
+
+        List<String> objectProperties = new ArrayList<>(jsonObject.keySet());
+        HashSet<String> classFieldNames = new HashSet<>(fields);
+
+        if (!classFieldNames.containsAll(objectProperties)) {
+          objectProperties.removeAll(classFieldNames);
+          throw new JsonParseException(
+              "Invalid fields: " + objectProperties + " provided for class: " + className);
+        }
+      }
+    }
+
+    private static void validatePlanners(PluginEnvironment env,
+        Supplier<TestCompactionServiceConf> config) {
+      for (Map.Entry<CompactionServiceId,Map<String,String>> entry : config.get().serviceOpts
+          .entrySet()) {
         var options = entry.getValue();
-        Set<CompactionGroup> groups = serviceGroups.get(entry.getKey());
+        Set<CompactionGroup> groups = config.get().serviceGroups.get(entry.getKey());
         Objects.requireNonNull(groups, "Compaction groups are not defined for: " + entry.getKey());
-        var initParams = new CompactionPlannerInitParams(plannerOpts, groups);
+        var initParams = new CompactionPlannerInitParams(config.get().plannerOpts, groups);
         CompactionPlanner planner;
         try {
           planner = env.instantiate(options.get("planner"), CompactionPlanner.class);
@@ -546,74 +606,41 @@ public class ExternalCompactionTestUtils {
               entry.getKey(), options.get("planner"), options, e);
           planner = new ProvisionalCompactionPlanner(entry.getKey());
         }
-        planners.putIfAbsent(entry.getKey(), planner);
-      }
-
-    }
-
-    private void validateConfig(JsonElement json, List<String> fields, String className) {
-
-      JsonObject jsonObject = GSON.get().fromJson(json, JsonObject.class);
-
-      List<String> objectProperties = new ArrayList<>(jsonObject.keySet());
-      HashSet<String> classFieldNames = new HashSet<>(fields);
-
-      if (!classFieldNames.containsAll(objectProperties)) {
-        objectProperties.removeAll(classFieldNames);
-        throw new JsonParseException(
-            "Invalid fields: " + objectProperties + " provided for class: " + className);
+        config.get().planners.putIfAbsent(entry.getKey(), planner);
       }
     }
 
-    private void mapGroups(CompactionServiceId csid, JsonArray groupArray) {
-      final List<String> groupFields = Arrays.stream(GroupConfig.class.getDeclaredFields())
-          .map(Field::getName).collect(Collectors.toList());
-
-      HashSet<CompactionGroup> groups = new HashSet<>();
-
-      for (JsonElement element : GSON.get().fromJson(groupArray, JsonArray.class)) {
-        validateConfig(element, groupFields, GroupConfig.class.getName());
-        GroupConfig groupConfig = GSON.get().fromJson(element, GroupConfig.class);
-
-        String groupName = Objects.requireNonNull(groupConfig.group, "'group' must be specified");
-
-        Long maxSize = null;
-        // Parse for various group options
-        if (groupConfig.opts != null) {
-          for (Map.Entry<String,JsonElement> entry : groupConfig.opts.entrySet()) {
-            if (Objects.equals(entry.getKey(), "maxSize")) {
-              maxSize =
-                  ConfigurationTypeHelper.getFixedMemoryAsBytes(entry.getValue().getAsString());
-            }
-          }
-        }
-
-        var cgid = CompactorGroupId.of(groupName);
-        // Check if the compaction service has been defined before
-        if (!compactionGroups.isEmpty() && compactionGroups.stream()
-            .map(CompactionGroup::getGroupId).anyMatch(Predicate.isEqual(cgid))) {
-          throw new IllegalArgumentException(
-              "Duplicate compaction group definition on service : " + csid);
-        }
-        var compactionGroup = new CompactionGroup(cgid, maxSize);
-        groups.add(compactionGroup);
-      }
-      serviceGroups.put(csid, groups);
-      compactionGroups.addAll(groups);
+    @Override
+    public void init(PluginEnvironment env) {
+      this.factoryConfig = env.getConfiguration().getDerived(TestCompactionServiceConf::new);
+      validatePlanners(env, this.factoryConfig);
     }
 
     @Override
     public Set<CompactorGroupId> getCompactorGroupIds() {
-      return compactionGroups.stream().map(CompactionGroup::getGroupId).collect(Collectors.toSet());
+      return factoryConfig.get().compactionGroups.stream().map(CompactionGroup::getGroupId)
+          .collect(Collectors.toSet());
     }
 
     @Override
     public Set<CompactionServiceId> getCompactionServiceIds() {
-      return serviceOpts.keySet();
+      return this.factoryConfig.get().serviceOpts.keySet();
     }
 
     @Override
     public Boolean validate(PluginEnvironment env) {
+      Supplier<TestCompactionServiceConf> config;
+      try {
+        config = env.getConfiguration().getDerived(TestCompactionServiceConf::new);
+        validatePlanners(env, config);
+      } catch (Exception e) {
+        log.error("Property {} failed validation with class {}", COMPACTION_SERVICE_CONFIG,
+            this.getClass().getName(), e);
+        return false;
+      }
+      if (config.get() != null && config.get().planners.isEmpty()) {
+        log.warn("No valid planners were created from the config");
+      }
       return true;
     }
 
@@ -621,8 +648,9 @@ public class ExternalCompactionTestUtils {
     public Collection<CompactionJob> getJobs(CompactionPlanner.PlanningParameters params,
         CompactionServiceId serviceId) {
       try {
-        return planners.getOrDefault(serviceId, new ProvisionalCompactionPlanner(serviceId))
-            .makePlan(params).getJobs();
+        return factoryConfig.get().planners
+            .getOrDefault(serviceId, new ProvisionalCompactionPlanner(serviceId)).makePlan(params)
+            .getJobs();
       } catch (Exception e) {
         // PLANNING_ERROR_LOG.trace(
         log.trace(
