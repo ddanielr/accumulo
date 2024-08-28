@@ -54,6 +54,8 @@ import org.apache.accumulo.core.metadata.schema.UnSplittableMetadata;
 import org.apache.accumulo.core.spi.balancer.SimpleLoadBalancer;
 import org.apache.accumulo.core.spi.balancer.TabletBalancer;
 import org.apache.accumulo.core.spi.compaction.CompactionKind;
+import org.apache.accumulo.core.spi.compaction.CompactionServiceFactory;
+import org.apache.accumulo.core.spi.compaction.NoCompactionServiceFactory;
 import org.apache.accumulo.server.compaction.CompactionJobGenerator;
 import org.apache.accumulo.server.fs.VolumeUtil;
 import org.apache.accumulo.server.iterators.TabletIteratorEnvironment;
@@ -180,9 +182,19 @@ public class TabletManagementIterator extends WholeRowIterator {
     this.env = env;
     tabletMgmtParams =
         TabletManagementParameters.deserialize(options.get(TABLET_GOAL_STATE_PARAMS_OPTION));
-    compactionGenerator = new CompactionJobGenerator(env.getPluginEnv(),
-        tabletMgmtParams.getCompactionHints(), tabletMgmtParams.getSteadyTime());
     final AccumuloConfiguration conf = new ConfigurationCopy(env.getPluginEnv().getConfiguration());
+    CompactionServiceFactory compactionServiceFactory;
+    try {
+      compactionServiceFactory = env.getPluginEnv()
+          .instantiate(conf.get(Property.COMPACTION_SERVICE), CompactionServiceFactory.class);
+      compactionServiceFactory.init(env.getPluginEnv());
+    } catch (ReflectiveOperationException e) {
+      // Not sure if we want to use this generic CompactionService
+      compactionServiceFactory = new NoCompactionServiceFactory();
+    }
+    compactionGenerator = new CompactionJobGenerator(compactionServiceFactory, env.getPluginEnv(),
+        tabletMgmtParams.getCompactionHints(), tabletMgmtParams.getSteadyTime());
+
     BalancerEnvironmentImpl benv =
         new BalancerEnvironmentImpl(((TabletIteratorEnvironment) env).getServerContext());
     balancer = Property.createInstanceFromPropertyName(conf, Property.MANAGER_TABLET_BALANCER,
@@ -304,6 +316,8 @@ public class TabletManagementIterator extends WholeRowIterator {
             splitConfig)) {
           reasonsToReturnThisTablet.add(ManagementAction.NEEDS_SPLITTING);
         }
+        // How can I get the compactionFactory passed into the compactionGenerator since this is an
+        // iterator
         // important to call this since reasonsToReturnThisTablet is passed to it
         if (!compactionGenerator
             .generateJobs(tm, determineCompactionKinds(reasonsToReturnThisTablet)).isEmpty()) {

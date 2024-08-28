@@ -18,7 +18,6 @@
  */
 package org.apache.accumulo.server.compaction;
 
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -35,7 +34,6 @@ import org.apache.accumulo.core.conf.ConfigurationTypeHelper;
 import org.apache.accumulo.core.conf.Property;
 import org.apache.accumulo.core.data.TableId;
 import org.apache.accumulo.core.fate.FateId;
-import org.apache.accumulo.core.logging.ConditionalLogger;
 import org.apache.accumulo.core.metadata.CompactableFileImpl;
 import org.apache.accumulo.core.metadata.schema.TabletMetadata;
 import org.apache.accumulo.core.spi.common.ServiceEnvironment;
@@ -43,44 +41,37 @@ import org.apache.accumulo.core.spi.compaction.CompactionDispatcher;
 import org.apache.accumulo.core.spi.compaction.CompactionJob;
 import org.apache.accumulo.core.spi.compaction.CompactionKind;
 import org.apache.accumulo.core.spi.compaction.CompactionPlan;
-import org.apache.accumulo.core.spi.compaction.CompactionPlanner;
+import org.apache.accumulo.core.spi.compaction.CompactionPlanner.PlanningParameters;
+import org.apache.accumulo.core.spi.compaction.CompactionServiceFactory;
 import org.apache.accumulo.core.spi.compaction.CompactionServiceId;
 import org.apache.accumulo.core.spi.compaction.CompactionServices;
 import org.apache.accumulo.core.util.cache.Caches;
 import org.apache.accumulo.core.util.cache.Caches.CacheName;
 import org.apache.accumulo.core.util.compaction.CompactionJobImpl;
 import org.apache.accumulo.core.util.compaction.CompactionPlanImpl;
-import org.apache.accumulo.core.util.compaction.CompactionPlannerInitParams;
-import org.apache.accumulo.core.util.compaction.CompactionServicesConfig;
 import org.apache.accumulo.core.util.time.SteadyTime;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.slf4j.event.Level;
 
 import com.github.benmanes.caffeine.cache.Cache;
 
 public class CompactionJobGenerator {
   private static final Logger log = LoggerFactory.getLogger(CompactionJobGenerator.class);
-  private static final Logger UNKNOWN_SERVICE_ERROR_LOG =
-      new ConditionalLogger.EscalatingLogger(log, Duration.ofMinutes(5), 3000, Level.ERROR);
-  private static final Logger PLANNING_INIT_ERROR_LOG =
-      new ConditionalLogger.EscalatingLogger(log, Duration.ofMinutes(5), 3000, Level.ERROR);
-  private static final Logger PLANNING_ERROR_LOG =
-      new ConditionalLogger.EscalatingLogger(log, Duration.ofMinutes(5), 3000, Level.ERROR);
 
-  private final CompactionServicesConfig servicesConfig;
-  private final Map<CompactionServiceId,CompactionPlanner> planners = new HashMap<>();
+  private final CompactionServiceFactory compactionServiceFactory;
   private final Cache<TableId,CompactionDispatcher> dispatchers;
   private final Set<CompactionServiceId> serviceIds;
   private final PluginEnvironment env;
   private final Map<FateId,Map<String,String>> allExecutionHints;
   private final SteadyTime steadyTime;
 
-  public CompactionJobGenerator(PluginEnvironment env,
-      Map<FateId,Map<String,String>> executionHints, SteadyTime steadyTime) {
-    servicesConfig = new CompactionServicesConfig(env.getConfiguration());
-    serviceIds = servicesConfig.getPlanners().keySet().stream().map(CompactionServiceId::of)
-        .collect(Collectors.toUnmodifiableSet());
+  public CompactionJobGenerator(CompactionServiceFactory compactionServiceFactory,
+      PluginEnvironment env, Map<FateId,Map<String,String>> executionHints, SteadyTime steadyTime) {
+
+    this.compactionServiceFactory = compactionServiceFactory;
+    // Why do we need serviceIds here? Look into the code and see how we can remove these
+    // completely.
+    serviceIds = this.compactionServiceFactory.getCompactionServiceIds();
 
     dispatchers = Caches.getInstance().createNewBuilder(CacheName.COMPACTION_DISPATCHERS, false)
         .maximumSize(10).build();
@@ -103,6 +94,8 @@ public class CompactionJobGenerator {
 
     log.debug("Planning for {} {} {}", tablet.getExtent(), kinds, this.hashCode());
 
+    // Two Different calls (dispatch and then plan) which could be combined into the same
+    // CompactionTBDFactory
     if (kinds.contains(CompactionKind.SYSTEM)) {
       CompactionServiceId serviceId = dispatch(CompactionKind.SYSTEM, tablet, Map.of());
       systemJobs = planCompactions(serviceId, CompactionKind.SYSTEM, tablet, Map.of());
@@ -130,9 +123,12 @@ public class CompactionJobGenerator {
     }
   }
 
+  // Dispatcher is used here in the CompactionJobGenerator.
+  //
   private CompactionServiceId dispatch(CompactionKind kind, TabletMetadata tablet,
       Map<String,String> executionHints) {
 
+    // Call the compaction factory instead?
     CompactionDispatcher dispatcher = dispatchers.get(tablet.getTableId(),
         tableId -> CompactionPluginUtils.createDispatcher((ServiceEnvironment) env, tableId));
 
@@ -165,18 +161,6 @@ public class CompactionJobGenerator {
   private Collection<CompactionJob> planCompactions(CompactionServiceId serviceId,
       CompactionKind kind, TabletMetadata tablet, Map<String,String> executionHints) {
 
-    if (!servicesConfig.getPlanners().containsKey(serviceId.canonical())) {
-      UNKNOWN_SERVICE_ERROR_LOG.trace(
-          "Table {} returned non-existent compaction service {} for compaction type {}.  Check"
-              + " the table compaction dispatcher configuration. No compactions will happen"
-              + " until the configuration is fixed. This log message is temporarily suppressed.",
-          tablet.getExtent().tableId(), serviceId, kind);
-      return Set.of();
-    }
-
-    CompactionPlanner planner =
-        planners.computeIfAbsent(serviceId, sid -> createPlanner(tablet.getTableId(), serviceId));
-
     // selecting indicator
     // selected files
 
@@ -202,7 +186,7 @@ public class CompactionJobGenerator {
         tablet.getExternalCompactions().values().stream().flatMap(ecm -> ecm.getJobFiles().stream())
             .forEach(tmpFiles::remove);
         // remove any files that are selected and the user compaction has completed
-        // at least 1 job, otherwise we can keep the files
+        // at least one job, otherwise we can keep the files
         var selectedFiles = tablet.getSelectedFiles();
 
         if (selectedFiles != null) {
@@ -234,11 +218,13 @@ public class CompactionJobGenerator {
     }
 
     if (candidates.isEmpty()) {
-      // there are not candidate files for compaction, so no reason to call the planner
+      // there are no candidate files for compaction, so no reason to call the planner
       return Set.of();
     }
 
-    CompactionPlanner.PlanningParameters params = new CompactionPlanner.PlanningParameters() {
+    // Once files are selected, then call the planner.
+
+    PlanningParameters params = new PlanningParameters() {
       @Override
       public TableId getTableId() {
         return tablet.getTableId();
@@ -291,44 +277,6 @@ public class CompactionJobGenerator {
         return new CompactionPlanImpl.BuilderImpl(kind, allFiles, candidates);
       }
     };
-    return planCompactions(planner, params, serviceId);
-  }
-
-  private CompactionPlanner createPlanner(TableId tableId, CompactionServiceId serviceId) {
-
-    CompactionPlanner planner;
-    String plannerClassName = null;
-    Map<String,String> options = null;
-    try {
-      plannerClassName = servicesConfig.getPlanners().get(serviceId.canonical());
-      options = servicesConfig.getOptions().get(serviceId.canonical());
-      planner = env.instantiate(tableId, plannerClassName, CompactionPlanner.class);
-      CompactionPlannerInitParams initParameters = new CompactionPlannerInitParams(serviceId,
-          servicesConfig.getPlannerPrefix(serviceId.canonical()),
-          servicesConfig.getOptions().get(serviceId.canonical()), (ServiceEnvironment) env);
-      planner.init(initParameters);
-    } catch (Exception e) {
-      PLANNING_INIT_ERROR_LOG.trace(
-          "Failed to create compaction planner for service:{} tableId:{} using class:{} options:{}.  Compaction "
-              + "service will not start any new compactions until its configuration is fixed. This log message is "
-              + "temporarily suppressed.",
-          serviceId, tableId, plannerClassName, options, e);
-      planner = new ProvisionalCompactionPlanner(serviceId);
-    }
-    return planner;
-  }
-
-  private Collection<CompactionJob> planCompactions(CompactionPlanner planner,
-      CompactionPlanner.PlanningParameters params, CompactionServiceId serviceId) {
-    try {
-      return planner.makePlan(params).getJobs();
-    } catch (Exception e) {
-      PLANNING_ERROR_LOG.trace(
-          "Failed to plan compactions for service:{} kind:{} tableId:{} hints:{}.  Compaction service may not start any"
-              + " new compactions until this issue is resolved. Duplicates of this log message are temporarily"
-              + " suppressed.",
-          serviceId, params.getKind(), params.getTableId(), params.getExecutionHints(), e);
-      return Set.of();
-    }
+    return compactionServiceFactory.getJobs(params, serviceId);
   }
 }

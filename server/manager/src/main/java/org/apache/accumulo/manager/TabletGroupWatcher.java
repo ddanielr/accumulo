@@ -72,6 +72,8 @@ import org.apache.accumulo.core.metadata.schema.RootTabletMetadata;
 import org.apache.accumulo.core.metadata.schema.TabletMetadata;
 import org.apache.accumulo.core.metadata.schema.TabletMetadata.Location;
 import org.apache.accumulo.core.security.Authorizations;
+import org.apache.accumulo.core.spi.compaction.CompactionServiceFactory;
+import org.apache.accumulo.core.spi.compaction.NoCompactionServiceFactory;
 import org.apache.accumulo.core.util.threads.Threads;
 import org.apache.accumulo.core.util.threads.Threads.AccumuloDaemonThread;
 import org.apache.accumulo.manager.metrics.ManagerMetrics;
@@ -81,7 +83,6 @@ import org.apache.accumulo.manager.state.TableStats;
 import org.apache.accumulo.manager.upgrade.UpgradeCoordinator;
 import org.apache.accumulo.server.ServiceEnvironmentImpl;
 import org.apache.accumulo.server.compaction.CompactionJobGenerator;
-import org.apache.accumulo.server.conf.CheckCompactionConfig;
 import org.apache.accumulo.server.conf.TableConfiguration;
 import org.apache.accumulo.server.fs.VolumeUtil;
 import org.apache.accumulo.server.log.WalStateManager;
@@ -123,6 +124,8 @@ abstract class TabletGroupWatcher extends AccumuloDaemonThread {
   private final WalStateManager walStateManager;
   private volatile Set<TServerInstance> filteredServersToShutdown = Set.of();
 
+  private CompactionServiceFactory compactionServiceFactory;
+
   TabletGroupWatcher(Manager manager, TabletStateStore store, TabletGroupWatcher dependentWatcher,
       ManagerMetrics metrics) {
     super("Watching " + store.name());
@@ -133,6 +136,16 @@ abstract class TabletGroupWatcher extends AccumuloDaemonThread {
     this.walStateManager = new WalStateManager(manager.getContext());
     this.eventHandler = new EventHandler();
     manager.getEventCoordinator().addListener(store.getLevel(), eventHandler);
+    ServiceEnvironmentImpl senv = new ServiceEnvironmentImpl(manager.getContext());
+    try {
+      compactionServiceFactory =
+          senv.instantiate(manager.getConfiguration().get(Property.COMPACTION_SERVICE),
+              CompactionServiceFactory.class);
+      compactionServiceFactory.init(senv);
+    } catch (ReflectiveOperationException e) {
+      // Use an noop Compaction Service Factory
+      compactionServiceFactory = new NoCompactionServiceFactory();
+    }
   }
 
   /** Should this {@code TabletGroupWatcher} suspend tablets? */
@@ -437,14 +450,15 @@ abstract class TabletGroupWatcher extends AccumuloDaemonThread {
     TabletLists tLists = new TabletLists(currentTServers, tableMgmtParams.getGroupedTServers(),
         tableMgmtParams.getServersToShutdown());
 
+    var senv = new ServiceEnvironmentImpl(manager.getContext());
     CompactionJobGenerator compactionGenerator =
-        new CompactionJobGenerator(new ServiceEnvironmentImpl(manager.getContext()),
+        new CompactionJobGenerator(compactionServiceFactory, senv,
             tableMgmtParams.getCompactionHints(), tableMgmtParams.getSteadyTime());
 
     try {
-      CheckCompactionConfig.validate(manager.getConfiguration());
+      compactionServiceFactory.validate(senv);
       this.metrics.clearCompactionServiceConfigurationError();
-    } catch (RuntimeException | ReflectiveOperationException e) {
+    } catch (RuntimeException e) {
       this.metrics.setCompactionServiceConfigurationError();
       LOG.error(
           "Error validating compaction configuration, all {} compactions are paused until the configuration is fixed.",

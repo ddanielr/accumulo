@@ -18,6 +18,8 @@
  */
 package org.apache.accumulo.test.functional;
 
+import static org.apache.accumulo.core.Constants.DEFAULT_COMPACTION_SERVICE_NAME;
+import static org.apache.accumulo.core.Constants.DEFAULT_RESOURCE_GROUP_NAME;
 import static org.apache.accumulo.test.compaction.ExternalCompactionTestUtils.GROUP1;
 import static org.apache.accumulo.test.compaction.ExternalCompactionTestUtils.MAX_DATA;
 import static org.apache.accumulo.test.compaction.ExternalCompactionTestUtils.compact;
@@ -33,7 +35,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import org.apache.accumulo.core.Constants;
 import org.apache.accumulo.core.client.Accumulo;
 import org.apache.accumulo.core.client.AccumuloClient;
 import org.apache.accumulo.core.client.IteratorSetting;
@@ -73,7 +74,7 @@ public class IdleProcessMetricsIT extends SharedMiniClusterBase {
 
       // Verify expectations about the default config. Want to ensure there no other resource groups
       // configured.
-      assertEquals(Map.of(Constants.DEFAULT_COMPACTION_SERVICE_NAME, 1),
+      assertEquals(Map.of(DEFAULT_COMPACTION_SERVICE_NAME, 1),
           cfg.getClusterServerConfiguration().getCompactorConfiguration());
 
       // Disable the default scan servers and compactors, just start 1
@@ -90,10 +91,13 @@ public class IdleProcessMetricsIT extends SharedMiniClusterBase {
       cfg.getClusterServerConfiguration().addCompactorResourceGroup(IDLE_RESOURCE_GROUP, 1);
       cfg.getClusterServerConfiguration().addCompactorResourceGroup(GROUP1, 0);
 
-      cfg.setProperty(Property.COMPACTION_SERVICE_PREFIX.getKey() + "cs1.planner",
-          RatioBasedCompactionPlanner.class.getName());
-      cfg.setProperty(Property.COMPACTION_SERVICE_PREFIX.getKey() + "cs1.planner.opts.groups",
-          "[{'group':'" + GROUP1 + "'}]");
+      cfg.setProperty(Property.COMPACTION_SERVICE_CONFIG.getKey(),
+          "{ \"" + DEFAULT_COMPACTION_SERVICE_NAME + "\": { \"planner\": \""
+              + RatioBasedCompactionPlanner.class.getName()
+              + "\", \"opts\": {\"maxOpenFilesPerJob\": \"30\"}, \"groups\": [{ \"group\": \""
+              + DEFAULT_RESOURCE_GROUP_NAME + "\",  \"opts\": {\"maxSize\": \"128M\"}}]},"
+              + "\"cs1\": { \"planner\": \"" + RatioBasedCompactionPlanner.class.getName()
+              + "\", \"groups\": [{ \"group\": \"" + GROUP1 + "\"}]}}");
 
       cfg.setProperty(Property.GENERAL_IDLE_PROCESS_INTERVAL,
           idleProcessInterval.toSeconds() + "s");

@@ -18,6 +18,8 @@
  */
 package org.apache.accumulo.test.compaction;
 
+import static org.apache.accumulo.core.Constants.DEFAULT_COMPACTION_SERVICE_NAME;
+import static org.apache.accumulo.core.Constants.DEFAULT_RESOURCE_GROUP_NAME;
 import static org.apache.accumulo.test.compaction.ExternalCompactionTestUtils.MAX_DATA;
 import static org.apache.accumulo.test.compaction.ExternalCompactionTestUtils.createTable;
 import static org.apache.accumulo.test.compaction.ExternalCompactionTestUtils.verify;
@@ -48,11 +50,15 @@ public class CompactionConfigChangeIT extends AccumuloClusterHarness {
     cfg.getClusterServerConfiguration().addCompactorResourceGroup("little", 1);
     cfg.getClusterServerConfiguration().addCompactorResourceGroup("big", 1);
 
-    cfg.setProperty(Property.COMPACTION_SERVICE_PREFIX.getKey() + "cs1.planner",
-        RatioBasedCompactionPlanner.class.getName());
-    cfg.setProperty(Property.COMPACTION_SERVICE_PREFIX.getKey() + "cs1.planner.opts.groups",
-        ("[{'group':'small','maxSize':'2M'}, {'group':'medium','maxSize':'128M'},"
-            + "{'group':'large'}]").replaceAll("'", "\""));
+    cfg.setProperty(Property.COMPACTION_SERVICE_CONFIG.getKey(), "{ \""
+        + DEFAULT_COMPACTION_SERVICE_NAME + "\": { \"planner\": \""
+        + RatioBasedCompactionPlanner.class.getName()
+        + "\", \"opts\": {\"maxOpenFilesPerJob\": \"30\"}, \"groups\": [{ \"group\": \""
+        + DEFAULT_RESOURCE_GROUP_NAME + "\", \"maxSize\": \"128M\"}]},"
+        + "\"csf1\" : {\"planner\": \"" + RatioBasedCompactionPlanner.class.getName()
+        + "\", \"opts\": {\"maxOpenFilesPerJob\": \"30\"}, \"groups\": [{\"group\": \"small\", "
+        + "\"maxSize\": \"2M\"}, {\"group\": \"medium\", \"maxSize\": \"128M\"}, {\"group\": \"large\"}"
+        + "]}}");
 
     // use raw local file system so walogs sync and flush will work
     hadoopCoreSite.set("fs.file.impl", RawLocalFileSystem.class.getName());
@@ -100,9 +106,15 @@ public class CompactionConfigChangeIT extends AccumuloClusterHarness {
       // deleting groups running compactions would leave the tablet in a bad state for future
       // compactions. Because the compactions are running slow, expect this config change to overlap
       // with running compactions.
-      client.instanceOperations().setProperty(
-          Property.COMPACTION_SERVICE_PREFIX.getKey() + "cs1.planner.opts.groups",
-          ("[{'group':'little','maxSize':'128M'},{'group':'big'}]").replaceAll("'", "\""));
+      client.instanceOperations().setProperty(Property.COMPACTION_SERVICE_CONFIG.getKey(), "{ \""
+          + DEFAULT_COMPACTION_SERVICE_NAME + "\": { \"planner\": \""
+          + RatioBasedCompactionPlanner.class.getName()
+          + "\", \"opts\": {\"maxOpenFilesPerJob\": \"30\"}, \"groups\": [{ \"group\": \""
+          + DEFAULT_RESOURCE_GROUP_NAME + "\", \"maxSize\": \"128M\"}]},"
+          + "\"csf1\" : {\"planner\": \"" + RatioBasedCompactionPlanner.class.getName()
+          + "\", \"opts\": {\"maxOpenFilesPerJob\": \"30\"}, \"groups\": [{\"group\": \"small\", "
+          + "\"maxSize\": \"2M\"}, {\"group\": \"little\", \"maxSize\": \"128M\"}, {\"group\": \"big\""
+          + "}]}}");
 
       Wait.waitFor(() -> countFiles(client, table, "F") == 0, 60000);
 

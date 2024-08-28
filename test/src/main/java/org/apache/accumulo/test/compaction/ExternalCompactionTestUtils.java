@@ -18,22 +18,34 @@
  */
 package org.apache.accumulo.test.compaction;
 
+import static org.apache.accumulo.core.Constants.DEFAULT_RESOURCE_GROUP_NAME;
+import static org.apache.accumulo.core.conf.Property.COMPACTION_SERVICE_CONFIG;
+import static org.apache.accumulo.core.util.LazySingletons.GSON;
+import static org.apache.accumulo.core.util.LazySingletons.RANDOM;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.lang.reflect.Field;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import org.apache.accumulo.core.client.AccumuloClient;
@@ -41,16 +53,19 @@ import org.apache.accumulo.core.client.AccumuloException;
 import org.apache.accumulo.core.client.AccumuloSecurityException;
 import org.apache.accumulo.core.client.BatchWriter;
 import org.apache.accumulo.core.client.IteratorSetting;
+import org.apache.accumulo.core.client.PluginEnvironment;
 import org.apache.accumulo.core.client.Scanner;
 import org.apache.accumulo.core.client.TableNotFoundException;
 import org.apache.accumulo.core.client.admin.CompactionConfig;
 import org.apache.accumulo.core.client.admin.NewTableConfiguration;
+import org.apache.accumulo.core.client.admin.compaction.CompactableFile;
 import org.apache.accumulo.core.clientImpl.ClientContext;
 import org.apache.accumulo.core.compaction.thrift.CompactionCoordinatorService;
 import org.apache.accumulo.core.compaction.thrift.TCompactionState;
 import org.apache.accumulo.core.compaction.thrift.TExternalCompaction;
 import org.apache.accumulo.core.compaction.thrift.TExternalCompactionList;
 import org.apache.accumulo.core.conf.ClientProperty;
+import org.apache.accumulo.core.conf.ConfigurationTypeHelper;
 import org.apache.accumulo.core.conf.Property;
 import org.apache.accumulo.core.data.Key;
 import org.apache.accumulo.core.data.Mutation;
@@ -62,10 +77,20 @@ import org.apache.accumulo.core.metadata.schema.TabletMetadata.ColumnType;
 import org.apache.accumulo.core.metadata.schema.TabletsMetadata;
 import org.apache.accumulo.core.rpc.ThriftUtil;
 import org.apache.accumulo.core.rpc.clients.ThriftClientTypes;
+import org.apache.accumulo.core.spi.compaction.CompactionGroup;
+import org.apache.accumulo.core.spi.compaction.CompactionJob;
+import org.apache.accumulo.core.spi.compaction.CompactionKind;
+import org.apache.accumulo.core.spi.compaction.CompactionPlan;
+import org.apache.accumulo.core.spi.compaction.CompactionPlanner;
+import org.apache.accumulo.core.spi.compaction.CompactionServiceFactory;
+import org.apache.accumulo.core.spi.compaction.CompactionServiceId;
+import org.apache.accumulo.core.spi.compaction.CompactorGroupId;
+import org.apache.accumulo.core.spi.compaction.ProvisionalCompactionPlanner;
 import org.apache.accumulo.core.spi.compaction.RatioBasedCompactionPlanner;
 import org.apache.accumulo.core.spi.compaction.SimpleCompactionDispatcher;
 import org.apache.accumulo.core.trace.TraceUtil;
 import org.apache.accumulo.core.util.UtilWaitThread;
+import org.apache.accumulo.core.util.compaction.CompactionPlannerInitParams;
 import org.apache.accumulo.core.util.compaction.ExternalCompactionUtil;
 import org.apache.accumulo.miniclusterImpl.MiniAccumuloConfigImpl;
 import org.apache.accumulo.server.ServerContext;
@@ -76,9 +101,16 @@ import org.apache.hadoop.fs.RawLocalFileSystem;
 import org.apache.hadoop.io.Text;
 import org.apache.thrift.TException;
 import org.apache.thrift.transport.TTransportException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.beust.jcommander.internal.Maps;
+import com.google.common.base.Preconditions;
 import com.google.common.net.HostAndPort;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParseException;
 
 public class ExternalCompactionTestUtils {
 
@@ -195,38 +227,29 @@ public class ExternalCompactionTestUtils {
     cfg.setClientProps(clProps);
 
     // configure the compaction services to use the queues
-    cfg.setProperty(Property.COMPACTION_SERVICE_PREFIX.getKey() + "cs1.planner",
-        RatioBasedCompactionPlanner.class.getName());
-    cfg.setProperty(Property.COMPACTION_SERVICE_PREFIX.getKey() + "cs1.planner.opts.groups",
-        "[{'group':'" + GROUP1 + "'}]");
-    cfg.setProperty(Property.COMPACTION_SERVICE_PREFIX.getKey() + "cs2.planner",
-        RatioBasedCompactionPlanner.class.getName());
-    cfg.setProperty(Property.COMPACTION_SERVICE_PREFIX.getKey() + "cs2.planner.opts.groups",
-        "[{'group':'" + GROUP2 + "'}]");
-    cfg.setProperty(Property.COMPACTION_SERVICE_PREFIX.getKey() + "cs3.planner",
-        RatioBasedCompactionPlanner.class.getName());
-    cfg.setProperty(Property.COMPACTION_SERVICE_PREFIX.getKey() + "cs3.planner.opts.groups",
-        "[{'group':'" + GROUP3 + "'}]");
-    cfg.setProperty(Property.COMPACTION_SERVICE_PREFIX.getKey() + "cs4.planner",
-        RatioBasedCompactionPlanner.class.getName());
-    cfg.setProperty(Property.COMPACTION_SERVICE_PREFIX.getKey() + "cs4.planner.opts.groups",
-        "[{'group':'" + GROUP4 + "'}]");
-    cfg.setProperty(Property.COMPACTION_SERVICE_PREFIX.getKey() + "cs5.planner",
-        RatioBasedCompactionPlanner.class.getName());
-    cfg.setProperty(Property.COMPACTION_SERVICE_PREFIX.getKey() + "cs5.planner.opts.groups",
-        "[{'group':'" + GROUP5 + "'}]");
-    cfg.setProperty(Property.COMPACTION_SERVICE_PREFIX.getKey() + "cs6.planner",
-        RatioBasedCompactionPlanner.class.getName());
-    cfg.setProperty(Property.COMPACTION_SERVICE_PREFIX.getKey() + "cs6.planner.opts.groups",
-        "[{'group':'" + GROUP6 + "'}]");
-    cfg.setProperty(Property.COMPACTION_SERVICE_PREFIX.getKey() + "cs7.planner",
-        RatioBasedCompactionPlanner.class.getName());
-    cfg.setProperty(Property.COMPACTION_SERVICE_PREFIX.getKey() + "cs7.planner.opts.groups",
-        "[{'group':'" + GROUP7 + "'}]");
-    cfg.setProperty(Property.COMPACTION_SERVICE_PREFIX.getKey() + "cs8.planner",
-        RatioBasedCompactionPlanner.class.getName());
-    cfg.setProperty(Property.COMPACTION_SERVICE_PREFIX.getKey() + "cs8.planner.opts.groups",
-        "[{'group':'" + GROUP8 + "'}]");
+
+    cfg.setProperty(COMPACTION_SERVICE_CONFIG.getKey(), "{ \"default\": {\"planner\": \""
+        + RatioBasedCompactionPlanner.class.getName()
+        + "\", \"opts\": {\"maxOpenFilesPerJob\": \"30\"}, \"groups\": [{\"group\": \""
+        + DEFAULT_RESOURCE_GROUP_NAME + "\", \"opts\": { \"maxSize\": \"128M\"}}]},"
+        + "\"cs1\" : {\"planner\": \"" + RatioBasedCompactionPlanner.class.getName() + "\","
+        + "\"opts\": {\"maxOpenFilesPerJob\": \"30\"}, \"groups\": [{\"group\": \"" + GROUP1
+        + "\"}]}, \"cs2\" : { \"planner\": \"" + RatioBasedCompactionPlanner.class.getName() + "\","
+        + "\"opts\": {\"maxOpenFilesPerJob\": \"30\"}, \"groups\": [{\"group\": \"" + GROUP2
+        + "\"}]}, \"cs3\" : { \"planner\": \"" + RatioBasedCompactionPlanner.class.getName() + "\","
+        + "\"opts\": {\"maxOpenFilesPerJob\": \"30\"}, \"groups\": [{\"group\": \"" + GROUP3
+        + "\"}]}, \"cs4\" : { \"planner\": \"" + RatioBasedCompactionPlanner.class.getName() + "\","
+        + "\"opts\": {\"maxOpenFilesPerJob\": \"30\"}, \"groups\": [{\"group\": \"" + GROUP4
+        + "\"}]}, \"cs5\" : { \"planner\": \"" + RatioBasedCompactionPlanner.class.getName() + "\","
+        + "\"opts\": {\"maxOpenFilesPerJob\": \"30\"}, \"groups\": [{\"group\": \"" + GROUP5
+        + "\"}]}, \"cs6\" : { \"planner\": \"" + RatioBasedCompactionPlanner.class.getName() + "\","
+        + "\"opts\": {\"maxOpenFilesPerJob\": \"30\"}, \"groups\": [{\"group\": \"" + GROUP6
+        + "\"}]}, \"cs7\" : { \"planner\": \"" + RatioBasedCompactionPlanner.class.getName() + "\","
+        + "\"opts\": {\"maxOpenFilesPerJob\": \"30\"}, \"groups\": [{\"group\": \"" + GROUP7
+        + "\"}]}, \"cs8\" : { \"planner\": \"" + RatioBasedCompactionPlanner.class.getName() + "\","
+        + "\"opts\": {\"maxOpenFilesPerJob\": \"30\"}, \"groups\": [{\"group\": \"" + GROUP8
+        + "\"}]}}");
+
     cfg.setProperty(Property.COMPACTION_COORDINATOR_FINALIZER_COMPLETION_CHECK_INTERVAL, "5s");
     cfg.setProperty(Property.COMPACTION_COORDINATOR_DEAD_COMPACTOR_CHECK_INTERVAL, "5s");
     cfg.setProperty(Property.COMPACTION_COORDINATOR_TSERVER_COMPACTION_CHECK_INTERVAL, "3s");
@@ -390,5 +413,254 @@ public class ExternalCompactionTestUtils {
     assertNull(tabletMetadata.getSelectedFiles());
     assertEquals(Set.of(), tabletMetadata.getExternalCompactions().keySet());
     assertEquals(Set.of(), tabletMetadata.getUserCompactionsRequested());
+  }
+
+  public static class TestPlanner implements CompactionPlanner {
+
+    private int filesPerCompaction;
+    private List<CompactorGroupId> groupIds = new LinkedList<>();
+    private EnumSet<CompactionKind> kindsToProcess = EnumSet.noneOf(CompactionKind.class);
+
+    private static class GroupConfig {
+      String group;
+    }
+
+    @Override
+    public void init(InitParameters params) {
+
+      this.filesPerCompaction = Integer.parseInt(params.getOptions().get("filesPerCompaction"));
+      for (String kind : params.getOptions().get("process").split(",")) {
+        kindsToProcess.add(CompactionKind.valueOf(kind.toUpperCase()));
+      }
+
+      for (JsonElement element : GSON.get().fromJson(params.getOptions().get("groups"),
+          JsonArray.class)) {
+        var groupConfig = GSON.get().fromJson(element, GroupConfig.class);
+        var cgid = CompactorGroupId.of(groupConfig.group);
+        if (groupIds.contains(cgid)) {
+          throw new IllegalStateException("Duplicate group defined");
+        }
+        groupIds.add(cgid);
+      }
+    }
+
+    static String getFirstChar(CompactableFile cf) {
+      return cf.getFileName().substring(0, 1);
+    }
+
+    @Override
+    public CompactionPlan makePlan(PlanningParameters params) {
+      if (Boolean.parseBoolean(params.getExecutionHints().getOrDefault("compact_all", "false"))) {
+        return params
+            .createPlanBuilder().addJob((short) 1,
+                groupIds.get(RANDOM.get().nextInt(groupIds.size())), params.getCandidates())
+            .build();
+      }
+
+      if (kindsToProcess.contains(params.getKind())) {
+        var planBuilder = params.createPlanBuilder();
+
+        // Group files by first char, like F for flush files or C for compaction produced files.
+        // This prevents F and C files from compacting together, which makes it easy to reason about
+        // the number of expected files produced by compactions from known number of F files.
+        params.getCandidates().stream().collect(Collectors.groupingBy(TestPlanner::getFirstChar))
+            .values().forEach(files -> {
+              for (int i = filesPerCompaction; i <= files.size(); i += filesPerCompaction) {
+                planBuilder.addJob((short) 1, groupIds.get(RANDOM.get().nextInt(groupIds.size())),
+                    files.subList(i - filesPerCompaction, i));
+              }
+            });
+
+        return planBuilder.build();
+      } else {
+        return params.createPlanBuilder().build();
+      }
+    }
+  }
+
+  public static class TestCompactionServiceFactory implements CompactionServiceFactory {
+
+    private static final Logger log = LoggerFactory.getLogger(TestCompactionServiceFactory.class);
+    private Supplier<TestCompactionServiceConf> factoryConfig;
+
+    private static class ServiceConfig {
+      String process;
+      String filesPerCompaction;
+      JsonArray groups;
+    }
+
+    private static class GroupConfig {
+      String group;
+      JsonObject opts;
+    }
+
+    static class TestCompactionServiceConf {
+
+      private final Map<CompactionServiceId,Map<String,String>> serviceOpts = new HashMap<>();
+      private final Map<String,String> plannerOpts = new HashMap<>();
+
+      private final Map<CompactionServiceId,Set<CompactionGroup>> serviceGroups = new HashMap<>();
+      private final Set<CompactionGroup> compactionGroups = new HashSet<>();
+      private final Map<CompactionServiceId,CompactionPlanner> planners = new HashMap<>();
+
+      TestCompactionServiceConf(PluginEnvironment.Configuration conf) {
+        log.info("Building Compaction Service Config");
+        String factoryConfig = conf.get(COMPACTION_SERVICE_CONFIG.getKey());
+
+        // Generate a list of fields from the desired object.
+        final List<String> serviceFields = Arrays.stream(ServiceConfig.class.getDeclaredFields())
+            .map(Field::getName).collect(Collectors.toList());
+
+        // Each Service is a unique key, so get the keySet to correctly name the service.
+        var servicesMap = GSON.get().fromJson(factoryConfig, JsonObject.class);
+        Set<Map.Entry<String,JsonElement>> entrySet = servicesMap.entrySet();
+
+        // Find each service in the map and validate its fields
+        for (Map.Entry<String,JsonElement> entry : entrySet) {
+          Map<String,String> options = new HashMap<>();
+          CompactionServiceId csid = CompactionServiceId.of(entry.getKey());
+          Preconditions.checkArgument(!serviceOpts.containsKey(csid),
+              "Duplicate compaction service definition for service: " + entry.getKey());
+
+          validateConfig(entry.getValue(), serviceFields, ServiceConfig.class.getName());
+          ServiceConfig serviceConfig = GSON.get().fromJson(entry.getValue(), ServiceConfig.class);
+          var groups = Objects.requireNonNull(serviceConfig.groups,
+              "At least one group must be defined for compaction service: " + csid);
+
+          plannerOpts.put("process", serviceConfig.process);
+          plannerOpts.put("filesPerCompaction", serviceConfig.filesPerCompaction);
+
+          // validate the groups defined for the service
+          mapGroups(csid, groups);
+          serviceOpts.put(csid, options);
+        }
+      }
+
+      private void mapGroups(CompactionServiceId csid, JsonArray groupArray) {
+        final List<String> groupFields = Arrays.stream(GroupConfig.class.getDeclaredFields())
+            .map(Field::getName).collect(Collectors.toList());
+
+        HashSet<CompactionGroup> groups = new HashSet<>();
+
+        for (JsonElement element : GSON.get().fromJson(groupArray, JsonArray.class)) {
+          validateConfig(element, groupFields, GroupConfig.class.getName());
+          GroupConfig groupConfig = GSON.get().fromJson(element, GroupConfig.class);
+
+          String groupName = Objects.requireNonNull(groupConfig.group, "'group' must be specified");
+
+          Long maxSize = null;
+          // Parse for various group options
+          if (groupConfig.opts != null) {
+            for (Map.Entry<String,JsonElement> entry : groupConfig.opts.entrySet()) {
+              if (Objects.equals(entry.getKey(), "maxSize")) {
+                maxSize =
+                    ConfigurationTypeHelper.getFixedMemoryAsBytes(entry.getValue().getAsString());
+              }
+            }
+          }
+
+          var cgid = CompactorGroupId.of(groupName);
+          // Check if the compaction service has been defined before
+          if (!compactionGroups.isEmpty() && compactionGroups.stream()
+              .map(CompactionGroup::getGroupId).anyMatch(Predicate.isEqual(cgid))) {
+            throw new IllegalArgumentException(
+                "Duplicate compaction group definition on service : " + csid);
+          }
+          var compactionGroup = new CompactionGroup(cgid, maxSize);
+          groups.add(compactionGroup);
+        }
+        serviceGroups.put(csid, groups);
+        compactionGroups.addAll(groups);
+      }
+
+      private void validateConfig(JsonElement json, List<String> fields, String className) {
+
+        JsonObject jsonObject = GSON.get().fromJson(json, JsonObject.class);
+
+        List<String> objectProperties = new ArrayList<>(jsonObject.keySet());
+        HashSet<String> classFieldNames = new HashSet<>(fields);
+
+        if (!classFieldNames.containsAll(objectProperties)) {
+          objectProperties.removeAll(classFieldNames);
+          throw new JsonParseException(
+              "Invalid fields: " + objectProperties + " provided for class: " + className);
+        }
+      }
+    }
+
+    private static void validatePlanners(PluginEnvironment env,
+        Supplier<TestCompactionServiceConf> config) {
+      for (Map.Entry<CompactionServiceId,Map<String,String>> entry : config.get().serviceOpts
+          .entrySet()) {
+        var options = entry.getValue();
+        Set<CompactionGroup> groups = config.get().serviceGroups.get(entry.getKey());
+        Objects.requireNonNull(groups, "Compaction groups are not defined for: " + entry.getKey());
+        var initParams = new CompactionPlannerInitParams(config.get().plannerOpts, groups);
+        CompactionPlanner planner;
+        try {
+          planner = env.instantiate(options.get("planner"), CompactionPlanner.class);
+          planner.init(initParams);
+        } catch (Exception e) {
+          log.error(
+              "Failed to create compaction planner for {} using class:{} options:{}.  Compaction service will not start any new compactions until its configuration is fixed.",
+              entry.getKey(), options.get("planner"), options, e);
+          planner = new ProvisionalCompactionPlanner(entry.getKey());
+        }
+        config.get().planners.putIfAbsent(entry.getKey(), planner);
+      }
+    }
+
+    @Override
+    public void init(PluginEnvironment env) {
+      this.factoryConfig = env.getConfiguration().getDerived(TestCompactionServiceConf::new);
+      validatePlanners(env, this.factoryConfig);
+    }
+
+    @Override
+    public Set<CompactorGroupId> getCompactorGroupIds() {
+      return factoryConfig.get().compactionGroups.stream().map(CompactionGroup::getGroupId)
+          .collect(Collectors.toSet());
+    }
+
+    @Override
+    public Set<CompactionServiceId> getCompactionServiceIds() {
+      return this.factoryConfig.get().serviceOpts.keySet();
+    }
+
+    @Override
+    public Boolean validate(PluginEnvironment env) {
+      Supplier<TestCompactionServiceConf> config;
+      try {
+        config = env.getConfiguration().getDerived(TestCompactionServiceConf::new);
+        validatePlanners(env, config);
+      } catch (Exception e) {
+        log.error("Property {} failed validation with class {}", COMPACTION_SERVICE_CONFIG,
+            this.getClass().getName(), e);
+        return false;
+      }
+      if (config.get() != null && config.get().planners.isEmpty()) {
+        log.warn("No valid planners were created from the config");
+      }
+      return true;
+    }
+
+    @Override
+    public Collection<CompactionJob> getJobs(CompactionPlanner.PlanningParameters params,
+        CompactionServiceId serviceId) {
+      try {
+        return factoryConfig.get().planners
+            .getOrDefault(serviceId, new ProvisionalCompactionPlanner(serviceId)).makePlan(params)
+            .getJobs();
+      } catch (Exception e) {
+        // PLANNING_ERROR_LOG.trace(
+        log.trace(
+            "Failed to plan compactions for service:{} kind:{} tableId:{} hints:{}.  Compaction service may not start any"
+                + " new compactions until this issue is resolved. Duplicates of this log message are temporarily"
+                + " suppressed.",
+            serviceId, params.getKind(), params.getTableId(), params.getExecutionHints(), e);
+        return Set.of();
+      }
+    }
+
   }
 }

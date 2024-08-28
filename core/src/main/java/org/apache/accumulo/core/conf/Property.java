@@ -19,6 +19,7 @@
 package org.apache.accumulo.core.conf;
 
 import static org.apache.accumulo.core.Constants.DEFAULT_COMPACTION_SERVICE_NAME;
+import static org.apache.accumulo.core.Constants.DEFAULT_RESOURCE_GROUP_NAME;
 
 import java.lang.annotation.Annotation;
 import java.util.Arrays;
@@ -28,7 +29,6 @@ import java.util.HashSet;
 import java.util.Objects;
 import java.util.function.Predicate;
 
-import org.apache.accumulo.core.Constants;
 import org.apache.accumulo.core.classloader.ClassLoaderUtil;
 import org.apache.accumulo.core.data.constraints.NoDeleteConstraint;
 import org.apache.accumulo.core.file.rfile.RFile;
@@ -37,6 +37,7 @@ import org.apache.accumulo.core.iteratorsImpl.system.DeletingIterator;
 import org.apache.accumulo.core.metadata.AccumuloTable;
 import org.apache.accumulo.core.spi.compaction.RatioBasedCompactionPlanner;
 import org.apache.accumulo.core.spi.compaction.SimpleCompactionDispatcher;
+import org.apache.accumulo.core.spi.compaction.SimpleCompactionServiceFactory;
 import org.apache.accumulo.core.spi.fs.RandomVolumeChooser;
 import org.apache.accumulo.core.spi.scan.ScanDispatcher;
 import org.apache.accumulo.core.spi.scan.ScanPrioritizer;
@@ -51,8 +52,8 @@ public enum Property {
   COMPACTION_PREFIX("compaction.", null, PropertyType.PREFIX,
       "Both major and minor compaction properties can be included under this prefix.", "3.1.0"),
   COMPACTION_SERVICE_PREFIX(COMPACTION_PREFIX + "service.", null, PropertyType.PREFIX,
-      "This prefix should be used to define all properties for the compaction services."
-          + "See {% jlink -f org.apache.accumulo.core.spi.compaction.RatioBasedCompactionPlanner %}.\n"
+      "This prefix should be used to define all properties related to for the compaction  ."
+          + "See {% jlink -f org.apache.accumulo.core.spi.compaction.SimpleCompactionFactory %}.\n"
           + "A new external compaction service would be defined like the following:\n"
           + "`compaction.service.newService.planner="
           + "\"org.apache.accumulo.core.spi.compaction.RatioBasedCompactionPlanner\".`\n"
@@ -62,16 +63,15 @@ public enum Property {
           + "`compaction.service.newService.opts.maxOpen=50`.\n"
           + "Additional options can be defined using the `compaction.service.<service>.opts.<option>` property.",
       "3.1.0"),
-  COMPACTION_SERVICE_DEFAULT_PLANNER(
-      COMPACTION_SERVICE_PREFIX + DEFAULT_COMPACTION_SERVICE_NAME + ".planner",
-      RatioBasedCompactionPlanner.class.getName(), PropertyType.CLASSNAME,
-      "Planner for default compaction service.", "4.0.0"),
-  COMPACTION_SERVICE_DEFAULT_MAX_OPEN(COMPACTION_SERVICE_DEFAULT_PLANNER + ".opts.maxOpen", "10",
-      PropertyType.COUNT, "The maximum number of files a compaction will open.", "4.0.0"),
-  COMPACTION_SERVICE_DEFAULT_GROUPS(COMPACTION_SERVICE_DEFAULT_PLANNER + ".opts.groups",
-      ("[{'group':'default'}]").replaceAll("'", "\""), PropertyType.JSON,
-      "See {% jlink -f org.apache.accumulo.core.spi.compaction.RatioBasedCompactionPlanner %}.",
-      "4.0.0"),
+  COMPACTION_SERVICE(COMPACTION_SERVICE_PREFIX + "factory",
+      SimpleCompactionServiceFactory.class.getName(), PropertyType.CLASSNAME,
+      "Compaction Service Factory class to use for generating compaction services.", "4.0.0"),
+  COMPACTION_SERVICE_CONFIG(COMPACTION_SERVICE + ".config",
+      "{ \"" + DEFAULT_COMPACTION_SERVICE_NAME + "\": { \"planner\": \""
+          + RatioBasedCompactionPlanner.class.getName()
+          + "\", \"opts\": {\"maxOpenFilesPerJob\": \"30\"}, \"groups\": [{ \"group\": \""
+          + DEFAULT_RESOURCE_GROUP_NAME + "\",  \"opts\": {\"maxSize\": \"128M\"}}]}}",
+      PropertyType.JSON, "Compaction Service Factory config.", "4.0.0"),
   COMPACTION_WARN_TIME(COMPACTION_PREFIX + "warn.time", "10m", PropertyType.TIMEDURATION,
       "When a compaction has not made progress for this time period, a warning will be logged.",
       "3.1.0"),
@@ -747,7 +747,7 @@ public enum Property {
       PropertyType.TIMEDURATION,
       "The interval at which the TabletServer will check if on-demand tablets can be unloaded.",
       "4.0.0"),
-  TSERV_GROUP_NAME("tserver.group", Constants.DEFAULT_RESOURCE_GROUP_NAME, PropertyType.STRING,
+  TSERV_GROUP_NAME("tserver.group", DEFAULT_RESOURCE_GROUP_NAME, PropertyType.STRING,
       "Resource group name for this TabletServer. Resource groups can be defined to dedicate resources "
           + " to specific tables (e.g. balancing tablets for table(s) within a group, see TableLoadBalancer).",
       "4.0.0"),
@@ -847,6 +847,7 @@ public enum Property {
       "Setting this property to true will call"
           + "FSDataOutputStream.setDropBehind(true) on the major compaction output stream.",
       "2.1.1"),
+  // Is this a top level property that should be separate vs internal to the compaction factory?
   TABLE_MAJC_RATIO("table.compaction.major.ratio", "3", PropertyType.FRACTION,
       "Minimum ratio of total input size to maximum input RFile size for"
           + " running a major compaction.",
@@ -1137,8 +1138,8 @@ public enum Property {
   COMPACTOR_THREADCHECK("compactor.threadcheck.time", "1s", PropertyType.TIMEDURATION,
       "The time between adjustments of the server thread pool.", "2.1.0"),
   @Experimental
-  COMPACTOR_GROUP_NAME("compactor.group", Constants.DEFAULT_RESOURCE_GROUP_NAME,
-      PropertyType.STRING, "Resource group name for this Compactor.", "3.0.0"),
+  COMPACTOR_GROUP_NAME("compactor.group", DEFAULT_RESOURCE_GROUP_NAME, PropertyType.STRING,
+      "Resource group name for this Compactor.", "3.0.0"),
   // CompactionCoordinator properties
   @Experimental
   COMPACTION_COORDINATOR_PREFIX("compaction.coordinator.", null, PropertyType.PREFIX,
