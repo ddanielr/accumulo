@@ -1072,6 +1072,12 @@ public class Shell extends ShellOptions implements KeywordExecutable {
               if (linesPrinted + Math.ceil(lastPromptLength * 1.0 / termWidth)
                   + Math.ceil(prompt.length() * 1.0 / termWidth)
                   + Math.ceil(line.length() * 1.0 / termWidth) > maxLines) {
+                if (execCommand != null) {
+                  writer.println("Results are paginated, only returning first page");
+                  writer.flush();
+                  return;
+                }
+
                 linesPrinted = 0;
                 int numdashes = (termWidth - prompt.length()) / 2;
                 String nextPrompt = repeat("-", numdashes) + prompt + repeat("-", numdashes);
