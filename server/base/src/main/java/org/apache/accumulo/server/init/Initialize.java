@@ -33,7 +33,7 @@ import java.util.TreeMap;
 import java.util.UUID;
 
 import org.apache.accumulo.core.Constants;
-import org.apache.accumulo.core.cli.Help;
+import org.apache.accumulo.core.cli.BaseOpts;
 import org.apache.accumulo.core.client.AccumuloSecurityException;
 import org.apache.accumulo.core.conf.DefaultConfiguration;
 import org.apache.accumulo.core.conf.Property;
@@ -479,7 +479,9 @@ public class Initialize implements KeywordExecutable {
     return createDirs(fs, instanceId, uinitializedDirs);
   }
 
-  private static class Opts extends Help {
+  private static class Opts extends BaseOpts {
+    @Parameter(names = {"-h", "--help"}, help = true)
+    boolean help = false;
     @Parameter(names = "--add-volumes",
         description = "Initialize any uninitialized volumes listed in instance.volumes")
     boolean addVolumes = false;
@@ -527,6 +529,7 @@ public class Initialize implements KeywordExecutable {
     boolean success = true;
     Opts opts = new Opts();
     opts.parseArgs("accumulo init", args);
+    opts.printUsage(opts.help);
     var siteConfig = SiteConfiguration.auto();
     ZooReaderWriter zoo = new ZooReaderWriter(siteConfig);
     SecurityUtil.serverLogin(siteConfig);

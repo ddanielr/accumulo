@@ -18,7 +18,7 @@
  */
 package org.apache.accumulo.server.util;
 
-import org.apache.accumulo.core.cli.Help;
+import org.apache.accumulo.core.cli.BaseOpts;
 import org.apache.accumulo.core.conf.SiteConfiguration;
 import org.apache.accumulo.server.ServerContext;
 import org.apache.accumulo.start.spi.KeywordExecutable;
@@ -29,7 +29,9 @@ import com.google.auto.service.AutoService;
 @AutoService(KeywordExecutable.class)
 public class ZooKeeperMain implements KeywordExecutable {
 
-  static class Opts extends Help {
+  static class Opts extends BaseOpts {
+    @Parameter(names = {"-h", "--help"}, help = true)
+    boolean help = false;
 
     @Parameter(names = {"-z", "--keepers"},
         description = "Comma separated list of zookeeper hosts (host:port,host:port)")
@@ -63,6 +65,7 @@ public class ZooKeeperMain implements KeywordExecutable {
   public void execute(final String[] args) throws Exception {
     Opts opts = new Opts();
     opts.parseArgs(ZooKeeperMain.class.getName(), args);
+    opts.printUsage(opts.help);
     try (var context = new ServerContext(SiteConfiguration.auto())) {
       if (opts.servers == null) {
         opts.servers = context.getZooKeepers();

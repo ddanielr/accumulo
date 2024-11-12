@@ -28,7 +28,7 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 
 import org.apache.accumulo.core.Constants;
-import org.apache.accumulo.core.cli.Help;
+import org.apache.accumulo.core.cli.BaseOpts;
 import org.apache.accumulo.core.conf.Property;
 import org.apache.accumulo.core.conf.SiteConfiguration;
 import org.apache.accumulo.core.data.InstanceId;
@@ -50,7 +50,7 @@ public class ListInstances {
 
   private static final int ZOOKEEPER_TIMER_MILLIS = 30_000;
 
-  static class Opts extends Help {
+  static class Opts extends BaseOpts {
     @Parameter(names = "--print-errors", description = "display errors while listing instances")
     boolean printErrors = false;
     @Parameter(names = "--print-all",

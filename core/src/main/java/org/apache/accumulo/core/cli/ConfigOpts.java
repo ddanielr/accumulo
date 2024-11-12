@@ -35,7 +35,7 @@ import com.beust.jcommander.converters.IParameterSplitter;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
-public class ConfigOpts extends Help {
+public class ConfigOpts extends BaseOpts {
 
   private static final Logger log = LoggerFactory.getLogger(ConfigOpts.class);
 

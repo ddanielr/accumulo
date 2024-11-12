@@ -28,7 +28,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import org.apache.accumulo.core.cli.Help;
+import org.apache.accumulo.core.cli.BaseOpts;
 import org.apache.accumulo.core.clientImpl.thrift.ClientService;
 import org.apache.accumulo.core.clientImpl.thrift.ThriftSecurityException;
 import org.apache.accumulo.core.conf.DefaultConfiguration;
@@ -307,7 +307,9 @@ public class NullTserver {
 
   }
 
-  static class Opts extends Help {
+  static class Opts extends BaseOpts {
+    @Parameter(names = {"-h", "--help"}, help = true)
+    boolean help = false;
     @Parameter(names = {"-i", "--instance"}, description = "instance name", required = true)
     String iname = null;
     @Parameter(names = {"-z", "--keepers"},
@@ -322,6 +324,7 @@ public class NullTserver {
   public static void main(String[] args) throws Exception {
     Opts opts = new Opts();
     opts.parseArgs(NullTserver.class.getName(), args);
+    opts.printUsage(opts.help);
 
     // modify metadata
     int zkTimeOut =

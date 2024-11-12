@@ -43,7 +43,7 @@ import com.beust.jcommander.converters.IParameterSplitter;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
-public class ClientOpts extends Help {
+public class ClientOpts extends BaseOpts {
 
   public static class AuthConverter implements IStringConverter<Authorizations> {
     @Override

@@ -19,15 +19,13 @@
 package org.apache.accumulo.core.cli;
 
 import com.beust.jcommander.JCommander;
-import com.beust.jcommander.Parameter;
 import com.beust.jcommander.ParameterException;
 
-public class Help {
-  @Parameter(names = {"-h", "-?", "--help", "-help"}, help = true)
-  public boolean help = false;
+public class BaseOpts {
+  private JCommander commander;
 
   public void parseArgs(String programName, String[] args, Object... others) {
-    JCommander commander = new JCommander();
+    commander = new JCommander();
     commander.addObject(this);
     for (Object other : others) {
       commander.addObject(other);
@@ -39,7 +37,15 @@ public class Help {
       commander.usage();
       exitWithError(ex.getMessage(), 1);
     }
-    if (help) {
+  }
+
+  /**
+   * Prints the usage statement if the boolean value is true
+   *
+   * @param isHelp the options help value
+   */
+  public void printUsage(boolean isHelp) {
+    if (isHelp) {
       commander.usage();
       exit(0);
     }
@@ -53,4 +59,5 @@ public class Help {
     System.err.println(message);
     exit(status);
   }
+
 }

@@ -97,6 +97,9 @@ public class Admin implements KeywordExecutable {
   private static final Logger log = LoggerFactory.getLogger(Admin.class);
 
   static class AdminOpts extends ServerUtilOpts {
+    @Parameter(names = {"-h", "--help"}, help = true)
+    boolean help = false;
+
     @Parameter(names = {"-f", "--force"},
         description = "force the given server to stop by removing its lock")
     boolean force = false;
@@ -104,18 +107,27 @@ public class Admin implements KeywordExecutable {
 
   @Parameters(commandDescription = "stop the tablet server on the given hosts")
   static class StopCommand {
+    @Parameter(names = {"-h", "--help"}, help = true)
+    boolean help = false;
+
     @Parameter(description = "<host> {<host> ... }")
     List<String> args = new ArrayList<>();
   }
 
   @Parameters(commandDescription = "Ping tablet servers.  If no arguments, pings all.")
   static class PingCommand {
+    @Parameter(names = {"-h", "--help"}, help = true)
+    boolean help = false;
+
     @Parameter(description = "{<host> ... }")
     List<String> args = new ArrayList<>();
   }
 
   @Parameters(commandDescription = "print tablets that are offline in online tables")
   static class CheckTabletsCommand {
+    @Parameter(names = {"-h", "--help"}, help = true)
+    boolean help = false;
+
     @Parameter(names = "--fixFiles", description = "Remove dangling file pointers")
     boolean fixFiles = false;
 
@@ -132,12 +144,19 @@ public class Admin implements KeywordExecutable {
   static class StopMasterCommand {}
 
   @Parameters(commandDescription = "stop all tablet servers and the manager")
-  static class StopAllCommand {}
+  static class StopAllCommand {
+    @Parameter(names = {"-h", "--help"}, help = true)
+    boolean help = false;
+  }
 
   @Parameters(commandDescription = "list Accumulo instances in zookeeper")
   static class ListInstancesCommand {
+    @Parameter(names = {"-h", "--help"}, help = true)
+    boolean help = false;
+
     @Parameter(names = "--print-errors", description = "display errors while listing instances")
     boolean printErrors = false;
+
     @Parameter(names = "--print-all",
         description = "print information for all instances, not just those with names")
     boolean printAll = false;
@@ -145,23 +164,34 @@ public class Admin implements KeywordExecutable {
 
   @Parameters(commandDescription = "Accumulo volume utility")
   static class VolumesCommand {
+    @Parameter(names = {"-h", "--help"}, help = true)
+    boolean help = false;
+
     @Parameter(names = {"-l", "--list"}, description = "list volumes currently in use")
     boolean printErrors = false;
   }
 
   @Parameters(commandDescription = "print out non-default configuration settings")
   static class DumpConfigCommand {
+    @Parameter(names = {"-h", "--help"}, help = true)
+    boolean help = false;
+
     @Parameter(names = {"-a", "--all"},
         description = "print the system and all table configurations")
     boolean allConfiguration = false;
+
     @Parameter(names = {"-d", "--directory"}, description = "directory to place config files")
     String directory = null;
+
     @Parameter(names = {"-s", "--system"}, description = "print the system configuration")
     boolean systemConfiguration = false;
+
     @Parameter(names = {"-n", "--namespaces"}, description = "print the namespace configuration")
     boolean namespaceConfiguration = false;
+
     @Parameter(names = {"-t", "--tables"}, description = "print per-table configuration")
     List<String> tables = new ArrayList<>();
+
     @Parameter(names = {"-u", "--users"},
         description = "print users and their authorizations and permissions")
     boolean users = false;
@@ -174,12 +204,18 @@ public class Admin implements KeywordExecutable {
 
   @Parameters(commandDescription = RV_DEPRECATION_MSG)
   static class RandomizeVolumesCommand {
+    @Parameter(names = {"-h", "--help"}, help = true)
+    boolean help = false;
+
     @Parameter(names = {"-t"}, description = "table to update", required = true)
     String tableName = null;
   }
 
   @Parameters(commandDescription = "Verify all Tablets are assigned to tablet servers")
   static class VerifyTabletAssignmentsCommand {
+    @Parameter(names = {"-h", "--help"}, help = true)
+    boolean help = false;
+
     @Parameter(names = {"-v", "--verbose"},
         description = "verbose mode (prints locations of tablets)")
     boolean verbose = false;
@@ -190,11 +226,17 @@ public class Admin implements KeywordExecutable {
    */
   @Parameters(
       commandDescription = "Changes the unique secret given to the instance that all servers must know.")
-  static class ChangeSecretCommand {}
+  static class ChangeSecretCommand {
+    @Parameter(names = {"-h", "--help"}, help = true)
+    boolean help = false;
+  }
 
   @Parameters(
       commandDescription = "List or delete Tablet Server locks. Default with no arguments is to list the locks.")
   static class TabletServerLocksCommand {
+    @Parameter(names = {"-h", "--help"}, help = true)
+    boolean help = false;
+
     @Parameter(names = "-delete", description = "specify a tablet server lock to delete")
     String delete = null;
   }
@@ -202,11 +244,16 @@ public class Admin implements KeywordExecutable {
   @Parameters(
       commandDescription = "Deletes specific instance name or id from zookeeper or cleans up all old instances.")
   static class DeleteZooInstanceCommand {
+    @Parameter(names = {"-h", "--help"}, help = true)
+    boolean help = false;
+
     @Parameter(names = {"-i", "--instance"}, description = "the instance name or id to delete")
     String instance;
+
     @Parameter(names = {"-c", "--clean"},
         description = "Cleans Zookeeper by deleting all old instances. This will not delete the instance pointed to by the local accumulo.properties file")
     boolean clean = false;
+
     @Parameter(names = {"--password"},
         description = "The system secret, if different than instance.secret in accumulo.properties",
         password = true)
@@ -215,6 +262,9 @@ public class Admin implements KeywordExecutable {
 
   @Parameters(commandDescription = "Restore Zookeeper data from a file.")
   static class RestoreZooCommand {
+    @Parameter(names = {"-h", "--help"}, help = true)
+    boolean help = false;
+
     @Parameter(names = "--overwrite")
     boolean overwrite = false;
 
@@ -225,6 +275,9 @@ public class Admin implements KeywordExecutable {
   @Parameters(commandNames = "fate",
       commandDescription = "Operations performed on the Manager FaTE system.")
   static class FateOpsCommand {
+    @Parameter(names = {"-h", "--help"}, help = true)
+    boolean help = false;
+
     @Parameter(description = "[<txId>...]")
     List<String> txList = new ArrayList<>();
 
@@ -337,8 +390,13 @@ public class Admin implements KeywordExecutable {
 
     cl.parse(args);
 
-    if (opts.help || cl.getParsedCommand() == null) {
+    if (cl.getParsedCommand() == null) {
       cl.usage();
+      return;
+    }
+
+    if (opts.help) {
+      cl.getCommands().get(cl.getParsedCommand()).usage();
       return;
     }
 
@@ -355,13 +413,16 @@ public class Admin implements KeywordExecutable {
       int rc = 0;
 
       if (cl.getParsedCommand().equals("listInstances")) {
+        opts.printUsage(listInstancesOpts.help);
         ListInstances.listInstances(context.getZooKeepers(), listInstancesOpts.printAll,
             listInstancesOpts.printErrors);
       } else if (cl.getParsedCommand().equals("ping")) {
+        opts.printUsage(pingCommand.help);
         if (ping(context, pingCommand.args) != 0) {
           rc = 4;
         }
       } else if (cl.getParsedCommand().equals("checkTablets")) {
+        opts.printUsage(checkTabletsCommand.help);
         System.out.println("\n*** Looking for offline tablets ***\n");
         if (FindOfflineTablets.findOffline(context, checkTabletsCommand.tableName) != 0) {
           rc = 5;
@@ -380,32 +441,43 @@ public class Admin implements KeywordExecutable {
         }
 
       } else if (cl.getParsedCommand().equals("stop")) {
+        opts.printUsage(stopOpts.help);
         stopTabletServer(context, stopOpts.args, opts.force);
       } else if (cl.getParsedCommand().equals("dumpConfig")) {
+        opts.printUsage(dumpConfigCommand.help);
         printConfig(context, dumpConfigCommand);
       } else if (cl.getParsedCommand().equals("volumes")) {
+        opts.printUsage(volumesCommand.help);
         ListVolumesUsed.listVolumes(context);
       } else if (cl.getParsedCommand().equals("randomizeVolumes")) {
+        opts.printUsage(randomizeVolumesOpts.help);
         System.out.println(RV_DEPRECATION_MSG);
       } else if (cl.getParsedCommand().equals("verifyTabletAssigns")) {
+        opts.printUsage(verifyTabletAssignmentsOpts.help);
         VerifyTabletAssignments.execute(opts.getClientProps(), verifyTabletAssignmentsOpts.verbose);
       } else if (cl.getParsedCommand().equals("changeSecret")) {
+        opts.printUsage(changeSecretCommand.help);
         ChangeSecret.execute(context, conf);
       } else if (cl.getParsedCommand().equals("deleteZooInstance")) {
+        opts.printUsage(deleteZooInstOpts.help);
         DeleteZooInstance.execute(context, deleteZooInstOpts.clean, deleteZooInstOpts.instance,
             deleteZooInstOpts.auth);
       } else if (cl.getParsedCommand().equals("restoreZoo")) {
+        opts.printUsage(restoreZooOpts.help);
         RestoreZookeeper.execute(conf, restoreZooOpts.file, restoreZooOpts.overwrite);
       } else if (cl.getParsedCommand().equals("locks")) {
+        opts.printUsage(tServerLocksOpts.help);
         TabletServerLocks.execute(context, args.length > 2 ? args[2] : null,
             tServerLocksOpts.delete);
       } else if (cl.getParsedCommand().equals("fate")) {
+        opts.printUsage(fateOpsCommand.help);
         executeFateOpsCommand(context, fateOpsCommand);
       } else if (cl.getParsedCommand().equals("serviceStatus")) {
+        opts.printUsage(serviceStatusCommandOpts.help);
         printServiceStatus(context, serviceStatusCommandOpts);
       } else {
         everything = cl.getParsedCommand().equals("stopAll");
-
+        opts.printUsage(stopOpts.help);
         if (everything) {
           flushAll(context);
         }
