@@ -338,8 +338,12 @@ public class ServiceStatusCmd {
 
   @Parameters(commandDescription = "show service status")
   public static class Opts {
+    @Parameter(names = {"-h", "--help"}, help = true)
+    boolean help = false;
+
     @Parameter(names = "--json", description = "provide output in json format (--noHosts ignored)")
     boolean json = false;
+
     @Parameter(names = "--noHosts",
         description = "provide a summary of service counts without host details")
     boolean noHosts = false;

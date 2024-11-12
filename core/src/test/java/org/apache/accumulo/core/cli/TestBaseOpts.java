@@ -22,8 +22,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import org.junit.jupiter.api.Test;
 
-public class TestHelp {
-  protected class HelpStub extends Help {
+public class TestBaseOpts {
+  protected class BaseOptsStub extends BaseOpts {
     @Override
     public void parseArgs(String programName, String[] args, Object... others) {
       super.parseArgs(programName, args, others);
@@ -33,12 +33,13 @@ public class TestHelp {
     public void exit(int status) {
       throw new RuntimeException(Integer.toString(status));
     }
+
   }
 
   @Test
   public void testInvalidArgs() {
     String[] args = {"foo"};
-    HelpStub help = new HelpStub();
+    BaseOptsStub help = new BaseOptsStub();
     try {
       help.parseArgs("program", args);
     } catch (RuntimeException e) {

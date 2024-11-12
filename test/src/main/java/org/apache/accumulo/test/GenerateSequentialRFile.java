@@ -18,7 +18,7 @@
  */
 package org.apache.accumulo.test;
 
-import org.apache.accumulo.core.cli.Help;
+import org.apache.accumulo.core.cli.BaseOpts;
 import org.apache.accumulo.core.conf.DefaultConfiguration;
 import org.apache.accumulo.core.data.Key;
 import org.apache.accumulo.core.data.Value;
@@ -45,7 +45,9 @@ public class GenerateSequentialRFile implements Runnable {
     this.opts = opts;
   }
 
-  static class Opts extends Help {
+  static class Opts extends BaseOpts {
+    @Parameter(names = {"-h", "--help"}, help = true)
+    boolean help = false;
     @Parameter(names = {"-f", "--file"}, description = "Path to the file to create")
     String filePath;
     @Parameter(names = {"-nr"}, description = "Number of rows")
@@ -83,6 +85,7 @@ public class GenerateSequentialRFile implements Runnable {
   public static void main(String[] args) {
     Opts opts = new Opts();
     opts.parseArgs(GenerateSequentialRFile.class.getName(), args);
+    opts.printUsage(opts.help);
     new GenerateSequentialRFile(opts).run();
   }
 }

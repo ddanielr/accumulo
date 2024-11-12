@@ -96,6 +96,8 @@ public class GenerateSplits implements KeywordExecutable {
     @Parameter(description = "<file|directory>[ <file|directory>...] -n <num> | -ss <split_size>")
     public List<String> files = new ArrayList<>();
 
+    @Parameter(names = {"-h", "--help"}, help = true)
+    boolean help = false;
   }
 
   @Override
@@ -116,6 +118,8 @@ public class GenerateSplits implements KeywordExecutable {
   public void execute(String[] args) throws Exception {
     Opts opts = new Opts();
     opts.parseArgs(GenerateSplits.class.getName(), args);
+    opts.printUsage(opts.help);
+
     if (opts.files.isEmpty()) {
       throw new IllegalArgumentException("No files were given");
     }

@@ -30,7 +30,7 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.regex.Pattern;
 
-import org.apache.accumulo.core.cli.Help;
+import org.apache.accumulo.core.cli.BaseOpts;
 import org.apache.accumulo.core.util.Pair;
 import org.apache.commons.io.FileUtils;
 import org.slf4j.Logger;
@@ -136,7 +136,10 @@ public class MiniAccumuloRunner {
 
   private static final String FORMAT_STRING = "  %-21s %s%n";
 
-  public static class Opts extends Help {
+  public static class Opts extends BaseOpts {
+    @Parameter(names = {"-h", "--help"}, help = true)
+    boolean help = false;
+
     @Parameter(names = "-p", required = false, description = "properties file name",
         converter = PropertiesConverter.class)
     Properties prop = new Properties();
@@ -158,6 +161,7 @@ public class MiniAccumuloRunner {
   public static void main(String[] args) throws IOException, InterruptedException {
     Opts opts = new Opts();
     opts.parseArgs(MiniAccumuloRunner.class.getName(), args);
+    opts.printUsage(opts.help);
 
     if (opts.printProps) {
       printProperties();

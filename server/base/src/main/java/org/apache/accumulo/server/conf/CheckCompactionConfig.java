@@ -24,7 +24,7 @@ import java.io.FileNotFoundException;
 import java.nio.file.Path;
 import java.util.Set;
 
-import org.apache.accumulo.core.cli.Help;
+import org.apache.accumulo.core.cli.BaseOpts;
 import org.apache.accumulo.core.conf.AccumuloConfiguration;
 import org.apache.accumulo.core.conf.SiteConfiguration;
 import org.apache.accumulo.core.data.TableId;
@@ -59,7 +59,10 @@ public class CheckCompactionConfig implements KeywordExecutable {
   final static String META = "meta";
   final static String ROOT = "root";
 
-  static class Opts extends Help {
+  static class Opts extends BaseOpts {
+    @Parameter(names = {"-h", "--help"}, help = true)
+    boolean help = false;
+
     @Parameter(description = "<path> Local path to file containing compaction configuration",
         required = true)
     String filePath;
@@ -83,6 +86,7 @@ public class CheckCompactionConfig implements KeywordExecutable {
   public void execute(String[] args) throws Exception {
     Opts opts = new Opts();
     opts.parseArgs(keyword(), args);
+    opts.printUsage(opts.help);
 
     if (opts.filePath == null) {
       throw new IllegalArgumentException("No properties file was given");

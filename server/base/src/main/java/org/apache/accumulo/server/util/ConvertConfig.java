@@ -29,7 +29,7 @@ import java.nio.file.Paths;
 import java.util.Map;
 import java.util.stream.StreamSupport;
 
-import org.apache.accumulo.core.cli.Help;
+import org.apache.accumulo.core.cli.BaseOpts;
 import org.apache.accumulo.start.spi.KeywordExecutable;
 import org.apache.hadoop.conf.Configuration;
 
@@ -56,7 +56,9 @@ public class ConvertConfig implements KeywordExecutable {
     return "Convert Accumulo configuration from XML to properties";
   }
 
-  static class Opts extends Help {
+  static class Opts extends BaseOpts {
+    @Parameter(names = {"-h", "--help"}, help = true)
+    boolean help = false;
 
     @Parameter(names = {"-x", "-xml", "--xml"},
         description = "Path of accumulo-site.xml to convert from")
@@ -81,6 +83,7 @@ public class ConvertConfig implements KeywordExecutable {
   public void execute(String[] args) throws Exception {
     Opts opts = new Opts();
     opts.parseArgs("accumulo convert-config", args);
+    opts.printUsage(opts.help);
 
     File xmlFile = new File(opts.xmlPath);
     if (!xmlFile.exists()) {

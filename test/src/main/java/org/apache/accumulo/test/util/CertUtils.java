@@ -40,7 +40,7 @@ import java.util.Calendar;
 import java.util.Enumeration;
 import java.util.List;
 
-import org.apache.accumulo.core.cli.Help;
+import org.apache.accumulo.core.cli.BaseOpts;
 import org.apache.accumulo.core.conf.Property;
 import org.apache.accumulo.core.conf.SiteConfiguration;
 import org.apache.commons.io.FileExistsException;
@@ -72,7 +72,7 @@ public class CertUtils {
     Security.addProvider(new BouncyCastleProvider());
   }
 
-  static class Opts extends Help {
+  static class Opts extends BaseOpts {
     @Parameter(description = "generate-all | generate-local | generate-self-trusted",
         required = true, arity = 1)
     List<String> operation = null;

@@ -20,8 +20,8 @@ package org.apache.accumulo.core.util;
 
 import java.io.Console;
 
+import org.apache.accumulo.core.cli.BaseOpts;
 import org.apache.accumulo.core.cli.ClientOpts.PasswordConverter;
-import org.apache.accumulo.core.cli.Help;
 import org.apache.accumulo.core.client.security.tokens.AuthenticationToken;
 import org.apache.accumulo.core.client.security.tokens.AuthenticationToken.Properties;
 import org.apache.accumulo.core.client.security.tokens.AuthenticationToken.TokenProperty;
@@ -45,7 +45,10 @@ public class CreateToken implements KeywordExecutable {
     return reader;
   }
 
-  static class Opts extends Help {
+  static class Opts extends BaseOpts {
+    @Parameter(names = {"-h", "--help"}, help = true)
+    boolean help = false;
+
     @Parameter(names = {"-u", "--user"}, description = "Connection user")
     public String principal = null;
 
@@ -80,6 +83,7 @@ public class CreateToken implements KeywordExecutable {
   public void execute(String[] args) {
     Opts opts = new Opts();
     opts.parseArgs("accumulo create-token", args);
+    opts.printUsage(opts.help);
 
     String pass = opts.password;
     if (pass == null && opts.securePassword != null) {

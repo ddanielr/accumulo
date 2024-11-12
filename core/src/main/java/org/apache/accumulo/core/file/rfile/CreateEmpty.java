@@ -21,7 +21,7 @@ package org.apache.accumulo.core.file.rfile;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.apache.accumulo.core.cli.Help;
+import org.apache.accumulo.core.cli.BaseOpts;
 import org.apache.accumulo.core.conf.DefaultConfiguration;
 import org.apache.accumulo.core.file.FileSKVWriter;
 import org.apache.accumulo.core.file.rfile.bcfile.Compression;
@@ -65,7 +65,9 @@ public class CreateEmpty implements KeywordExecutable {
     }
   }
 
-  static class Opts extends Help {
+  static class Opts extends BaseOpts {
+    @Parameter(names = {"-h", "--help"}, help = true)
+    boolean help = false;
     @Parameter(names = {"-c", "--codec"}, description = "the compression codec to use.",
         validateWith = IsSupportedCompressionAlgorithm.class)
     String codec = new NoCompression().getName();
@@ -97,6 +99,7 @@ public class CreateEmpty implements KeywordExecutable {
 
     Opts opts = new Opts();
     opts.parseArgs("accumulo create-empty", args);
+    opts.printUsage(opts.help);
 
     for (String arg : opts.files) {
       Path path = new Path(arg);

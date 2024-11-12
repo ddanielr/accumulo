@@ -21,7 +21,7 @@ package org.apache.accumulo.server.util;
 import java.util.List;
 
 import org.apache.accumulo.core.Constants;
-import org.apache.accumulo.core.cli.Help;
+import org.apache.accumulo.core.cli.BaseOpts;
 import org.apache.accumulo.core.conf.Property;
 import org.apache.accumulo.core.conf.SiteConfiguration;
 import org.apache.accumulo.core.data.InstanceId;
@@ -64,7 +64,9 @@ public class ZooZap implements KeywordExecutable {
     return "Utility for zapping Zookeeper locks";
   }
 
-  static class Opts extends Help {
+  static class Opts extends BaseOpts {
+    @Parameter(names = {"-h", "--help"}, help = true)
+    boolean help = false;
     @Deprecated(since = "2.1.0")
     @Parameter(names = "-master",
         description = "remove master locks (deprecated -- user -manager instead")
@@ -92,6 +94,7 @@ public class ZooZap implements KeywordExecutable {
   public void execute(String[] args) throws Exception {
     Opts opts = new Opts();
     opts.parseArgs(keyword(), args);
+    opts.printUsage(opts.help);
 
     if (!opts.zapMaster && !opts.zapManager && !opts.zapTservers) {
       new JCommander(opts).usage();
