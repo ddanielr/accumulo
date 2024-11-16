@@ -132,7 +132,7 @@ public class IdleProcessMetricsIT extends SharedMiniClusterBase {
           .peek(log::info).map(TestStatsDSink::parseStatsDMetric).forEach(a -> {
             String processName = a.getTags().get("process.name");
             int value = Integer.parseInt(a.getValue());
-            assertTrue(value == 0 || value == 1 || value == -1, "Unexpected value " + value);
+            assertTrue(value == 0 || value == 1, "Unexpected value " + value);
             if ("tserver".equals(processName) && value == 0) {
               // Expect tserver to never be idle
               sawTServer.set(true);
