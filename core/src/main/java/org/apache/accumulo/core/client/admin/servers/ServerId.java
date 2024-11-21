@@ -111,8 +111,8 @@ public class ServerId implements Comparable<ServerId> {
 
   @Override
   public String toString() {
-    return "Server [type= " + type + ", resource group= " + resourceGroup + ", host= " + host
-        + ", port= " + port + "]";
+    return "Server [type=" + type + ", resource_group=" + resourceGroup + ", host=" + host
+        + ", port=" + port + "]";
   }
 
   public String toHostPortString() {
