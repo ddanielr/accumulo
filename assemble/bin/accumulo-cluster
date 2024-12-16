@@ -342,7 +342,7 @@ function control_services() {
   local group
   local tserver
   local G
-  if [[ $ARG_ALL == 1 && $operation == "stop" ]]; then
+  if [[ $ARG_ALL == 1 && $ARG_LOCAL == 0 && $operation == "stop" ]]; then
     echo "Stopping Accumulo cluster..."
     if ! isDebug; then
       if ! $accumulo_cmd admin stopAll; then
