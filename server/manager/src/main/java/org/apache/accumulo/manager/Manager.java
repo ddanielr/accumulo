@@ -1077,7 +1077,6 @@ public class Manager extends AbstractServer implements LiveTServerSet.Listener, 
           migrations.put(ke, TabletServerIdImpl.toThrift(m.getNewTabletServer()));
           log.debug("migration {}", m);
         }
-
         totalMigrationsOut += migrationsOutForLevel;
 
         // increment this at end of loop to signal complete run w/o any continue
