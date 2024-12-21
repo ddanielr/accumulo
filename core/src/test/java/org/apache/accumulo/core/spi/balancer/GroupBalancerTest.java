@@ -125,7 +125,7 @@ public class GroupBalancerTest {
 
         balancer.balance(
             new BalanceParamsImpl(current, migrations, migrationsOut, "USER", tablesToBalance));
-
+        
         assertTrue(migrationsOut.size() <= (maxMigrations + 5),
             "Max Migration exceeded " + maxMigrations + " " + migrationsOut.size());
 
