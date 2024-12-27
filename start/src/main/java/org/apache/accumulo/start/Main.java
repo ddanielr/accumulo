@@ -42,6 +42,16 @@ public class Main {
   private static Map<String,KeywordExecutable> servicesMap;
 
   public static void main(final String[] args) throws Exception {
+
+    if (args.length == 0) {
+      printUsage();
+      System.exit(1);
+    }
+    if (args[0].equals("-h") || args[0].equals("-help") || args[0].equals("--help")) {
+      printUsage();
+      return;
+    }
+
     // Preload classes that cause a deadlock between the ServiceLoader and the DFSClient when
     // using the VFSClassLoader with jars in HDFS.
     ClassLoader loader = getClassLoader();
@@ -68,15 +78,6 @@ public class Main {
       }
     } catch (ClassNotFoundException e) {
       die(e, "Unable to find Hadoop Configuration class on classpath, check configuration.");
-    }
-
-    if (args.length == 0) {
-      printUsage();
-      System.exit(1);
-    }
-    if (args[0].equals("-h") || args[0].equals("-help") || args[0].equals("--help")) {
-      printUsage();
-      return;
     }
 
     // determine whether a keyword was used or a class name, and execute it with the remaining
