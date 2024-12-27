@@ -204,9 +204,6 @@ public class Admin implements KeywordExecutable {
 
   @Parameters(commandDescription = RV_DEPRECATION_MSG)
   static class RandomizeVolumesCommand {
-    @Parameter(names = {"-h", "--help"}, help = true)
-    boolean help = false;
-
     @Parameter(names = {"-t"}, description = "table to update", required = true)
     String tableName = null;
   }
@@ -395,7 +392,11 @@ public class Admin implements KeywordExecutable {
       return;
     }
 
-    if (opts.help) {
+    if (opts.help || listInstancesOpts.help || pingCommand.help || checkTabletsCommand.help
+        || stopOpts.help || dumpConfigCommand.help || volumesCommand.help
+        || verifyTabletAssignmentsOpts.help || changeSecretCommand.help || deleteZooInstOpts.help
+        || restoreZooOpts.help || fateOpsCommand.help || tServerLocksOpts.help
+        || serviceStatusCommandOpts.help) {
       cl.getCommands().get(cl.getParsedCommand()).usage();
       return;
     }
@@ -413,16 +414,13 @@ public class Admin implements KeywordExecutable {
       int rc = 0;
 
       if (cl.getParsedCommand().equals("listInstances")) {
-        opts.printUsage(listInstancesOpts.help);
         ListInstances.listInstances(context.getZooKeepers(), listInstancesOpts.printAll,
             listInstancesOpts.printErrors);
       } else if (cl.getParsedCommand().equals("ping")) {
-        opts.printUsage(pingCommand.help);
         if (ping(context, pingCommand.args) != 0) {
           rc = 4;
         }
       } else if (cl.getParsedCommand().equals("checkTablets")) {
-        opts.printUsage(checkTabletsCommand.help);
         System.out.println("\n*** Looking for offline tablets ***\n");
         if (FindOfflineTablets.findOffline(context, checkTabletsCommand.tableName) != 0) {
           rc = 5;
@@ -441,43 +439,31 @@ public class Admin implements KeywordExecutable {
         }
 
       } else if (cl.getParsedCommand().equals("stop")) {
-        opts.printUsage(stopOpts.help);
         stopTabletServer(context, stopOpts.args, opts.force);
       } else if (cl.getParsedCommand().equals("dumpConfig")) {
-        opts.printUsage(dumpConfigCommand.help);
         printConfig(context, dumpConfigCommand);
       } else if (cl.getParsedCommand().equals("volumes")) {
-        opts.printUsage(volumesCommand.help);
         ListVolumesUsed.listVolumes(context);
       } else if (cl.getParsedCommand().equals("randomizeVolumes")) {
-        opts.printUsage(randomizeVolumesOpts.help);
         System.out.println(RV_DEPRECATION_MSG);
       } else if (cl.getParsedCommand().equals("verifyTabletAssigns")) {
-        opts.printUsage(verifyTabletAssignmentsOpts.help);
         VerifyTabletAssignments.execute(opts.getClientProps(), verifyTabletAssignmentsOpts.verbose);
       } else if (cl.getParsedCommand().equals("changeSecret")) {
-        opts.printUsage(changeSecretCommand.help);
         ChangeSecret.execute(context, conf);
       } else if (cl.getParsedCommand().equals("deleteZooInstance")) {
-        opts.printUsage(deleteZooInstOpts.help);
         DeleteZooInstance.execute(context, deleteZooInstOpts.clean, deleteZooInstOpts.instance,
             deleteZooInstOpts.auth);
       } else if (cl.getParsedCommand().equals("restoreZoo")) {
-        opts.printUsage(restoreZooOpts.help);
         RestoreZookeeper.execute(conf, restoreZooOpts.file, restoreZooOpts.overwrite);
       } else if (cl.getParsedCommand().equals("locks")) {
-        opts.printUsage(tServerLocksOpts.help);
         TabletServerLocks.execute(context, args.length > 2 ? args[2] : null,
             tServerLocksOpts.delete);
       } else if (cl.getParsedCommand().equals("fate")) {
-        opts.printUsage(fateOpsCommand.help);
         executeFateOpsCommand(context, fateOpsCommand);
       } else if (cl.getParsedCommand().equals("serviceStatus")) {
-        opts.printUsage(serviceStatusCommandOpts.help);
         printServiceStatus(context, serviceStatusCommandOpts);
       } else {
         everything = cl.getParsedCommand().equals("stopAll");
-        opts.printUsage(stopOpts.help);
         if (everything) {
           flushAll(context);
         }
@@ -672,7 +658,7 @@ public class Admin implements KeywordExecutable {
   private Map<String,String> siteConfig, systemConfig;
   private List<String> localUsers;
 
-  public void printConfig(ClientContext context, DumpConfigCommand opts) throws Exception {
+  private void printConfig(ClientContext context, DumpConfigCommand opts) throws Exception {
 
     @SuppressFBWarnings(value = "PATH_TRAVERSAL_IN",
         justification = "app is run in same security context as user providing the filename")
