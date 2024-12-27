@@ -99,7 +99,6 @@ public class Admin implements KeywordExecutable {
   static class AdminOpts extends ServerUtilOpts {
     @Parameter(names = {"-h", "--help"}, help = true)
     boolean help = false;
-
     @Parameter(names = {"-f", "--force"},
         description = "force the given server to stop by removing its lock")
     boolean force = false;
@@ -109,7 +108,6 @@ public class Admin implements KeywordExecutable {
   static class StopCommand {
     @Parameter(names = {"-h", "--help"}, help = true)
     boolean help = false;
-
     @Parameter(description = "<host> {<host> ... }")
     List<String> args = new ArrayList<>();
   }
@@ -118,7 +116,6 @@ public class Admin implements KeywordExecutable {
   static class PingCommand {
     @Parameter(names = {"-h", "--help"}, help = true)
     boolean help = false;
-
     @Parameter(description = "{<host> ... }")
     List<String> args = new ArrayList<>();
   }
@@ -127,10 +124,8 @@ public class Admin implements KeywordExecutable {
   static class CheckTabletsCommand {
     @Parameter(names = {"-h", "--help"}, help = true)
     boolean help = false;
-
     @Parameter(names = "--fixFiles", description = "Remove dangling file pointers")
     boolean fixFiles = false;
-
     @Parameter(names = {"-t", "--table"},
         description = "Table to check, if not set checks all tables")
     String tableName = null;
@@ -153,10 +148,8 @@ public class Admin implements KeywordExecutable {
   static class ListInstancesCommand {
     @Parameter(names = {"-h", "--help"}, help = true)
     boolean help = false;
-
     @Parameter(names = "--print-errors", description = "display errors while listing instances")
     boolean printErrors = false;
-
     @Parameter(names = "--print-all",
         description = "print information for all instances, not just those with names")
     boolean printAll = false;
@@ -166,7 +159,6 @@ public class Admin implements KeywordExecutable {
   static class VolumesCommand {
     @Parameter(names = {"-h", "--help"}, help = true)
     boolean help = false;
-
     @Parameter(names = {"-l", "--list"}, description = "list volumes currently in use")
     boolean printErrors = false;
   }
@@ -175,23 +167,17 @@ public class Admin implements KeywordExecutable {
   static class DumpConfigCommand {
     @Parameter(names = {"-h", "--help"}, help = true)
     boolean help = false;
-
     @Parameter(names = {"-a", "--all"},
         description = "print the system and all table configurations")
     boolean allConfiguration = false;
-
     @Parameter(names = {"-d", "--directory"}, description = "directory to place config files")
     String directory = null;
-
     @Parameter(names = {"-s", "--system"}, description = "print the system configuration")
     boolean systemConfiguration = false;
-
     @Parameter(names = {"-n", "--namespaces"}, description = "print the namespace configuration")
     boolean namespaceConfiguration = false;
-
     @Parameter(names = {"-t", "--tables"}, description = "print per-table configuration")
     List<String> tables = new ArrayList<>();
-
     @Parameter(names = {"-u", "--users"},
         description = "print users and their authorizations and permissions")
     boolean users = false;
@@ -212,7 +198,6 @@ public class Admin implements KeywordExecutable {
   static class VerifyTabletAssignmentsCommand {
     @Parameter(names = {"-h", "--help"}, help = true)
     boolean help = false;
-
     @Parameter(names = {"-v", "--verbose"},
         description = "verbose mode (prints locations of tablets)")
     boolean verbose = false;
@@ -233,7 +218,6 @@ public class Admin implements KeywordExecutable {
   static class TabletServerLocksCommand {
     @Parameter(names = {"-h", "--help"}, help = true)
     boolean help = false;
-
     @Parameter(names = "-delete", description = "specify a tablet server lock to delete")
     String delete = null;
   }
@@ -243,14 +227,11 @@ public class Admin implements KeywordExecutable {
   static class DeleteZooInstanceCommand {
     @Parameter(names = {"-h", "--help"}, help = true)
     boolean help = false;
-
     @Parameter(names = {"-i", "--instance"}, description = "the instance name or id to delete")
     String instance;
-
     @Parameter(names = {"-c", "--clean"},
         description = "Cleans Zookeeper by deleting all old instances. This will not delete the instance pointed to by the local accumulo.properties file")
     boolean clean = false;
-
     @Parameter(names = {"--password"},
         description = "The system secret, if different than instance.secret in accumulo.properties",
         password = true)
@@ -261,10 +242,8 @@ public class Admin implements KeywordExecutable {
   static class RestoreZooCommand {
     @Parameter(names = {"-h", "--help"}, help = true)
     boolean help = false;
-
     @Parameter(names = "--overwrite")
     boolean overwrite = false;
-
     @Parameter(names = "--file")
     String file;
   }
@@ -274,32 +253,24 @@ public class Admin implements KeywordExecutable {
   static class FateOpsCommand {
     @Parameter(names = {"-h", "--help"}, help = true)
     boolean help = false;
-
     @Parameter(description = "[<txId>...]")
     List<String> txList = new ArrayList<>();
-
     @Parameter(names = {"-c", "--cancel"},
         description = "<txId>... Cancel new or submitted FaTE transactions")
     boolean cancel;
-
     @Parameter(names = {"-f", "--fail"},
         description = "<txId>... Transition FaTE transaction status to FAILED_IN_PROGRESS (requires Manager to be down)")
     boolean fail;
-
     @Parameter(names = {"-d", "--delete"},
         description = "<txId>... Delete FaTE transaction and its associated table locks (requires Manager to be down)")
     boolean delete;
-
     @Parameter(names = {"-p", "--print", "-print", "-l", "--list", "-list"},
         description = "[<txId>...] Print information about FaTE transactions. Print only the 'txId's specified or print all transactions if empty. Use -s to only print certain states.")
     boolean print;
-
     @Parameter(names = "--summary", description = "Print a summary of all FaTE transactions")
     boolean summarize;
-
     @Parameter(names = {"-j", "--json"}, description = "Print transactions in json")
     boolean printJson;
-
     @Parameter(names = {"-s", "--state"},
         description = "<state>... Print transactions in the state(s) {NEW, IN_PROGRESS, FAILED_IN_PROGRESS, FAILED, SUCCESSFUL}")
     List<String> states = new ArrayList<>();

@@ -33,7 +33,6 @@ public class TestBaseOpts {
     public void exit(int status) {
       throw new RuntimeException(Integer.toString(status));
     }
-
   }
 
   @Test
@@ -46,5 +45,4 @@ public class TestBaseOpts {
       assertEquals("1", e.getMessage());
     }
   }
-
 }

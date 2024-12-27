@@ -51,6 +51,9 @@ import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 public class ECAdmin implements KeywordExecutable {
   private static final Logger log = LoggerFactory.getLogger(ECAdmin.class);
 
+  @Parameter(names = "--help", help = true)
+  boolean help;
+
   @Parameters(commandDescription = "cancel the external compaction with given ECID")
   static class CancelCommand {
     @Parameter(names = "-ecid", description = "<ecid>", required = true)
@@ -66,9 +69,6 @@ public class ECAdmin implements KeywordExecutable {
 
   @Parameters(commandDescription = "list all compactors in zookeeper")
   static class ListCompactorsCommand {}
-
-  @Parameter(names = "--help", help = true)
-  boolean help;
 
   public static void main(String[] args) {
     new ECAdmin().execute(args);
@@ -93,12 +93,17 @@ public class ECAdmin implements KeywordExecutable {
   @Override
   public void execute(final String[] args) {
     ServerUtilOpts opts = new ServerUtilOpts();
+    JCommander cl = new JCommander(opts);
+    cl.setProgramName("accumulo ec-admin");
 
     CancelCommand cancelOps = new CancelCommand();
+    cl.addCommand("cancel", cancelOps);
+
+    ListCompactorsCommand listCompactorsOpts = new ListCompactorsCommand();
+    cl.addCommand("listCompactors", listCompactorsOpts);
+
     RunningCommand runningOpts = new RunningCommand();
-    JCommander cl = JCommander.newBuilder().addObject(opts).programName("accumulo ec-admin")
-        .addCommand("cancel", cancelOps).addCommand("listCompactors", new ListCompactorsCommand())
-        .addCommand("running", runningOpts).build();
+    cl.addCommand("running", runningOpts);
 
     try {
       cl.parse(args);

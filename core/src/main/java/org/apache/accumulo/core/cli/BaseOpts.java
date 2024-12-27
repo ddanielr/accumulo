@@ -39,11 +39,6 @@ public class BaseOpts {
     }
   }
 
-  /**
-   * Prints the usage statement if the boolean value is true
-   *
-   * @param isHelp the options help value
-   */
   public void printUsage(boolean isHelp) {
     if (isHelp) {
       commander.usage();
@@ -59,5 +54,4 @@ public class BaseOpts {
     System.err.println(message);
     exit(status);
   }
-
 }
