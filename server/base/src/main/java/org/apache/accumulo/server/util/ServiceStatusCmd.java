@@ -50,6 +50,16 @@ public class ServiceStatusCmd {
 
   private static final Logger LOG = LoggerFactory.getLogger(ServiceStatusCmd.class);
 
+  @Parameters(commandDescription = "show service status")
+  public static class Opts extends Admin.CommandOpts {
+    @Parameter(names = "--json", description = "provide output in json format (--noHosts ignored)")
+    boolean json = false;
+
+    @Parameter(names = "--noHosts",
+        description = "provide a summary of service counts without host details")
+    boolean noHosts = false;
+  }
+
   public ServiceStatusCmd() {}
 
   /**
@@ -334,16 +344,6 @@ public class ServiceStatusCmd {
       errorCount.incrementAndGet();
     }
     return new Result<>(errorCount.get(), hosts);
-  }
-
-  @Parameters(commandDescription = "show service status")
-  public static class Opts extends CommandOpts {
-    @Parameter(names = "--json", description = "provide output in json format (--noHosts ignored)")
-    boolean json = false;
-
-    @Parameter(names = "--noHosts",
-        description = "provide a summary of service counts without host details")
-    boolean noHosts = false;
   }
 
   /**

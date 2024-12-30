@@ -61,7 +61,6 @@ import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.beust.jcommander.JCommander;
 import com.beust.jcommander.Parameter;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
@@ -73,6 +72,9 @@ public class CertUtils {
   }
 
   static class Opts extends BaseOpts {
+    @Parameter(names = {"-h", "-?", "--help", "-help"}, description = "Displays the usage",
+        help = true)
+    boolean help = false;
     @Parameter(description = "generate-all | generate-local | generate-self-trusted",
         required = true, arity = 1)
     List<String> operation = null;
@@ -140,6 +142,7 @@ public class CertUtils {
   public static void main(String[] args) throws Exception {
     Opts opts = new Opts();
     opts.parseArgs(CertUtils.class.getName(), args);
+    opts.printUsage(opts.help);
 
     String operation = opts.operation.get(0);
     String keyPassword = opts.keystorePassword;
@@ -165,11 +168,8 @@ public class CertUtils {
       certUtils.createSelfSignedCert(new File(opts.truststore), opts.keyNamePrefix + "-selfTrusted",
           keyPassword);
     } else {
-      JCommander jcommander = new JCommander(opts);
-      jcommander.setProgramName(CertUtils.class.getName());
-      jcommander.usage();
       System.err.println("Unrecognized operation: " + opts.operation);
-      System.exit(0);
+      opts.printUsage(true);
     }
   }
 

@@ -32,7 +32,6 @@ import java.util.Map;
 import java.util.SortedMap;
 import java.util.TreeMap;
 
-import org.apache.accumulo.core.cli.ConfigOpts;
 import org.apache.accumulo.core.conf.Property;
 import org.apache.accumulo.core.data.InstanceId;
 import org.apache.accumulo.core.data.NamespaceId;
@@ -40,6 +39,7 @@ import org.apache.accumulo.core.data.TableId;
 import org.apache.accumulo.core.fate.zookeeper.ZooReader;
 import org.apache.accumulo.core.fate.zookeeper.ZooReaderWriter;
 import org.apache.accumulo.server.ServerContext;
+import org.apache.accumulo.server.cli.ServerUtilOpts;
 import org.apache.accumulo.server.conf.codec.VersionedProperties;
 import org.apache.accumulo.server.conf.store.NamespacePropKey;
 import org.apache.accumulo.server.conf.store.PropStoreKey;
@@ -85,10 +85,9 @@ public class ZooPropEditor implements KeywordExecutable {
     ZooPropEditor.Opts opts = new ZooPropEditor.Opts();
     opts.parseArgs(ZooPropEditor.class.getName(), args);
 
-    ZooReaderWriter zrw = new ZooReaderWriter(opts.getSiteConfiguration());
+    ZooReaderWriter zrw = new ZooReaderWriter(opts.getServerContext().getSiteConfiguration());
 
-    var siteConfig = opts.getSiteConfiguration();
-    try (ServerContext context = new ServerContext(siteConfig)) {
+    try (ServerContext context = opts.getServerContext()) {
 
       InstanceId iid = context.getInstanceID();
 
@@ -271,7 +270,7 @@ public class ZooPropEditor implements KeywordExecutable {
     return "unknown";
   }
 
-  static class Opts extends ConfigOpts {
+  static class Opts extends ServerUtilOpts {
 
     @Parameter(names = {"-d", "--delete"}, description = "delete a property")
     public String deleteOpt = "";

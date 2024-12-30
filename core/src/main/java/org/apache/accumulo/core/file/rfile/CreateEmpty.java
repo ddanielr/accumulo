@@ -18,10 +18,11 @@
  */
 package org.apache.accumulo.core.file.rfile;
 
+import static java.lang.System.exit;
+
 import java.util.ArrayList;
 import java.util.List;
 
-import org.apache.accumulo.core.cli.BaseOpts;
 import org.apache.accumulo.core.conf.DefaultConfiguration;
 import org.apache.accumulo.core.file.FileSKVWriter;
 import org.apache.accumulo.core.file.rfile.bcfile.Compression;
@@ -34,6 +35,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.beust.jcommander.IParameterValidator;
+import com.beust.jcommander.JCommander;
 import com.beust.jcommander.Parameter;
 import com.beust.jcommander.ParameterException;
 import com.google.auto.service.AutoService;
@@ -65,7 +67,7 @@ public class CreateEmpty implements KeywordExecutable {
     }
   }
 
-  static class Opts extends BaseOpts {
+  static class Opts {
     @Parameter(names = {"-h", "--help"}, help = true)
     boolean help = false;
     @Parameter(names = {"-c", "--codec"}, description = "the compression codec to use.",
@@ -98,8 +100,14 @@ public class CreateEmpty implements KeywordExecutable {
     Configuration conf = new Configuration();
 
     Opts opts = new Opts();
-    opts.parseArgs("accumulo create-empty", args);
-    opts.printUsage(opts.help);
+    JCommander jCommander = new JCommander(opts);
+    jCommander.setProgramName("accumulo create-empty");
+    jCommander.parse(args);
+
+    if (opts.help) {
+      jCommander.usage();
+      exit(0);
+    }
 
     for (String arg : opts.files) {
       Path path = new Path(arg);

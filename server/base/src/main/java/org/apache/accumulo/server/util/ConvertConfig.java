@@ -18,6 +18,7 @@
  */
 package org.apache.accumulo.server.util;
 
+import static java.lang.System.exit;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 import java.io.BufferedWriter;
@@ -29,10 +30,10 @@ import java.nio.file.Paths;
 import java.util.Map;
 import java.util.stream.StreamSupport;
 
-import org.apache.accumulo.core.cli.BaseOpts;
 import org.apache.accumulo.start.spi.KeywordExecutable;
 import org.apache.hadoop.conf.Configuration;
 
+import com.beust.jcommander.JCommander;
 import com.beust.jcommander.Parameter;
 import com.google.auto.service.AutoService;
 
@@ -56,7 +57,7 @@ public class ConvertConfig implements KeywordExecutable {
     return "Convert Accumulo configuration from XML to properties";
   }
 
-  static class Opts extends BaseOpts {
+  static class Opts {
     @Parameter(names = {"-h", "--help"}, help = true)
     boolean help = false;
 
@@ -82,8 +83,14 @@ public class ConvertConfig implements KeywordExecutable {
   @Override
   public void execute(String[] args) throws Exception {
     Opts opts = new Opts();
-    opts.parseArgs("accumulo convert-config", args);
-    opts.printUsage(opts.help);
+    JCommander jCommander = new JCommander(opts);
+    jCommander.setProgramName("accumulo convert-config");
+    jCommander.parse(args);
+
+    if (opts.help) {
+      jCommander.usage();
+      exit(0);
+    }
 
     File xmlFile = new File(opts.xmlPath);
     if (!xmlFile.exists()) {

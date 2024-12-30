@@ -37,13 +37,15 @@ import org.apache.accumulo.core.security.Authorizations;
 import org.apache.accumulo.core.security.ColumnVisibility;
 
 import com.beust.jcommander.IStringConverter;
+import com.beust.jcommander.JCommander;
 import com.beust.jcommander.Parameter;
 import com.beust.jcommander.ParameterException;
 import com.beust.jcommander.converters.IParameterSplitter;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
-public class ClientOpts extends BaseOpts {
+public class ClientOpts {
+  private JCommander commander;
 
   public static class AuthConverter implements IStringConverter<Authorizations> {
     @Override
@@ -177,9 +179,20 @@ public class ClientOpts extends BaseOpts {
     return ConfigOpts.getOverrides(overrides);
   }
 
-  @Override
   public void parseArgs(String programName, String[] args, Object... others) {
-    super.parseArgs(programName, args, others);
+    commander = new JCommander();
+    commander.addObject(this);
+    for (Object other : others) {
+      commander.addObject(other);
+    }
+    commander.setProgramName(programName);
+    try {
+      commander.parse(args);
+    } catch (ParameterException ex) {
+      commander.usage();
+      exitWithError(ex.getMessage(), 1);
+    }
+
     if (legacyOpts != null || legacyOptsBoolean) {
       // grab the bad options
       StringBuilder badOptions = new StringBuilder();
@@ -192,6 +205,18 @@ public class ClientOpts extends BaseOpts {
           + "have been dropped. Use accumulo-client.properties for any connection or token "
           + "options. See '-c, --config-file' option.");
     }
+  }
+
+  public void printUsage(boolean isHelp) {
+    if (isHelp) {
+      commander.usage();
+      System.exit(0);
+    }
+  }
+
+  public void exitWithError(String message, int status) {
+    System.err.println(message);
+    System.exit(status);
   }
 
   private Properties cachedProps = null;

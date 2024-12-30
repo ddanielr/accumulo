@@ -86,6 +86,7 @@ import org.slf4j.LoggerFactory;
 import com.beust.jcommander.JCommander;
 import com.beust.jcommander.Parameter;
 import com.beust.jcommander.Parameters;
+import com.beust.jcommander.ParametersDelegate;
 import com.google.auto.service.AutoService;
 import com.google.common.collect.ImmutableSortedMap;
 import com.google.common.collect.Lists;
@@ -96,34 +97,34 @@ import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 public class Admin implements KeywordExecutable {
   private static final Logger log = LoggerFactory.getLogger(Admin.class);
 
-  static class AdminOpts extends ServerUtilOpts {
-    @Parameter(names = {"-h", "--help"}, help = true)
+  static class CommandOpts {
+    @Parameter(names = {"-h", "-?", "--help", "-help"}, description = "Displays the usage",
+        help = true)
     boolean help = false;
-    @Parameter(names = {"-f", "--force"},
-        description = "force the given server to stop by removing its lock")
-    boolean force = false;
+  }
+
+  static class AdminOpts extends ServerUtilOpts {
+    @ParametersDelegate
+    private CommandOpts commandOpts = new CommandOpts();
   }
 
   @Parameters(commandDescription = "stop the tablet server on the given hosts")
-  static class StopCommand {
-    @Parameter(names = {"-h", "--help"}, help = true)
-    boolean help = false;
+  static class StopCommand extends CommandOpts {
+    @Parameter(names = {"-f", "--force"},
+        description = "force the given server to stop by removing its lock")
+    boolean force = false;
     @Parameter(description = "<host> {<host> ... }")
     List<String> args = new ArrayList<>();
   }
 
   @Parameters(commandDescription = "Ping tablet servers.  If no arguments, pings all.")
-  static class PingCommand {
-    @Parameter(names = {"-h", "--help"}, help = true)
-    boolean help = false;
+  static class PingCommand extends CommandOpts {
     @Parameter(description = "{<host> ... }")
     List<String> args = new ArrayList<>();
   }
 
   @Parameters(commandDescription = "print tablets that are offline in online tables")
-  static class CheckTabletsCommand {
-    @Parameter(names = {"-h", "--help"}, help = true)
-    boolean help = false;
+  static class CheckTabletsCommand extends CommandOpts {
     @Parameter(names = "--fixFiles", description = "Remove dangling file pointers")
     boolean fixFiles = false;
     @Parameter(names = {"-t", "--table"},
@@ -139,15 +140,10 @@ public class Admin implements KeywordExecutable {
   static class StopMasterCommand {}
 
   @Parameters(commandDescription = "stop all tablet servers and the manager")
-  static class StopAllCommand {
-    @Parameter(names = {"-h", "--help"}, help = true)
-    boolean help = false;
-  }
+  static class StopAllCommand {}
 
   @Parameters(commandDescription = "list Accumulo instances in zookeeper")
-  static class ListInstancesCommand {
-    @Parameter(names = {"-h", "--help"}, help = true)
-    boolean help = false;
+  static class ListInstancesCommand extends CommandOpts {
     @Parameter(names = "--print-errors", description = "display errors while listing instances")
     boolean printErrors = false;
     @Parameter(names = "--print-all",
@@ -156,17 +152,13 @@ public class Admin implements KeywordExecutable {
   }
 
   @Parameters(commandDescription = "Accumulo volume utility")
-  static class VolumesCommand {
-    @Parameter(names = {"-h", "--help"}, help = true)
-    boolean help = false;
+  static class VolumesCommand extends CommandOpts {
     @Parameter(names = {"-l", "--list"}, description = "list volumes currently in use")
     boolean printErrors = false;
   }
 
   @Parameters(commandDescription = "print out non-default configuration settings")
-  static class DumpConfigCommand {
-    @Parameter(names = {"-h", "--help"}, help = true)
-    boolean help = false;
+  static class DumpConfigCommand extends CommandOpts {
     @Parameter(names = {"-a", "--all"},
         description = "print the system and all table configurations")
     boolean allConfiguration = false;
@@ -189,15 +181,13 @@ public class Admin implements KeywordExecutable {
           + "necessary.";
 
   @Parameters(commandDescription = RV_DEPRECATION_MSG)
-  static class RandomizeVolumesCommand {
+  static class RandomizeVolumesCommand extends CommandOpts {
     @Parameter(names = {"-t"}, description = "table to update", required = true)
     String tableName = null;
   }
 
   @Parameters(commandDescription = "Verify all Tablets are assigned to tablet servers")
-  static class VerifyTabletAssignmentsCommand {
-    @Parameter(names = {"-h", "--help"}, help = true)
-    boolean help = false;
+  static class VerifyTabletAssignmentsCommand extends CommandOpts {
     @Parameter(names = {"-v", "--verbose"},
         description = "verbose mode (prints locations of tablets)")
     boolean verbose = false;
@@ -208,25 +198,18 @@ public class Admin implements KeywordExecutable {
    */
   @Parameters(
       commandDescription = "Changes the unique secret given to the instance that all servers must know.")
-  static class ChangeSecretCommand {
-    @Parameter(names = {"-h", "--help"}, help = true)
-    boolean help = false;
-  }
+  static class ChangeSecretCommand extends CommandOpts {}
 
   @Parameters(
       commandDescription = "List or delete Tablet Server locks. Default with no arguments is to list the locks.")
-  static class TabletServerLocksCommand {
-    @Parameter(names = {"-h", "--help"}, help = true)
-    boolean help = false;
+  static class TabletServerLocksCommand extends CommandOpts {
     @Parameter(names = "-delete", description = "specify a tablet server lock to delete")
     String delete = null;
   }
 
   @Parameters(
       commandDescription = "Deletes specific instance name or id from zookeeper or cleans up all old instances.")
-  static class DeleteZooInstanceCommand {
-    @Parameter(names = {"-h", "--help"}, help = true)
-    boolean help = false;
+  static class DeleteZooInstanceCommand extends CommandOpts {
     @Parameter(names = {"-i", "--instance"}, description = "the instance name or id to delete")
     String instance;
     @Parameter(names = {"-c", "--clean"},
@@ -239,9 +222,7 @@ public class Admin implements KeywordExecutable {
   }
 
   @Parameters(commandDescription = "Restore Zookeeper data from a file.")
-  static class RestoreZooCommand {
-    @Parameter(names = {"-h", "--help"}, help = true)
-    boolean help = false;
+  static class RestoreZooCommand extends CommandOpts {
     @Parameter(names = "--overwrite")
     boolean overwrite = false;
     @Parameter(names = "--file")
@@ -250,9 +231,7 @@ public class Admin implements KeywordExecutable {
 
   @Parameters(commandNames = "fate",
       commandDescription = "Operations performed on the Manager FaTE system.")
-  static class FateOpsCommand {
-    @Parameter(names = {"-h", "--help"}, help = true)
-    boolean help = false;
+  static class FateOpsCommand extends CommandOpts {
     @Parameter(description = "[<txId>...]")
     List<String> txList = new ArrayList<>();
     @Parameter(names = {"-c", "--cancel"},
@@ -363,11 +342,11 @@ public class Admin implements KeywordExecutable {
       return;
     }
 
-    if (opts.help || listInstancesOpts.help || pingCommand.help || checkTabletsCommand.help
-        || stopOpts.help || dumpConfigCommand.help || volumesCommand.help
-        || verifyTabletAssignmentsOpts.help || changeSecretCommand.help || deleteZooInstOpts.help
-        || restoreZooOpts.help || fateOpsCommand.help || tServerLocksOpts.help
-        || serviceStatusCommandOpts.help) {
+    if (opts.commandOpts.help || listInstancesOpts.help || pingCommand.help
+        || checkTabletsCommand.help || stopOpts.help || dumpConfigCommand.help
+        || volumesCommand.help || verifyTabletAssignmentsOpts.help || changeSecretCommand.help
+        || deleteZooInstOpts.help || restoreZooOpts.help || fateOpsCommand.help
+        || tServerLocksOpts.help || serviceStatusCommandOpts.help) {
       cl.getCommands().get(cl.getParsedCommand()).usage();
       return;
     }
@@ -410,7 +389,7 @@ public class Admin implements KeywordExecutable {
         }
 
       } else if (cl.getParsedCommand().equals("stop")) {
-        stopTabletServer(context, stopOpts.args, opts.force);
+        stopTabletServer(context, stopOpts.args, stopOpts.force);
       } else if (cl.getParsedCommand().equals("dumpConfig")) {
         printConfig(context, dumpConfigCommand);
       } else if (cl.getParsedCommand().equals("volumes")) {

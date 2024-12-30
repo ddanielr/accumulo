@@ -83,11 +83,4 @@ public class AdminCommandsTest {
     assertFalse(cmd.users);
     assertNull(cmd.directory);
   }
-
-  // not a command, but easy enough to include here
-  @Test
-  public void testAdminOpts() {
-    Admin.AdminOpts opts = new Admin.AdminOpts();
-    assertFalse(opts.force);
-  }
 }

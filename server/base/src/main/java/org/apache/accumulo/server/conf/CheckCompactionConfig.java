@@ -18,13 +18,13 @@
  */
 package org.apache.accumulo.server.conf;
 
+import static java.lang.System.exit;
 import static org.apache.accumulo.core.Constants.DEFAULT_COMPACTION_SERVICE_NAME;
 
 import java.io.FileNotFoundException;
 import java.nio.file.Path;
 import java.util.Set;
 
-import org.apache.accumulo.core.cli.BaseOpts;
 import org.apache.accumulo.core.conf.AccumuloConfiguration;
 import org.apache.accumulo.core.conf.SiteConfiguration;
 import org.apache.accumulo.core.data.TableId;
@@ -38,6 +38,7 @@ import org.apache.accumulo.start.spi.KeywordExecutable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.beust.jcommander.JCommander;
 import com.beust.jcommander.Parameter;
 import com.google.auto.service.AutoService;
 
@@ -59,10 +60,10 @@ public class CheckCompactionConfig implements KeywordExecutable {
   final static String META = "meta";
   final static String ROOT = "root";
 
-  static class Opts extends BaseOpts {
-    @Parameter(names = {"-h", "--help"}, help = true)
+  static class Opts {
+    @Parameter(names = {"-h", "-?", "--help", "-help"}, description = "Displays the usage",
+        help = true)
     boolean help = false;
-
     @Parameter(description = "<path> Local path to file containing compaction configuration",
         required = true)
     String filePath;
@@ -85,8 +86,13 @@ public class CheckCompactionConfig implements KeywordExecutable {
   @Override
   public void execute(String[] args) throws Exception {
     Opts opts = new Opts();
-    opts.parseArgs(keyword(), args);
-    opts.printUsage(opts.help);
+    JCommander jCommander = new JCommander(opts);
+    jCommander.setProgramName(keyword());
+    jCommander.parse(args);
+    if (opts.help) {
+      jCommander.usage();
+      exit(0);
+    }
 
     if (opts.filePath == null) {
       throw new IllegalArgumentException("No properties file was given");

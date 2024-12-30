@@ -30,12 +30,15 @@ import org.apache.accumulo.core.conf.SiteConfiguration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.beust.jcommander.JCommander;
 import com.beust.jcommander.Parameter;
+import com.beust.jcommander.ParameterException;
 import com.beust.jcommander.converters.IParameterSplitter;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
-public class ConfigOpts extends BaseOpts {
+public class ConfigOpts {
+  private JCommander commander;
 
   private static final Logger log = LoggerFactory.getLogger(ConfigOpts.class);
 
@@ -95,9 +98,19 @@ public class ConfigOpts extends BaseOpts {
     return config;
   }
 
-  @Override
   public void parseArgs(String programName, String[] args, Object... others) {
-    super.parseArgs(programName, args, others);
+    commander = new JCommander();
+    commander.addObject(this);
+    for (Object other : others) {
+      commander.addObject(other);
+    }
+    commander.setProgramName(programName);
+    try {
+      commander.parse(args);
+    } catch (ParameterException ex) {
+      commander.usage();
+      exitWithError(ex.getMessage(), 1);
+    }
     if (!getOverrides().isEmpty()) {
       log.info("The following configuration was set on the command line:");
       for (Map.Entry<String,String> entry : getOverrides().entrySet()) {
@@ -105,5 +118,21 @@ public class ConfigOpts extends BaseOpts {
         log.info(key + " = " + (Property.isSensitive(key) ? "<hidden>" : entry.getValue()));
       }
     }
+  }
+
+  public void printUsage(boolean isHelp) {
+    if (isHelp) {
+      commander.usage();
+      exit(0);
+    }
+  }
+
+  public void exit(int status) {
+    System.exit(status);
+  }
+
+  public void exitWithError(String message, int status) {
+    System.err.println(message);
+    exit(status);
   }
 }
