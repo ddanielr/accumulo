@@ -18,9 +18,10 @@
  */
 package org.apache.accumulo.server.util;
 
+import java.io.IOException;
+
 import org.apache.accumulo.core.compaction.thrift.CompactionCoordinatorService;
 import org.apache.accumulo.core.compaction.thrift.TExternalCompactionList;
-import org.apache.accumulo.core.dataImpl.KeyExtent;
 import org.apache.accumulo.core.metadata.schema.ExternalCompactionId;
 import org.apache.accumulo.core.rpc.ThriftUtil;
 import org.apache.accumulo.core.rpc.clients.ThriftClientTypes;
@@ -29,7 +30,6 @@ import org.apache.accumulo.core.singletons.SingletonManager.Mode;
 import org.apache.accumulo.core.trace.TraceUtil;
 import org.apache.accumulo.core.util.HostAndPort;
 import org.apache.accumulo.core.util.compaction.ExternalCompactionUtil;
-import org.apache.accumulo.core.util.compaction.RunningCompaction;
 import org.apache.accumulo.core.util.compaction.RunningCompactionInfo;
 import org.apache.accumulo.server.ServerContext;
 import org.apache.accumulo.server.cli.ServerUtilOpts;
@@ -40,6 +40,8 @@ import org.slf4j.LoggerFactory;
 import com.beust.jcommander.JCommander;
 import com.beust.jcommander.Parameter;
 import com.beust.jcommander.Parameters;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectWriter;
 import com.google.auto.service.AutoService;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
@@ -62,6 +64,9 @@ public class ECAdmin implements KeywordExecutable {
     @Parameter(names = {"-d", "--details"},
         description = "display details about the running compactions")
     boolean details = false;
+
+    @Parameter(names = {"-json"}, description = "Display results in json format")
+    boolean json = false;
   }
 
   @Parameters(commandDescription = "list all compactors in zookeeper")
@@ -116,7 +121,7 @@ public class ECAdmin implements KeywordExecutable {
       } else if (cl.getParsedCommand().equals("cancel")) {
         cancelCompaction(context, cancelOps.ecid);
       } else if (cl.getParsedCommand().equals("running")) {
-        runningCompactions(context, runningOpts.details);
+        runningCompactions(context, runningOpts.details, runningOpts.json);
       } else {
         log.error("Unknown command {}", cl.getParsedCommand());
         cl.usage();
@@ -153,7 +158,7 @@ public class ECAdmin implements KeywordExecutable {
     }
   }
 
-  private void runningCompactions(ServerContext context, boolean details) {
+  private void runningCompactions(ServerContext context, boolean details, boolean json) {
     CompactionCoordinatorService.Client coordinatorClient = null;
     TExternalCompactionList running;
     try {
@@ -168,26 +173,46 @@ public class ECAdmin implements KeywordExecutable {
         System.out.println("No running compactions found.");
         return;
       }
+      if (json) {
+        System.out.format("\"[");
+      }
       ecidMap.forEach((ecid, ec) -> {
         if (ec != null) {
-          var runningCompaction = new RunningCompaction(ec);
-          var addr = runningCompaction.getCompactorAddress();
-          var kind = runningCompaction.getJob().kind;
-          var queue = runningCompaction.getQueueName();
-          var ke = KeyExtent.fromThrift(runningCompaction.getJob().extent);
-          System.out.format("%s %s %s %s TableId: %s\n", ecid, addr, kind, queue, ke.tableId());
-          if (details) {
-            var runningCompactionInfo = new RunningCompactionInfo(ec);
-            var status = runningCompactionInfo.status;
-            var last = runningCompactionInfo.lastUpdate;
-            var duration = runningCompactionInfo.duration;
-            var numFiles = runningCompactionInfo.numFiles;
-            var progress = runningCompactionInfo.progress;
-            System.out.format("  %s Last Update: %dms Duration: %dms Files: %d Progress: %.2f%%\n",
-                status, last, duration, numFiles, progress);
+          var runningCompactionInfo = new RunningCompactionInfo(ec);
+          var server = runningCompactionInfo.server;
+          var kind = runningCompactionInfo.kind;
+          var queue = runningCompactionInfo.queueName;
+          var tableId = runningCompactionInfo.tableId;
+          var status = runningCompactionInfo.status;
+          var last = runningCompactionInfo.lastUpdate;
+          var duration = runningCompactionInfo.duration;
+          var numFiles = runningCompactionInfo.numFiles;
+          var progress = runningCompactionInfo.progress;
+
+          // Always provide details in json object
+          if (json) {
+            try {
+              System.out.print(prettyPrintJson(String.format(
+                  "{ \"ecid\": \"%s\", \"compactor\": \"%s\", \"kind\": \"%s\", "
+                      + "\"queue\": \"%s\", \"TableId\": \"%s\", \"Status\": \"%s\", \"Last Update\": \"%s\", "
+                      + "\"Duration\": \"%dms\", \"Files\": \"%d\", \"Progress\": \"%.2f%%\" },",
+                  ecid, server, kind, queue, tableId, status, last, duration, numFiles, progress)));
+            } catch (IOException e) {
+              System.out.print("Failed to parse External Compaction details");
+            }
+          } else {
+            System.out.format("%s %s %s %s TableId: %s\n", ecid, server, kind, queue, tableId);
+            if (details) {
+              System.out.format(
+                  "  %s Last Update: %dms Duration: %dms Files: %d Progress: %.2f%%\n", status,
+                  last, duration, numFiles, progress);
+            }
           }
         }
       });
+      if (json) {
+        System.out.format("\"]");
+      }
     } catch (Exception e) {
       throw new RuntimeException("Unable to get running compactions.", e);
     } finally {
@@ -209,5 +234,12 @@ public class ECAdmin implements KeywordExecutable {
     }
     System.out.println("Connected to coordinator at " + address);
     return coordinatorClient;
+  }
+
+  private static String prettyPrintJson(String jsonString) throws IOException {
+    ObjectMapper objectMapper = new ObjectMapper();
+    Object json = objectMapper.readValue(jsonString, Object.class);
+    ObjectWriter writer = objectMapper.writer().withDefaultPrettyPrinter();
+    return writer.writeValueAsString(json);
   }
 }
