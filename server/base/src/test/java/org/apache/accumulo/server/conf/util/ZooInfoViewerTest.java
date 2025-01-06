@@ -41,7 +41,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.File;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -155,25 +154,23 @@ public class ZooInfoViewerTest {
 
     String testFileName = "./target/zoo-info-viewer-" + System.currentTimeMillis() + ".txt";
 
-    ZooInfoViewer.Opts testOpts = createMock(ZooInfoViewer.Opts.class);
-    expect(testOpts.isPrintIdMap()).andReturn(false).times(2);
-    expect(testOpts.isPrintProps()).andReturn(false).times(2);
-    expect(testOpts.isPrintInstanceIds()).andReturn(true).times(2);
-    expect(testOpts.getOutfile()).andReturn(testFileName).once();
-    expect(testOpts.isPrintAcls()).andReturn(false).once();
-
-    replay(testOpts);
-
     ServerContext context =
         MockServerContext.getWithZK(InstanceId.of(instanceName), instanceName, 20_000);
     expect(context.getZooReader()).andReturn(zooReader).once();
 
     replay(context);
 
-    ZooInfoViewer viewer = new ZooInfoViewer();
-    viewer.execCommand(testOpts, context);
+    class ZooInfoViewerTestClazz extends ZooInfoViewer {
+      @Override
+      ServerContext getContext(ZooInfoViewer.Opts ots) {
+        return context;
+      }
+    }
 
-    verify(zooReader, testOpts, context);
+    ZooInfoViewer viewer = new ZooInfoViewerTestClazz();
+    viewer.execute(new String[] {"--print-instances", "--outfile", testFileName});
+
+    verify(zooReader, context);
 
     String line;
     try (Scanner scanner = new Scanner(new File(testFileName))) {
@@ -304,21 +301,6 @@ public class ZooInfoViewerTest {
 
     String testFileName = "./target/zoo-info-viewer-" + System.currentTimeMillis() + ".txt";
 
-    ZooInfoViewer.Opts testOpts = createMock(ZooInfoViewer.Opts.class);
-    expect(testOpts.isPrintIdMap()).andReturn(false).times(2);
-    expect(testOpts.isPrintProps()).andReturn(true).times(2);
-    expect(testOpts.printAllProps()).andReturn(true).times(2);
-    expect(testOpts.printSysProps()).andReturn(true).times(2);
-    expect(testOpts.printNamespaceProps()).andReturn(true).once();
-    expect(testOpts.getNamespaces()).andReturn(new ArrayList<>()).once();
-    expect(testOpts.printTableProps()).andReturn(true).once();
-    expect(testOpts.getTables()).andReturn(new ArrayList<>()).once();
-    expect(testOpts.isPrintInstanceIds()).andReturn(false).times(2);
-    expect(testOpts.getOutfile()).andReturn(testFileName).once();
-    expect(testOpts.isPrintAcls()).andReturn(false).once();
-
-    replay(testOpts);
-
     ZooReaderWriter zrw = createMock(ZooReaderWriter.class);
     expect(zrw.getSessionTimeout()).andReturn(2_000).anyTimes();
     expect(zrw.exists(eq("/accumulo/" + iid), anyObject())).andReturn(true).anyTimes();
@@ -332,10 +314,17 @@ public class ZooInfoViewerTest {
 
     replay(context);
 
-    ZooInfoViewer viewer = new ZooInfoViewer();
-    viewer.execCommand(testOpts, context);
+    class ZooInfoViewerTestClazz extends ZooInfoViewer {
+      @Override
+      ServerContext getContext(ZooInfoViewer.Opts ots) {
+        return context;
+      }
+    }
 
-    verify(zooReader, testOpts, context);
+    ZooInfoViewer viewer = new ZooInfoViewerTestClazz();
+    viewer.execute(new String[] {"--print-props", "--outfile", testFileName});
+
+    verify(zooReader, context);
 
     Map<String,String> props = new HashMap<>();
     try (Scanner scanner = new Scanner(new File(testFileName))) {

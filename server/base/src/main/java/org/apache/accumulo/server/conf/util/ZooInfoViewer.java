@@ -106,25 +106,25 @@ public class ZooInfoViewer implements KeywordExecutable {
 
   @Override
   public void execute(String[] args) throws Exception {
+    nullWatcher = new NullWatcher(new ReadyMonitor(ZooInfoViewer.class.getSimpleName(), 20_000L));
 
     ZooInfoViewer.Opts opts = new ZooInfoViewer.Opts();
     opts.parseArgs(ZooInfoViewer.class.getName(), args);
 
-    try (ServerContext context = new ServerContext(opts.getSiteConfiguration())) {
-      execCommand(opts, context);
+    log.info("print ids map: {}", opts.printIdMap);
+    log.info("print properties: {}", opts.printProps);
+    log.info("print instances: {}", opts.printInstanceIds);
+
+    try {
+      ServerContext context = getContext(opts);
+      generateReport(context.getInstanceID(), opts, context.getZooReader());
+    } catch (Exception e) {
+      throw new RuntimeException(e);
     }
   }
 
-  void execCommand(ZooInfoViewer.Opts opts, ServerContext context) throws Exception {
-    nullWatcher = new NullWatcher(new ReadyMonitor(ZooInfoViewer.class.getSimpleName(), 20_000L));
-
-    log.info("print ids map: {}", opts.isPrintIdMap());
-    log.info("print properties: {}", opts.isPrintProps());
-    log.info("print instances: {}", opts.isPrintInstanceIds());
-
-    ZooReader zooReader = context.getZooReader();
-    InstanceId iid = context.getInstanceID();
-    generateReport(iid, opts, zooReader);
+  ServerContext getContext(ZooInfoViewer.Opts opts) {
+    return new ServerContext(opts.getSiteConfiguration());
   }
 
   void generateReport(final InstanceId iid, final ZooInfoViewer.Opts opts,
@@ -146,20 +146,20 @@ public class ZooInfoViewer implements KeywordExecutable {
       writer.println("-----------------------------------------------");
       writer.println("Report Time: " + tsFormat.format(Instant.now()));
       writer.println("-----------------------------------------------");
-      if (opts.isPrintInstanceIds()) {
+      if (opts.printInstanceIds) {
         Map<String,InstanceId> instanceMap = readInstancesFromZk(zooReader);
         printInstanceIds(instanceMap, writer);
       }
 
-      if (opts.isPrintIdMap()) {
+      if (opts.printIdMap) {
         printIdMapping(iid, zooReader, writer);
       }
 
-      if (opts.isPrintProps()) {
+      if (opts.printProps) {
         printProps(iid, zooReader, opts, writer);
       }
 
-      if (opts.isPrintAcls()) {
+      if (opts.printAcls) {
         printAcls(iid, opts, writer);
       }
       writer.println("-----------------------------------------------");
@@ -182,7 +182,6 @@ public class ZooInfoViewer implements KeywordExecutable {
 
     writer.printf("ZooKeeper properties for instance ID: %s\n\n", iid.canonical());
     if (opts.printSysProps()) {
-      log.info("print Sys Prop:{}", opts.printSysProps());
       printSortedProps(writer, Map.of("System", fetchSystemProp(iid, zooReader)));
     }
 
@@ -480,22 +479,6 @@ public class ZooInfoViewer implements KeywordExecutable {
 
     String getOutfile() {
       return outfile;
-    }
-
-    boolean isPrintIdMap() {
-      return printIdMap;
-    }
-
-    boolean isPrintAcls() {
-      return printAcls;
-    }
-
-    boolean isPrintInstanceIds() {
-      return printInstanceIds;
-    }
-
-    boolean isPrintProps() {
-      return printProps;
     }
   }
 
