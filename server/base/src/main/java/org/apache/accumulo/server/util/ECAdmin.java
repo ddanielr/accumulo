@@ -18,6 +18,8 @@
  */
 package org.apache.accumulo.server.util;
 
+import org.apache.accumulo.core.cli.HelpRequestedParameterException;
+import org.apache.accumulo.core.cli.HelpValidator;
 import org.apache.accumulo.core.compaction.thrift.CompactionCoordinatorService;
 import org.apache.accumulo.core.compaction.thrift.TExternalCompactionList;
 import org.apache.accumulo.core.dataImpl.KeyExtent;
@@ -51,20 +53,23 @@ import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 public class ECAdmin implements KeywordExecutable {
   private static final Logger log = LoggerFactory.getLogger(ECAdmin.class);
 
-  @Parameters(commandDescription = "cancel the external compaction with given ECID")
+  @Parameters(commandDescription = "cancel the external compaction with given ECID",
+      parametersValidators = HelpValidator.class)
   static class CancelCommand {
     @Parameter(names = "-ecid", description = "<ecid>", required = true)
     String ecid;
   }
 
-  @Parameters(commandDescription = "list the running compactions")
+  @Parameters(commandDescription = "list the running compactions",
+      parametersValidators = HelpValidator.class)
   static class RunningCommand {
     @Parameter(names = {"-d", "--details"},
         description = "display details about the running compactions")
     boolean details = false;
   }
 
-  @Parameters(commandDescription = "list all compactors in zookeeper")
+  @Parameters(commandDescription = "list all compactors in zookeeper",
+      parametersValidators = HelpValidator.class)
   static class ListCompactorsCommand {}
 
   public static void main(String[] args) {
@@ -102,9 +107,18 @@ public class ECAdmin implements KeywordExecutable {
     RunningCommand runningOpts = new RunningCommand();
     cl.addCommand("running", runningOpts);
 
-    cl.parse(args);
+    try {
+      cl.parse(args);
+    } catch (HelpRequestedParameterException e) {
+      if (cl.getParsedCommand() != null) {
+        cl.getCommands().get(cl.getParsedCommand()).usage();
+      } else {
+        cl.usage();
+      }
+      return;
+    }
 
-    if (opts.help || cl.getParsedCommand() == null) {
+    if (cl.getParsedCommand() == null) {
       cl.usage();
       return;
     }

@@ -28,6 +28,7 @@ import java.util.Set;
 import java.util.TreeSet;
 
 import org.apache.accumulo.core.cli.ClientOpts;
+import org.apache.accumulo.core.cli.HelpValidator;
 import org.apache.accumulo.core.client.Accumulo;
 import org.apache.accumulo.core.client.AccumuloClient;
 import org.apache.accumulo.core.client.AccumuloException;
@@ -57,6 +58,7 @@ import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.io.Text;
 
 import com.beust.jcommander.Parameter;
+import com.beust.jcommander.Parameters;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
@@ -96,6 +98,7 @@ public class TestIngest {
     }
   }
 
+  @Parameters(parametersValidators = HelpValidator.class)
   public static class Opts extends ClientOpts {
     @Parameter(names = "--table", description = "table to use")
     String tableName = "test_ingest";

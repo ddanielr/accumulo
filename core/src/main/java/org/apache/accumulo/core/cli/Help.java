@@ -21,7 +21,9 @@ package org.apache.accumulo.core.cli;
 import com.beust.jcommander.JCommander;
 import com.beust.jcommander.Parameter;
 import com.beust.jcommander.ParameterException;
+import com.beust.jcommander.Parameters;
 
+@Parameters(parametersValidators = HelpValidator.class)
 public class Help {
   @Parameter(names = {"-h", "-?", "--help", "-help"}, help = true)
   public boolean help = false;
@@ -35,13 +37,12 @@ public class Help {
     commander.setProgramName(programName);
     try {
       commander.parse(args);
+    } catch (HelpRequestedParameterException ex) {
+      commander.usage();
+      exit(0);
     } catch (ParameterException ex) {
       commander.usage();
       exitWithError(ex.getMessage(), 1);
-    }
-    if (help) {
-      commander.usage();
-      exit(0);
     }
   }
 
