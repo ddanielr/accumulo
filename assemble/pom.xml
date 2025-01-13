@@ -32,11 +32,6 @@
   <description>Apache Accumulo packages.</description>
   <dependencies>
     <dependency>
-      <groupId>com.beust</groupId>
-      <artifactId>jcommander</artifactId>
-      <optional>true</optional>
-    </dependency>
-    <dependency>
       <groupId>com.fasterxml</groupId>
       <artifactId>classmate</artifactId>
       <optional>true</optional>
@@ -475,6 +470,11 @@
     <dependency>
       <groupId>org.jboss.logging</groupId>
       <artifactId>jboss-logging</artifactId>
+      <optional>true</optional>
+    </dependency>
+    <dependency>
+      <groupId>org.jcommander</groupId>
+      <artifactId>jcommander</artifactId>
       <optional>true</optional>
     </dependency>
     <dependency>

@@ -31,10 +31,6 @@
   <description>A library for launching and running a standalone instance of Apache Accumulo for testing.</description>
   <dependencies>
     <dependency>
-      <groupId>com.beust</groupId>
-      <artifactId>jcommander</artifactId>
-    </dependency>
-    <dependency>
       <groupId>com.google.auto.service</groupId>
       <artifactId>auto-service</artifactId>
       <optional>true</optional>
@@ -103,6 +99,10 @@
     <dependency>
       <groupId>org.apache.zookeeper</groupId>
       <artifactId>zookeeper-jute</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.jcommander</groupId>
+      <artifactId>jcommander</artifactId>
     </dependency>
     <dependency>
       <groupId>org.slf4j</groupId>
