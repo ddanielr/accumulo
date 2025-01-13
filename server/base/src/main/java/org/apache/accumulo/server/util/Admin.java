@@ -42,6 +42,8 @@ import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.accumulo.core.Constants;
+import org.apache.accumulo.core.cli.HelpRequestedParameterException;
+import org.apache.accumulo.core.cli.HelpValidator;
 import org.apache.accumulo.core.client.AccumuloClient;
 import org.apache.accumulo.core.client.AccumuloException;
 import org.apache.accumulo.core.client.AccumuloSecurityException;
@@ -96,6 +98,7 @@ import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 public class Admin implements KeywordExecutable {
   private static final Logger log = LoggerFactory.getLogger(Admin.class);
 
+  @Parameters(parametersValidators = HelpValidator.class)
   private static class SubCommandOpts {
     @Parameter(names = {"-h", "-?", "--help", "-help"}, help = true)
     public boolean help = false;
@@ -345,21 +348,20 @@ public class Admin implements KeywordExecutable {
     VolumesCommand volumesCommand = new VolumesCommand();
     cl.addCommand("volumes", volumesCommand);
 
-    cl.parse(args);
+    try {
+      cl.parse(args);
+    } catch (HelpRequestedParameterException ex) {
+      if (cl.getParsedCommand() != null) {
+        cl.getCommands().get(cl.getParsedCommand()).usage();
+      } else {
+        cl.usage();
+      }
+      return;
+    }
 
     if (cl.getParsedCommand() == null) {
       cl.usage();
       return;
-    }
-
-    for (var command : cl.getCommands().entrySet()) {
-      var objects = command.getValue().getObjects();
-      for (var obj : objects) {
-        if (obj instanceof SubCommandOpts && ((SubCommandOpts) obj).help) {
-          command.getValue().usage();
-          return;
-        }
-      }
     }
 
     ServerContext context = opts.getServerContext();

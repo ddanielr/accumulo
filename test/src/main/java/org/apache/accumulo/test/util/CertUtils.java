@@ -41,6 +41,7 @@ import java.util.Enumeration;
 import java.util.List;
 
 import org.apache.accumulo.core.cli.Help;
+import org.apache.accumulo.core.cli.HelpValidator;
 import org.apache.accumulo.core.conf.Property;
 import org.apache.accumulo.core.conf.SiteConfiguration;
 import org.apache.commons.io.FileExistsException;
@@ -63,6 +64,7 @@ import org.slf4j.LoggerFactory;
 
 import com.beust.jcommander.JCommander;
 import com.beust.jcommander.Parameter;
+import com.beust.jcommander.Parameters;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
@@ -72,6 +74,7 @@ public class CertUtils {
     Security.addProvider(new BouncyCastleProvider());
   }
 
+  @Parameters(parametersValidators = HelpValidator.class)
   static class Opts extends Help {
     @Parameter(description = "generate-all | generate-local | generate-self-trusted",
         required = true, arity = 1)
