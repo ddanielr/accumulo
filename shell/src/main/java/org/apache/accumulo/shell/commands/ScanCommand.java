@@ -96,42 +96,52 @@ public class ScanCommand extends Command {
     }
   }
 
+  @SuppressWarnings("deprecation")
+  public Scanner createScanner(Shell shellState, CommandLine cl, String tableName,
+      org.apache.accumulo.core.util.interpret.ScanInterpreter interpreter) throws Exception {
+
+    String classLoaderContext = null;
+    if (cl.hasOption(contextOpt.getOpt())) {
+      classLoaderContext = cl.getOptionValue(contextOpt.getOpt());
+    }
+
+    // handle first argument, if present, the authorizations list to scan with
+    final Authorizations auths = getAuths(cl, shellState);
+    final Scanner scanner = shellState.getAccumuloClient().createScanner(tableName, auths);
+
+    if (classLoaderContext != null) {
+      scanner.setClassLoaderContext(classLoaderContext);
+    }
+
+    // handle columns
+    fetchColumns(cl, scanner, interpreter);
+    fetchColumsWithCFAndCQ(cl, scanner, interpreter);
+
+    // handle remaining optional arguments
+    scanner.setRange(getRange(cl, interpreter));
+
+    // set timeout
+    scanner.setTimeout(getTimeout(cl), TimeUnit.MILLISECONDS);
+    return scanner;
+  }
+
   @Override
   public int execute(final String fullCommand, final CommandLine cl, final Shell shellState)
       throws Exception {
     try (final PrintFile printFile = getOutputFile(cl)) {
       final String tableName = OptUtil.getTableOpt(cl, shellState);
-
       final Class<? extends Formatter> formatter = getFormatter(cl, tableName, shellState);
+
       @SuppressWarnings("deprecation")
       final org.apache.accumulo.core.util.interpret.ScanInterpreter interpeter =
           getInterpreter(cl, tableName, shellState);
 
-      String classLoaderContext = null;
-      if (cl.hasOption(contextOpt.getOpt())) {
-        classLoaderContext = cl.getOptionValue(contextOpt.getOpt());
-      }
-      // handle first argument, if present, the authorizations list to scan with
-      final Authorizations auths = getAuths(cl, shellState);
-      final Scanner scanner = shellState.getAccumuloClient().createScanner(tableName, auths);
-      if (classLoaderContext != null) {
-        scanner.setClassLoaderContext(classLoaderContext);
-      }
+      final Scanner scanner = createScanner(shellState, cl, tableName, interpeter);
+
       // handle session-specific scan iterators
       addScanIterators(shellState, cl, scanner, tableName);
 
-      // handle remaining optional arguments
-      scanner.setRange(getRange(cl, interpeter));
-
-      // handle columns
-      fetchColumns(cl, scanner, interpeter);
-      fetchColumsWithCFAndCQ(cl, scanner, interpeter);
-
-      // set timeout
-      scanner.setTimeout(getTimeout(cl), TimeUnit.MILLISECONDS);
-
       setupSampling(tableName, cl, shellState, scanner);
-
       scanner.setExecutionHints(ShellUtil.parseMapOpt(cl, executionHintsOpt));
 
       try {

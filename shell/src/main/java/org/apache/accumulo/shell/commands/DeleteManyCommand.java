@@ -25,7 +25,6 @@ import org.apache.accumulo.core.client.BatchWriterConfig;
 import org.apache.accumulo.core.client.IteratorSetting;
 import org.apache.accumulo.core.client.Scanner;
 import org.apache.accumulo.core.iterators.SortedKeyIterator;
-import org.apache.accumulo.core.security.Authorizations;
 import org.apache.accumulo.core.util.format.FormatterConfig;
 import org.apache.accumulo.shell.Shell;
 import org.apache.accumulo.shell.format.DeleterFormatter;
@@ -42,27 +41,15 @@ public class DeleteManyCommand extends ScanCommand {
     final String tableName = OptUtil.getTableOpt(cl, shellState);
 
     @SuppressWarnings("deprecation")
-    final org.apache.accumulo.core.util.interpret.ScanInterpreter interpeter =
+    final org.apache.accumulo.core.util.interpret.ScanInterpreter interpreter =
         getInterpreter(cl, tableName, shellState);
 
-    // handle first argument, if present, the authorizations list to
-    // scan with
-    final Authorizations auths = getAuths(cl, shellState);
-    final Scanner scanner = shellState.getAccumuloClient().createScanner(tableName, auths);
-
+    final Scanner scanner = super.createScanner(shellState, cl, tableName, interpreter);
     scanner.addScanIterator(
         new IteratorSetting(Integer.MAX_VALUE, "NOVALUE", SortedKeyIterator.class));
 
     // handle session-specific scan iterators
     addScanIterators(shellState, cl, scanner, tableName);
-
-    // handle remaining optional arguments
-    scanner.setRange(getRange(cl, interpeter));
-
-    scanner.setTimeout(getTimeout(cl), TimeUnit.MILLISECONDS);
-
-    // handle columns
-    fetchColumns(cl, scanner, interpeter);
 
     // output / delete the records
     final BatchWriter writer = shellState.getAccumuloClient().createBatchWriter(tableName,
