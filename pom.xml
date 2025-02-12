@@ -109,6 +109,13 @@
     <system>GitHub Actions</system>
     <url>https://github.com/apache/accumulo/actions</url>
   </ciManagement>
+  <distributionManagement>
+    <repository>
+      <id>github-datawave</id>
+      <name>Github Package Repository</name>
+      <url>https://maven.pkg.github.com/NationalSecurityAgency/datawave</url>
+    </repository>
+  </distributionManagement>
   <properties>
     <!-- used for filtering the java source with the current version -->
     <accumulo.release.version>${project.version}</accumulo.release.version>
