@@ -177,7 +177,10 @@ public class SimpleLoadBalancer implements TabletBalancer {
              * The check below was on entry.getKey(), but that resolves to a tabletserver not a
              * tablename. Believe it should be e.getKey() which is a tablename
              */
+            log.info("GetMigrations: tableToBalance: {}, fullname: {}, entryKey: {}", tableToBalance, tableToBalance.canonical(), e.getKey());
+
             if (tableToBalance == null || tableToBalance.canonical().equals(e.getKey())) {
+              log.info("Online TabletCount: {}", e.getValue().getOnlineTabletCount());
               serverTotal += e.getValue().getOnlineTabletCount();
             }
           }

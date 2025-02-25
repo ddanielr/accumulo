@@ -68,12 +68,15 @@ public class TableLoadBalancer implements TabletBalancer {
   }
 
   protected TabletBalancer getBalancerForTable(TableId tableId) {
+    log.info("Fetching Balancer for table {}", tableId);
     TabletBalancer balancer = perTableBalancers.get(tableId);
+    log.info("Balancer {} retrieved from cache for table {}", balancer, tableId);
 
     String clazzName = getLoadBalancerClassNameForTable(tableId);
 
     if (clazzName == null) {
       clazzName = SimpleLoadBalancer.class.getName();
+      log.info("Default Balancer Chosen of {}", clazzName);
     }
     if (balancer != null) {
       if (!clazzName.equals(balancer.getClass().getName())) {
@@ -83,7 +86,7 @@ public class TableLoadBalancer implements TabletBalancer {
           perTableBalancers.put(tableId, balancer);
           balancer.init(environment);
 
-          log.info("Loaded new class {} for table {}", clazzName, tableId);
+          log.info("Loaded existing class {} for table {}", clazzName, tableId);
         } catch (Exception e) {
           log.warn("Failed to load table balancer class {} for table {}", clazzName, tableId, e);
         }
@@ -92,7 +95,7 @@ public class TableLoadBalancer implements TabletBalancer {
     if (balancer == null) {
       try {
         balancer = constructNewBalancerForTable(clazzName, tableId);
-        log.info("Loaded class {} for table {}", clazzName, tableId);
+        log.info("Loaded new balancer class {} for table {}", clazzName, tableId);
       } catch (Exception e) {
         log.warn("Failed to load table balancer class {} for table {}", clazzName, tableId, e);
       }
@@ -127,14 +130,20 @@ public class TableLoadBalancer implements TabletBalancer {
     // Iterate over the tables and balance each of them
     final DataLevel currentDataLevel = DataLevel.valueOf(params.currentLevel());
     for (TableId tableId : environment.getTableIdMap().values()) {
-      ArrayList<TabletMigration> newMigrations = new ArrayList<>();
-      long tableBalanceTime =
-          getBalancerForTable(tableId).balance(new BalanceParamsImpl(params.currentStatus(),
-              params.currentMigrations(), newMigrations, currentDataLevel));
-      if (tableBalanceTime < minBalanceTime) {
-        minBalanceTime = tableBalanceTime;
+      if (DataLevel.of(tableId) != currentDataLevel) {
+        // Don't try and balance tables that are outside the current data level.
+        log.info("Skipping Table {} as it is not in the current data level", tableId);
+        continue;
       }
-      params.migrationsOut().addAll(newMigrations);
+        ArrayList<TabletMigration> newMigrations = new ArrayList<>();
+        long tableBalanceTime =
+            getBalancerForTable(tableId).balance(new BalanceParamsImpl(params.currentStatus(),
+                params.currentMigrations(), newMigrations, currentDataLevel));
+        if (tableBalanceTime < minBalanceTime) {
+          minBalanceTime = tableBalanceTime;
+        }
+        log.info("Added new migrations: {}", newMigrations);
+        params.migrationsOut().addAll(newMigrations);
     }
     return minBalanceTime;
   }
