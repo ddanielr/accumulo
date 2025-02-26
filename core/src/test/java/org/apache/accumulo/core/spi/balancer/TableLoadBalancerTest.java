@@ -101,10 +101,6 @@ public class TableLoadBalancerTest {
 
   public static class TestSimpleLoadBalancer extends SimpleLoadBalancer {
 
-    public TestSimpleLoadBalancer(TableId table) {
-      super(table);
-    }
-
     @Override
     public void init(BalancerEnvironment balancerEnvironment) {}
 
@@ -142,15 +138,15 @@ public class TableLoadBalancerTest {
     List<TabletMigration> migrationsOut = new ArrayList<>();
     TableLoadBalancer tls = new TableLoadBalancer();
     tls.init(environment);
-    tls.balance(
-        new BalanceParamsImpl(state, migrations, migrationsOut, DataLevel.USER, tableIdMap));
+    tls.balance(new BalanceParamsImpl(state, migrations, migrationsOut, DataLevel.USER,
+        Map.of("t1", TableId.of(t1Id))));
     assertEquals(0, migrationsOut.size());
 
     state.put(mkts("10.0.0.2", 2345, "0x02030405"), status());
     tls = new TableLoadBalancer();
     tls.init(environment);
-    tls.balance(
-        new BalanceParamsImpl(state, migrations, migrationsOut, DataLevel.USER, tableIdMap));
+    tls.balance(new BalanceParamsImpl(state, migrations, migrationsOut, DataLevel.USER,
+        Map.of("t1", TableId.of(t1Id))));
     int count = 0;
     Map<TableId,Integer> movedByTable = new HashMap<>();
     movedByTable.put(TableId.of(t1Id), 0);
