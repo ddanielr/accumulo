@@ -72,14 +72,8 @@ public class SimpleLoadBalancer implements TabletBalancer {
   protected BalancerEnvironment environment;
 
   Iterator<TabletServerId> assignments;
-  // if tableToBalance is set, then only balance the given table
-  TableId tableToBalance = null;
 
   public SimpleLoadBalancer() {}
-
-  public SimpleLoadBalancer(TableId table) {
-    tableToBalance = table;
-  }
 
   @Override
   public void init(BalancerEnvironment balancerEnvironment) {
@@ -173,13 +167,7 @@ public class SimpleLoadBalancer implements TabletBalancer {
         int serverTotal = 0;
         if (entry.getValue() != null && entry.getValue().getTableMap() != null) {
           for (Entry<String,TableStatistics> e : entry.getValue().getTableMap().entrySet()) {
-            /*
-             * The check below was on entry.getKey(), but that resolves to a tabletserver not a
-             * tablename. Believe it should be e.getKey() which is a tablename
-             */
-            if (tableToBalance == null || tableToBalance.canonical().equals(e.getKey())) {
-              serverTotal += e.getValue().getOnlineTabletCount();
-            }
+            serverTotal += e.getValue().getOnlineTabletCount();
           }
         }
         totals.add(new ServerCounts(serverTotal, entry.getKey(), entry.getValue()));
@@ -293,10 +281,6 @@ public class SimpleLoadBalancer implements TabletBalancer {
 
   private TableId getTableToMigrate(ServerCounts tooMuch, Map<TableId,Integer> tooMuchMap,
       Map<TableId,Integer> tooLittleMap) {
-
-    if (tableToBalance != null) {
-      return tableToBalance;
-    }
 
     // find a table to migrate
     // look for an uneven table count
