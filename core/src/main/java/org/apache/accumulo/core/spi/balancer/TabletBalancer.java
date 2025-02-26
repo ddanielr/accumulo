@@ -102,7 +102,7 @@ public interface TabletBalancer {
      * @return name of current balancing iteration data level
      * @since 2.1.4
      */
-    String currentLevel();
+    String partitionName();
 
     /**
      * This is the set of tables the balancer should consider. Balancing any tables outside of this
