@@ -55,18 +55,11 @@ import com.google.common.base.Preconditions;
 class ZooTabletStateStore extends AbstractTabletStateStore implements TabletStateStore {
 
   private static final Logger log = LoggerFactory.getLogger(ZooTabletStateStore.class);
-  private final DataLevel level;
   private final ServerContext ctx;
 
   ZooTabletStateStore(DataLevel level, ServerContext context) {
-    super(context);
+    super(context, level, "Root Table");
     this.ctx = context;
-    this.level = level;
-  }
-
-  @Override
-  public DataLevel getLevel() {
-    return level;
   }
 
   @Override
@@ -199,10 +192,5 @@ class ZooTabletStateStore extends AbstractTabletStateStore implements TabletStat
   @Override
   public void unsuspend(Collection<TabletMetadata> tablets) {
     // no support for suspending root tablet.
-  }
-
-  @Override
-  public String name() {
-    return "Root Table";
   }
 }

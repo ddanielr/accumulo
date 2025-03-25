@@ -30,6 +30,7 @@ import org.apache.accumulo.core.metadata.TServerInstance;
 import org.apache.accumulo.core.metadata.schema.Ample;
 import org.apache.accumulo.core.metadata.schema.Ample.ConditionalResult;
 import org.apache.accumulo.core.metadata.schema.Ample.ConditionalResult.Status;
+import org.apache.accumulo.core.metadata.schema.Ample.DataLevel;
 import org.apache.accumulo.core.metadata.schema.TabletMetadata;
 import org.apache.accumulo.core.metadata.schema.TabletMetadata.Location;
 import org.apache.accumulo.core.metadata.schema.TabletMetadata.LocationType;
@@ -47,9 +48,13 @@ public abstract class AbstractTabletStateStore implements TabletStateStore {
   private static final Logger LOG = LoggerFactory.getLogger(AbstractTabletStateStore.class);
 
   private final Ample ample;
+  private final DataLevel level;
+  private final String name;
 
-  protected AbstractTabletStateStore(ServerContext context) {
+  protected AbstractTabletStateStore(ServerContext context, DataLevel level, String name) {
     this.ample = context.getAmple();
+    this.level = level;
+    this.name = name;
   }
 
   @Override
@@ -110,6 +115,16 @@ public abstract class AbstractTabletStateStore implements TabletStateStore {
     } catch (RuntimeException ex) {
       throw new DistributedStoreException(ex);
     }
+  }
+
+  @Override
+  public DataLevel getLevel() {
+    return level;
+  }
+
+  @Override
+  public String name() {
+    return name;
   }
 
   @Override

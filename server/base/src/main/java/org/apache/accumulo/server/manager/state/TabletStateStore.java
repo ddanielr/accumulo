@@ -122,7 +122,7 @@ public interface TabletStateStore {
     return getStoreForLevel(DataLevel.of(extent.tableId()), context);
   }
 
-  public static TabletStateStore getStoreForLevel(DataLevel level, ServerContext context) {
+  static TabletStateStore getStoreForLevel(DataLevel level, ServerContext context) {
 
     TabletStateStore tss;
     switch (level) {
@@ -130,10 +130,10 @@ public interface TabletStateStore {
         tss = new ZooTabletStateStore(level, context);
         break;
       case METADATA:
-        tss = new RootTabletStateStore(level, context);
+        tss = new MetaDataStateStore(level, context, "Metadata Tablets");
         break;
       case USER:
-        tss = new MetaDataStateStore(level, context);
+        tss = new MetaDataStateStore(level, context, "Normal Tablets");
         break;
       default:
         throw new IllegalArgumentException("Unknown level " + level);

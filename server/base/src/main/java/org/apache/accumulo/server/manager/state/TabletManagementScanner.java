@@ -39,9 +39,9 @@ import org.apache.accumulo.core.clientImpl.ClientTabletCache.LocationNeed;
 import org.apache.accumulo.core.conf.Property;
 import org.apache.accumulo.core.data.Key;
 import org.apache.accumulo.core.data.Range;
-import org.apache.accumulo.core.data.TableId;
 import org.apache.accumulo.core.data.Value;
 import org.apache.accumulo.core.manager.state.TabletManagement;
+import org.apache.accumulo.core.metadata.schema.Ample.DataLevel;
 import org.apache.accumulo.core.metadata.schema.MetadataSchema.TabletsSection;
 import org.apache.accumulo.core.security.Authorizations;
 import org.apache.accumulo.core.util.cleaner.CleanerUtil;
@@ -60,14 +60,15 @@ public class TabletManagementScanner implements ClosableIterator<TabletManagemen
 
   // This constructor is called from TabletStateStore implementations
   public TabletManagementScanner(ClientContext context, List<Range> ranges,
-      TabletManagementParameters tmgmtParams, String tableName) {
+      TabletManagementParameters tmgmtParams, DataLevel level) {
     // scan over metadata table, looking for tablets in the wrong state based on the live servers
     // and online tables
+    final String tableName = level.metaTable();
     try {
       int numLocations = 0;
       try {
-        final TableId tid = context.getTableId(tableName);
-        final ClientTabletCache locator = ClientTabletCache.getInstance(context, tid);
+        final ClientTabletCache locator =
+            ClientTabletCache.getInstance(context, level.metaTableId());
         final Set<String> locations = new HashSet<>();
         final List<Range> failures = locator.findTablets(context, ALL_TABLETS_RANGE,
             (ct, r) -> ct.getTserverLocation().ifPresent(locations::add),
