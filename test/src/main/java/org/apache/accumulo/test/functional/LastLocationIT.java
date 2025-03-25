@@ -32,6 +32,7 @@ import org.apache.accumulo.core.client.admin.NewTableConfiguration;
 import org.apache.accumulo.core.client.admin.TabletAvailability;
 import org.apache.accumulo.core.client.security.tokens.PasswordToken;
 import org.apache.accumulo.core.data.Mutation;
+import org.apache.accumulo.core.data.TableId;
 import org.apache.accumulo.core.metadata.schema.TabletMetadata;
 import org.apache.accumulo.core.util.UtilWaitThread;
 import org.junit.jupiter.api.Test;
@@ -51,7 +52,7 @@ public class LastLocationIT extends ConfigurableMacBase {
       NewTableConfiguration ntc =
           new NewTableConfiguration().withInitialTabletAvailability(TabletAvailability.HOSTED);
       c.tableOperations().create(tableName, ntc);
-      String tableId = c.tableOperations().tableIdMap().get(tableName);
+      TableId tableId = TableId.of(c.tableOperations().tableIdMap().get(tableName));
       // wait for the table to be online
       TabletMetadata newTablet;
       do {

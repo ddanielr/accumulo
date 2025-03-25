@@ -135,7 +135,7 @@ public class ManagerAssignmentIT extends SharedMiniClusterBase {
     String tableName = super.getUniqueNames(1)[0];
     client.tableOperations().create(tableName);
 
-    String tableId = client.tableOperations().tableIdMap().get(tableName);
+    TableId tableId = TableId.of(client.tableOperations().tableIdMap().get(tableName));
 
     // wait for the tablet to exist in the metadata table. The tablet
     // will not be hosted so the current location will be empty.
@@ -608,10 +608,10 @@ public class ManagerAssignmentIT extends SharedMiniClusterBase {
         60_000);
   }
 
-  public static TabletMetadata getTabletMetadata(AccumuloClient c, String tableId, Text endRow) {
+  public static TabletMetadata getTabletMetadata(AccumuloClient c, TableId tableId, Text endRow) {
     var ctx = (ClientContext) c;
-    try (var tablets = ctx.getAmple().readTablets().forTable(TableId.of(tableId))
-        .overlapping(endRow, null).build()) {
+    try (var tablets =
+        ctx.getAmple().readTablets().forTable(tableId).overlapping(endRow, null).build()) {
       var iter = tablets.iterator();
       if (iter.hasNext()) {
         return iter.next();

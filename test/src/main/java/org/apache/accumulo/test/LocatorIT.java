@@ -87,9 +87,9 @@ public class LocatorIT extends AccumuloClusterHarness {
     assertEquals(expected2, gbt);
   }
 
-  private static TabletId newTabletId(String tableId, String endRow, String prevRow) {
-    return new TabletIdImpl(new KeyExtent(TableId.of(tableId),
-        endRow == null ? null : new Text(endRow), prevRow == null ? null : new Text(prevRow)));
+  private static TabletId newTabletId(TableId tableId, String endRow, String prevRow) {
+    return new TabletIdImpl(new KeyExtent(tableId, endRow == null ? null : new Text(endRow),
+        prevRow == null ? null : new Text(prevRow)));
   }
 
   @Test
@@ -108,7 +108,7 @@ public class LocatorIT extends AccumuloClusterHarness {
       Range r1 = new Range("m");
       Range r2 = new Range("o", "x");
 
-      String tableId = tableOps.tableIdMap().get(tableName);
+      TableId tableId = TableId.of(tableOps.tableIdMap().get(tableName));
 
       TabletId t1 = newTabletId(tableId, null, null);
       TabletId t2 = newTabletId(tableId, "r", null);
