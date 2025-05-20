@@ -1522,7 +1522,7 @@ public enum Property {
       // max message options
       RPC_MAX_MESSAGE_SIZE,
 
-      // compaction coordiantor properties
+      // compaction coordinator properties
       MANAGER_COMPACTION_SERVICE_PRIORITY_QUEUE_SIZE,
 
       // block cache options
