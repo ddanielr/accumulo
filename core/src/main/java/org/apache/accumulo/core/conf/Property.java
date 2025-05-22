@@ -1246,7 +1246,58 @@ public enum Property {
       "4.0.0"),
   COMPACTION_COORDINATOR_DEAD_COMPACTOR_CHECK_INTERVAL(
       "compaction.coordinator.compactor.dead.check.interval", "5m", PropertyType.TIMEDURATION,
-      "The interval at which to check for dead compactors.", "2.1.0");
+      "The interval at which to check for dead compacors.", "2.1.0"),
+  COMPACTION_COORDINATOR_SUMMARIES_MAXTHREADS(
+      "compaction.coordinator.compaction.summaries.threads.maximum", "10", PropertyType.COUNT,
+      "The maximum number of threads to use for checking tserver external compaction summaries.",
+      "2.1.4"),
+  // deprecated properties grouped at the end to reference property that replaces them
+  @Deprecated(since = "1.6.0")
+  @ReplacedBy(property = INSTANCE_VOLUMES)
+  INSTANCE_DFS_URI("instance.dfs.uri", "", PropertyType.URI,
+      "A url accumulo should use to connect to DFS. If this is empty, accumulo"
+          + " will obtain this information from the hadoop configuration. This property"
+          + " will only be used when creating new files if instance.volumes is empty."
+          + " After an upgrade to 1.6.0 Accumulo will start using absolute paths to"
+          + " reference files. Files created before a 1.6.0 upgrade are referenced via"
+          + " relative paths. Relative paths will always be resolved using this config"
+          + " (if empty using the hadoop config).",
+      "1.4.0"),
+  @Deprecated(since = "1.6.0")
+  @ReplacedBy(property = INSTANCE_VOLUMES)
+  INSTANCE_DFS_DIR("instance.dfs.dir", "/accumulo", PropertyType.ABSOLUTEPATH,
+      "HDFS directory in which accumulo instance will run. "
+          + "Do not change after accumulo is initialized.",
+      "1.3.5"),
+  @Deprecated(since = "2.0.0")
+  GENERAL_CLASSPATHS(org.apache.accumulo.start.classloader.AccumuloClassLoader.GENERAL_CLASSPATHS,
+      "", PropertyType.STRING,
+      "The class path should instead be configured"
+          + " by the launch environment (for example, accumulo-env.sh). A list of all"
+          + " of the places to look for a class. Order does matter, as it will look for"
+          + " the jar starting in the first location to the last. Supports full regex"
+          + " on filename alone.",
+      "1.3.5"),
+  @Deprecated(since = "1.7.0")
+  @ReplacedBy(property = TABLE_DURABILITY)
+  TSERV_WAL_SYNC_METHOD("tserver.wal.sync.method", "hsync", PropertyType.STRING,
+      "Use table.durability instead.", "1.5.2"),
+  @Deprecated(since = "1.7.0")
+  @ReplacedBy(property = TABLE_DURABILITY)
+  TABLE_WALOG_ENABLED("table.walog.enabled", "true", PropertyType.BOOLEAN,
+      "Use table.durability=none instead.", "1.3.5"),
+  @Deprecated(since = "2.0.0")
+  @ReplacedBy(property = TSERV_SCAN_EXECUTORS_DEFAULT_THREADS)
+  TSERV_READ_AHEAD_MAXCONCURRENT("tserver.readahead.concurrent.max", "16", PropertyType.COUNT,
+      "The maximum number of concurrent read ahead that will execute. This "
+          + "effectively limits the number of long running scans that can run concurrently "
+          + "per tserver.",
+      "1.3.5"),
+  @Deprecated(since = "2.0.0")
+  @ReplacedBy(property = TSERV_SCAN_EXECUTORS_META_THREADS)
+  TSERV_METADATA_READ_AHEAD_MAXCONCURRENT("tserver.metadata.readahead.concurrent.max", "8",
+      PropertyType.COUNT, "The maximum number of concurrent metadata read ahead that will execute.",
+      "1.3.5");
 
   private final String key;
   private final String defaultValue;
@@ -1538,7 +1589,7 @@ public enum Property {
       // thread options
       TSERV_MINTHREADS, TSERV_MINTHREADS_TIMEOUT, SSERV_MINTHREADS, SSERV_MINTHREADS_TIMEOUT,
       MANAGER_MINTHREADS, MANAGER_MINTHREADS_TIMEOUT, COMPACTOR_MINTHREADS,
-      COMPACTOR_MINTHREADS_TIMEOUT,
+      COMPACTOR_MINTHREADS_TIMEOUT, COMPACTION_COORDINATOR_SUMMARIES_MAXTHREADS,
 
       // others
       TSERV_NATIVEMAP_ENABLED, TSERV_MAXMEM, TSERV_SCAN_MAX_OPENFILES,
@@ -1567,6 +1618,7 @@ public enum Property {
         || key.startsWith(Property.TSERV_PREFIX.getKey())
         || key.startsWith(Property.COMPACTION_SERVICE_PREFIX.getKey())
         || key.startsWith(Property.SSERV_PREFIX.getKey())
+        || key.startsWith(Property.COMPACTION_COORDINATOR_PREFIX.getKey())
         || key.startsWith(Property.MANAGER_PREFIX.getKey())
         || key.startsWith(Property.GC_PREFIX.getKey())
         || key.startsWith(Property.GENERAL_ARBITRARY_PROP_PREFIX.getKey())
