@@ -485,7 +485,7 @@ public class Monitor extends AbstractServer implements HighlyAvailableService {
     if (advertiseAddress == null) {
       // use the bind address from the connector, unless it's null or 0.0.0.0
       String advertiseHost = server.getHostName();
-      if (advertiseHost == null || advertiseHost == ServerOpts.BIND_ALL_ADDRESSES) {
+      if (advertiseHost == null || advertiseHost.equals(ServerOpts.BIND_ALL_ADDRESSES)) {
         try {
           advertiseHost = InetAddress.getLocalHost().getHostName();
         } catch (UnknownHostException e) {
