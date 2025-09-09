@@ -50,6 +50,7 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import com.google.common.annotations.VisibleForTesting;
 import org.apache.accumulo.core.Constants;
 import org.apache.accumulo.core.client.Durability;
 import org.apache.accumulo.core.client.admin.CompactionConfig;
@@ -256,7 +257,8 @@ public class Tablet extends TabletBase {
     public boolean closed = false;
   }
 
-  private String chooseTabletDir() throws IOException {
+  @VisibleForTesting
+  String chooseTabletDir() throws IOException {
     VolumeChooserEnvironment chooserEnv =
         new VolumeChooserEnvironmentImpl(extent.tableId(), extent.endRow(), context);
     String dirUri = tabletServer.getVolumeManager().choose(chooserEnv, context.getBaseUris())
@@ -1302,7 +1304,8 @@ public class Tablet extends TabletBase {
 
   private final long splitCreationTime;
 
-  private boolean isSplitPossible() {
+  @VisibleForTesting
+  boolean isSplitPossible() {
 
     // never split the root tablet
     // check if we already decided that we can never split
@@ -1452,7 +1455,8 @@ public class Tablet extends TabletBase {
   }
 
   // encapsulates results of computations needed to make determinations about splits
-  private static class SplitComputations {
+  @VisibleForTesting
+  static class SplitComputations {
     final Set<TabletFile> inputFiles;
 
     // cached result of calling FileUtil.findMidpoint
