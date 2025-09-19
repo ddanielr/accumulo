@@ -79,6 +79,7 @@ import org.apache.accumulo.core.util.tables.TableMap;
 import org.apache.accumulo.server.ServerContext;
 import org.apache.accumulo.server.cli.ServerUtilOpts;
 import org.apache.accumulo.server.security.SecurityUtil;
+import org.apache.accumulo.server.util.annotation.CommandName;
 import org.apache.accumulo.server.util.fateCommand.FateSummaryReport;
 import org.apache.accumulo.start.spi.KeywordExecutable;
 import org.apache.thrift.TException;
@@ -194,6 +195,7 @@ public class Admin implements KeywordExecutable {
   /**
    * @since 2.1.0
    */
+  @CommandName("changeSecret")
   @Parameters(
       commandDescription = "Changes the unique secret given to the instance that all servers must know.")
   static class ChangeSecretCommand {}

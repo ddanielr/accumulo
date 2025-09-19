@@ -1735,7 +1735,15 @@
                   <artifactId>error_prone_core</artifactId>
                   <version>${version.errorprone}</version>
                 </path>
+                <path>
+                  <groupId>${project.groupId}</groupId>
+                  <artifactId>${project.artifactId}</artifactId>
+                  <version>${project.version}</version>
+                </path>
               </annotationProcessorPaths>
+              <annotationProcessors>
+                <annotationProcessor>org.apache.accumulo.server.util.CommandNameProcessor</annotationProcessor>
+              </annotationProcessors>
             </configuration>
           </plugin>
         </plugins>
