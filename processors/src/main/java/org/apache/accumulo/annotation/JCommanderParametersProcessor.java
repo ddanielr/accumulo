@@ -53,7 +53,7 @@ import javax.tools.StandardLocation;
 public class JCommanderParametersProcessor extends AbstractProcessor {
 
     private final Map<String, CommandInfo> commands = new LinkedHashMap<>();
-    private String filePrefix = "";
+    private final String outputFile = "_accumulo_completions";
 
     private static class CommandInfo {
         final String name;
@@ -88,7 +88,21 @@ public class JCommanderParametersProcessor extends AbstractProcessor {
     public boolean process(Set<? extends TypeElement> set, RoundEnvironment roundEnvironment) {
 
         if (roundEnvironment.processingOver()) {
-            generateBashCompletionScript();
+            try {
+                FileObject file;
+                file = processingEnv.getFiler().createResource(StandardLocation.SOURCE_OUTPUT, "", outputFile);
+
+                try (PrintWriter writer = new PrintWriter(file.openWriter())) {
+                    writeScript(writer);
+                }
+
+                processingEnv.getMessager().printMessage(Diagnostic.Kind.NOTE,
+                        "Generated bash autocompletion script: " + file.getName());
+
+            } catch (IOException e) {
+                processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR,
+                        "Failed to generate bash autocompletion script: " + e.getMessage());
+            }
             return true;
         }
 
@@ -108,16 +122,6 @@ public class JCommanderParametersProcessor extends AbstractProcessor {
         }
 
         String className = element.getQualifiedName().toString();
-
-        // Do not recalculate the file prefix once its set.
-        if (filePrefix.isEmpty()) {
-            if (element.getEnclosingElement().getSimpleName().toString().contains("Admin")) {
-                filePrefix = "accumulo-admin";
-            } else if (className.contains("org.apache.accumulo.shell")) {
-                filePrefix = "accumulo-shell";
-            }
-        }
-
         String[] commandNames = parametersAnnotation.commandNames();
         String description = parametersAnnotation.commandDescription();
 
@@ -142,7 +146,17 @@ public class JCommanderParametersProcessor extends AbstractProcessor {
                 Parameter parameterAnnotation = field.getAnnotation(Parameter.class);
 
                 if (parameterAnnotation != null) {
-                    processParameterAnnotation(field, parameterAnnotation, commandInfo);
+                    String[] names = parameterAnnotation.names();
+                    String description = parameterAnnotation.description();
+                    boolean required = parameterAnnotation.required();
+                    // Check if the parameter is a flag or if it expects a value
+                    String defaultValue = parameterAnnotation.arity() > 0 ? "" : "false";
+
+                    for (String name : names) {
+                        ParameterInfo paramInfo = new ParameterInfo(name, description, required, defaultValue,
+                                field.asType().toString());
+                        commandInfo.parameters.add(paramInfo);
+                    }
                 }
             }
         }
@@ -174,62 +188,42 @@ public class JCommanderParametersProcessor extends AbstractProcessor {
         }
     }
 
-    private void processParameterAnnotation(VariableElement field, Parameter annotation, CommandInfo commandInfo) {
-        String[] names = annotation.names();
-        String description = annotation.description();
-        boolean required = annotation.required();
-        String defaultValue = annotation.arity() > 0 ? "" : "false"; // Flags vs parameters
+    private void writeScript(PrintWriter writer) {
 
-        for (String name : names) {
-            ParameterInfo paramInfo = new ParameterInfo(name, description, required, defaultValue,
-                    field.asType().toString());
-            commandInfo.parameters.add(paramInfo);
-        }
-    }
-
-    private void generateBashCompletionScript() {
-        try {
-            if (!filePrefix.isEmpty()) {
-                filePrefix = filePrefix + "-";
-
-            }
-            String outputFile = filePrefix + "autocomplete.sh";
-
-            FileObject file;
-            file = processingEnv.getFiler().createResource(StandardLocation.SOURCE_OUTPUT, "", outputFile);
-
-            try (PrintWriter writer = new PrintWriter(file.openWriter())) {
-                generateBashScript(writer);
-            }
-
-            processingEnv.getMessager().printMessage(Diagnostic.Kind.NOTE,
-                    "Generated bash completion script: " + file.getName());
-
-        } catch (IOException e) {
-            processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR,
-                    "Failed to generate bash completion script: " + e.getMessage());
-        }
-    }
-
-    private void generateBashScript(PrintWriter writer) {
-        writer.println("#!/bin/bash");
-        writer.println("# Auto-generated bash completion script for JCommander parameters");
+        // Write header information
+        writer.println("#! /usr/bin/env bash");
+        writer.println("# Auto-generated bash autocompletion script for accumulo");
         writer.println("# Generated by: " + getClass().getName());
         writer.println();
 
         // Generate completion functions for each command
         for (CommandInfo command : commands.values()) {
-            generateCommandCompletion(writer, command);
+            writeCommand(writer, command);
         }
 
-        // Generate main completion dispatcher
-        generateMainCompletion(writer);
+        writer.println("# Main completion dispatcher");
+        writer.println("_jcommander_main_completion() {");
+        writer.println("    local command=\"$1\"");
+        writer.println("    case \"$command\" in");
 
-        // Generate data export functions
-        generateDataExportFunctions(writer);
+        for (String commandName : commands.keySet()) {
+            writer.printf("        %s)%n", commandName);
+            writer.printf("            _%s_completion%n", commandName.replace("-", "_"));
+            writer.println("            ;;");
+        }
+
+        writer.println("    esac");
+        writer.println("}");
+        writer.println();
+
+        // Register completion functions
+        for (String commandName : commands.keySet()) {
+            writer.printf("complete -F _%s_completion %s%n", commandName.replace("-", "_"), commandName);
+        }
+        writer.println();
     }
 
-    private void generateCommandCompletion(PrintWriter writer, CommandInfo command) {
+    private void writeCommand(PrintWriter writer, CommandInfo command) {
         writer.printf("# Completion for command: %s%n", command.name);
         writer.printf("# Description: %s%n", command.description);
         writer.printf("_%s_completion() {%n", command.name.replace("-", "_"));
@@ -268,116 +262,26 @@ public class JCommanderParametersProcessor extends AbstractProcessor {
     }
 
     private void generateParameterCompletion(PrintWriter writer, ParameterInfo param) {
+        String paramArgs="";
+        String pType = param.type;
+        String description = param.description.toLowerCase(Locale.ROOT);
+
         // Generate type-specific completions
-        if (param.type.contains("File") || param.type.contains("Path")) {
-            writer.println("        COMPREPLY=( $(compgen -f -- \"${cur}\") )");
-        } else if (param.type.contains("Directory")) {
-            writer.println("        COMPREPLY=( $(compgen -d -- \"${cur}\") )");
-        } else if (param.type.equals("boolean")) {
-            writer.println("        COMPREPLY=( $(compgen -W \"true false\" -- \"${cur}\") )");
-        } else if (param.description.toLowerCase().contains("host")
-                || param.description.toLowerCase().contains("server")) {
-            writer.println("        COMPREPLY=( $(compgen -A hostname -- \"${cur}\") )");
-        } else {
+        if (pType.contains("File") || pType.contains("Path")) {
+            paramArgs="-f";
+        } else if (pType.contains("Directory")) {
+            paramArgs="-d";
+        } else if (pType.equals("boolean")) {
+            paramArgs="-W \"true false\"";
+        } else if (description.contains("host")
+                || description.contains("server")) {
+            paramArgs="-A hostname";
+        }
+        if (paramArgs.isEmpty()) {
             writer.printf("        # %s - %s%n", param.description, param.type);
             writer.println("        COMPREPLY=()");
+        } else {
+            writer.printf("        COMPREPLY=( $(compgen %s -- \"${cur}\") )\n", paramArgs);
         }
-    }
-
-    private void generateMainCompletion(PrintWriter writer) {
-        writer.println("# Main completion dispatcher");
-        writer.println("_jcommander_main_completion() {");
-        writer.println("    local command=\"$1\"");
-        writer.println("    case \"$command\" in");
-
-        for (String commandName : commands.keySet()) {
-            writer.printf("        %s)%n", commandName);
-            writer.printf("            _%s_completion%n", commandName.replace("-", "_"));
-            writer.println("            ;;");
-        }
-
-        writer.println("    esac");
-        writer.println("}");
-        writer.println();
-
-        // Register completion functions
-        for (String commandName : commands.keySet()) {
-            writer.printf("complete -F _%s_completion %s%n", commandName.replace("-", "_"), commandName);
-        }
-        writer.println();
-    }
-
-    private void generateDataExportFunctions(PrintWriter writer) {
-        writer.println("# Data export functions for external processing");
-        writer.println();
-
-        writer.println("# Export all command information as JSON");
-        writer.println("jcommander_export_json() {");
-        writer.println("    cat << 'EOF'");
-        writer.println("{");
-        writer.println("  \"commands\": [");
-
-        boolean first = true;
-        for (CommandInfo command : commands.values()) {
-            if (!first)
-                writer.println(",");
-            first = false;
-
-            writer.println("    {");
-            writer.printf("      \"name\": \"%s\",%n", escapeJson(command.name));
-            writer.printf("      \"description\": \"%s\",%n", escapeJson(command.description));
-            writer.printf("      \"className\": \"%s\",%n", escapeJson(command.className));
-            writer.println("      \"parameters\": [");
-
-            boolean firstParam = true;
-            for (ParameterInfo param : command.parameters) {
-                if (!firstParam)
-                    writer.println(",");
-                firstParam = false;
-
-                writer.println("        {");
-                writer.printf("          \"name\": \"%s\",%n", escapeJson(param.name));
-                writer.printf("          \"description\": \"%s\",%n", escapeJson(param.description));
-                writer.printf("          \"required\": %s,%n", param.required);
-                writer.printf("          \"type\": \"%s\"%n", escapeJson(param.type));
-                writer.print("        }");
-            }
-
-            writer.println();
-            writer.println("      ]");
-            writer.print("    }");
-        }
-
-        writer.println();
-        writer.println("  ]");
-        writer.println("}");
-        writer.println("EOF");
-        writer.println("}");
-        writer.println();
-
-        // Export function for specific command
-        writer.println("# Export specific command parameters");
-        writer.println("jcommander_export_command_params() {");
-        writer.println("    local command=\"$1\"");
-        writer.println("    case \"$command\" in");
-
-        for (CommandInfo command : commands.values()) {
-            writer.printf("        %s)%n", command.name);
-            writer.print("            echo \"");
-            writer.print(command.parameters.stream().map(p -> p.name).collect(Collectors.joining(" ")));
-            writer.println("\"");
-            writer.println("            ;;");
-        }
-
-        writer.println("        *)");
-        writer.println("            echo \"Unknown command: $command\" >&2");
-        writer.println("            return 1");
-        writer.println("            ;;");
-        writer.println("    esac");
-        writer.println("}");
-    }
-
-    private String escapeJson(String str) {
-        return str.replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "\\r");
     }
 }

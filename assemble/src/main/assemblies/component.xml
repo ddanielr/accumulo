@@ -80,21 +80,11 @@
     </fileSet>
     <fileSet>
       <directory>../server/base/target/generated-sources/annotations</directory>
-      <outputDirectory>conf</outputDirectory>
+      <outputDirectory>bin</outputDirectory>
       <fileMode>0755</fileMode>
       <includes>
-        <include>accumulo-admin-autocomplete.sh</include>
+        <include>_accumulo_completions</include>
       </includes>
     </fileSet>
-    <fileSet>
-      <directory>../shell/target/generated-sources/annotations</directory>
-      <outputDirectory>conf</outputDirectory>
-      <fileMode>0755</fileMode>
-      <includes>
-        <include>accumulo-shell-autocomplete.sh</include>
-        <include>autocomplete.sh</include>
-      </includes>
-    </fileSet>
-
   </fileSets>
 </component>

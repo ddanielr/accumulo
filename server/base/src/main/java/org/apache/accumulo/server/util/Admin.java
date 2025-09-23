@@ -79,7 +79,6 @@ import org.apache.accumulo.core.util.tables.TableMap;
 import org.apache.accumulo.server.ServerContext;
 import org.apache.accumulo.server.cli.ServerUtilOpts;
 import org.apache.accumulo.server.security.SecurityUtil;
-import org.apache.accumulo.server.util.annotation.CommandName;
 import org.apache.accumulo.server.util.fateCommand.FateSummaryReport;
 import org.apache.accumulo.start.spi.KeywordExecutable;
 import org.apache.thrift.TException;
@@ -179,13 +178,14 @@ public class Admin implements KeywordExecutable {
           + " calls the volume chooser for each file created by a tablet, so its no longer "
           + "necessary.";
 
-  @Parameters(commandDescription = RV_DEPRECATION_MSG)
+  @Parameters(commandNames = "randomizeVolumes", commandDescription = RV_DEPRECATION_MSG)
   static class RandomizeVolumesCommand extends SubCommandOpts {
     @Parameter(names = {"-t"}, description = "table to update", required = true)
     String tableName = null;
   }
 
-  @Parameters(commandDescription = "Verify all Tablets are assigned to tablet servers")
+  @Parameters(commandNames = "verifyTabletAssigns",
+      commandDescription = "Verify all Tablets are assigned to tablet servers")
   static class VerifyTabletAssignmentsCommand extends SubCommandOpts {
     @Parameter(names = {"-v", "--verbose"},
         description = "verbose mode (prints locations of tablets)")
@@ -195,21 +195,18 @@ public class Admin implements KeywordExecutable {
   /**
    * @since 2.1.0
    */
-  @CommandName("changeSecret")
-  @Parameters(
+  @Parameters(commandNames = "changeSecret",
       commandDescription = "Changes the unique secret given to the instance that all servers must know.")
   static class ChangeSecretCommand {}
 
-  @CommandName("locks")
-  @Parameters(
+  @Parameters(commandNames = "locks",
       commandDescription = "List or delete Tablet Server locks. Default with no arguments is to list the locks.")
   static class TabletServerLocksCommand extends SubCommandOpts {
     @Parameter(names = "-delete", description = "specify a tablet server lock to delete")
     String delete = null;
   }
 
-  @CommandName("deleteZooInstance")
-  @Parameters(
+  @Parameters(commandNames = "deleteZooInstance",
       commandDescription = "Deletes specific instance name or id from zookeeper or cleans up all old instances.")
   static class DeleteZooInstanceCommand extends SubCommandOpts {
     @Parameter(names = {"-i", "--instance"}, description = "the instance name or id to delete")
@@ -223,8 +220,8 @@ public class Admin implements KeywordExecutable {
     String auth;
   }
 
-  @CommandName("restoreZoo")
-  @Parameters(commandDescription = "Restore Zookeeper data from a file.")
+  @Parameters(commandNames = "restoreZoo",
+      commandDescription = "Restore Zookeeper data from a file.")
   static class RestoreZooCommand extends SubCommandOpts {
     @Parameter(names = "--overwrite")
     boolean overwrite = false;
@@ -233,7 +230,6 @@ public class Admin implements KeywordExecutable {
     String file;
   }
 
-  @CommandName("fate")
   @Parameters(commandNames = "fate",
       commandDescription = "Operations performed on the Manager FaTE system.")
   static class FateOpsCommand extends SubCommandOpts {
@@ -331,7 +327,7 @@ public class Admin implements KeywordExecutable {
     cl.addCommand("ping", pingCommand);
 
     RestoreZooCommand restoreZooOpts = new RestoreZooCommand();
-    cl.addCommand("restoreZoo", restoreZooOpts);
+    cl.addCommand(restoreZooOpts);
 
     RandomizeVolumesCommand randomizeVolumesOpts = new RandomizeVolumesCommand();
     cl.addCommand("randomizeVolumes", randomizeVolumesOpts);

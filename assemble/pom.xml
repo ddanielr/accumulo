@@ -511,6 +511,7 @@
           <artifactId>license-maven-plugin</artifactId>
           <configuration>
             <mapping>
+              <_accumulo_completions>SCRIPT_STYLE</_accumulo_completions>
               <accumulo-cluster>SCRIPT_STYLE</accumulo-cluster>
               <accumulo-service>SCRIPT_STYLE</accumulo-service>
               <accumulo-util>SCRIPT_STYLE</accumulo-util>
