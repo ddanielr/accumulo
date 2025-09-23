@@ -84,6 +84,7 @@
     <module>hadoop-mapreduce</module>
     <module>iterator-test-harness</module>
     <module>minicluster</module>
+    <!-- module>processors</module -->
     <module>server/base</module>
     <module>server/compactor</module>
     <module>server/compaction-coordinator</module>
@@ -333,6 +334,11 @@
         <groupId>junit</groupId>
         <artifactId>junit</artifactId>
         <version>4.13.2</version>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.accumulo</groupId>
+        <artifactId>accumulo-annotation-processors</artifactId>
+        <version>${project.version}</version>
       </dependency>
       <dependency>
         <groupId>org.apache.accumulo</groupId>
@@ -809,6 +815,11 @@
                 <groupId>org.apache.logging.log4j</groupId>
                 <artifactId>log4j-core</artifactId>
                 <version>${version.log4j}</version>
+              </path>
+              <path>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>accumulo-annotation-processors</artifactId>
+                <version>${project.version}</version>
               </path>
             </annotationProcessorPaths>
           </configuration>
@@ -1735,15 +1746,7 @@
                   <artifactId>error_prone_core</artifactId>
                   <version>${version.errorprone}</version>
                 </path>
-                <path>
-                  <groupId>${project.groupId}</groupId>
-                  <artifactId>${project.artifactId}</artifactId>
-                  <version>${project.version}</version>
-                </path>
               </annotationProcessorPaths>
-              <annotationProcessors>
-                <annotationProcessor>org.apache.accumulo.server.util.CommandNameProcessor</annotationProcessor>
-              </annotationProcessors>
             </configuration>
           </plugin>
         </plugins>

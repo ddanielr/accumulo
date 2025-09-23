@@ -200,6 +200,7 @@ public class Admin implements KeywordExecutable {
       commandDescription = "Changes the unique secret given to the instance that all servers must know.")
   static class ChangeSecretCommand {}
 
+  @CommandName("locks")
   @Parameters(
       commandDescription = "List or delete Tablet Server locks. Default with no arguments is to list the locks.")
   static class TabletServerLocksCommand extends SubCommandOpts {
@@ -207,6 +208,7 @@ public class Admin implements KeywordExecutable {
     String delete = null;
   }
 
+  @CommandName("deleteZooInstance")
   @Parameters(
       commandDescription = "Deletes specific instance name or id from zookeeper or cleans up all old instances.")
   static class DeleteZooInstanceCommand extends SubCommandOpts {
@@ -221,6 +223,7 @@ public class Admin implements KeywordExecutable {
     String auth;
   }
 
+  @CommandName("restoreZoo")
   @Parameters(commandDescription = "Restore Zookeeper data from a file.")
   static class RestoreZooCommand extends SubCommandOpts {
     @Parameter(names = "--overwrite")
@@ -230,6 +233,7 @@ public class Admin implements KeywordExecutable {
     String file;
   }
 
+  @CommandName("fate")
   @Parameters(commandNames = "fate",
       commandDescription = "Operations performed on the Manager FaTE system.")
   static class FateOpsCommand extends SubCommandOpts {
