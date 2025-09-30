@@ -374,8 +374,8 @@ public class Compactor extends AbstractServer implements MetricsProducer, Compac
     ServiceLockSupport.createNonHaServiceLockPath(Type.COMPACTOR, zoo, path);
     compactorLock = new ServiceLock(getContext().getZooSession(), path, compactorId);
     AccumuloLockWatcher lw =
-        new ServiceLockWatcher(Type.COMPACTOR, () -> getShutdownComplete().get(),
-            (type) -> getContext().getLowMemoryDetector().logGCInfo(getConfiguration()));
+        new ServiceLockWatcher(Type.COMPACTOR.name(), () -> getShutdownComplete().get(),
+            unused -> getContext().getLowMemoryDetector().logGCInfo(getConfiguration()));
 
     try {
       for (int i = 0; i < 25; i++) {

@@ -115,6 +115,10 @@ public class ServiceLockIT {
 
   }
 
+  /**
+   * This isn't a lockWatcher, it's better described as AccumuloLockActions
+   */
+
   static class RetryLockWatcher implements AccumuloLockWatcher {
 
     private boolean lockHeld = false;

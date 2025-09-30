@@ -321,8 +321,8 @@ public class ScanServer extends AbstractServer
       serverLockUUID = UUID.randomUUID();
       scanServerLock = new ServiceLock(getContext().getZooSession(), zLockPath, serverLockUUID);
       AccumuloLockWatcher lw =
-          new ServiceLockWatcher(Type.SCAN_SERVER, () -> getShutdownComplete().get(),
-              (type) -> context.getLowMemoryDetector().logGCInfo(getConfiguration()));
+          new ServiceLockWatcher(Type.SCAN_SERVER.name(), () -> getShutdownComplete().get(),
+              unused -> context.getLowMemoryDetector().logGCInfo(getConfiguration()));
 
       for (int i = 0; i < 120 / 5; i++) {
         zoo.putPersistentData(zLockPath.toString(), new byte[0], NodeExistsPolicy.SKIP);

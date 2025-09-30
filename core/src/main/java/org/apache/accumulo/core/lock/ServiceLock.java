@@ -54,20 +54,6 @@ public class ServiceLock implements Watcher {
 
   public static final String ZLOCK_PREFIX = "zlock#";
 
-  private static class Prefix {
-    private final String prefix;
-
-    public Prefix(String prefix) {
-      this.prefix = prefix;
-    }
-
-    @Override
-    public String toString() {
-      return this.prefix;
-    }
-
-  }
-
   public enum LockLossReason {
     LOCK_DELETED, SESSION_EXPIRED
   }
@@ -89,7 +75,7 @@ public class ServiceLock implements Watcher {
 
   private final ServiceLockPath path;
   protected final ZooSession zooKeeper;
-  private final Prefix vmLockPrefix;
+  private final String vmLockPrefix;
 
   private AccumuloLockWatcher lockWatcher;
   private String lockNodeName;
@@ -105,7 +91,7 @@ public class ServiceLock implements Watcher {
     try {
       zooKeeper.exists(path.toString(), this);
       watchingParent = true;
-      this.vmLockPrefix = new Prefix(ZLOCK_PREFIX + uuid.toString() + "#");
+      this.vmLockPrefix = ZLOCK_PREFIX + uuid.toString() + "#";
     } catch (KeeperException | InterruptedException ex) {
       LOG.error("Error setting initial watch", ex);
       throw new IllegalStateException(ex);
@@ -353,7 +339,7 @@ public class ServiceLock implements Watcher {
     lockWasAcquired = false;
 
     try {
-      final String lockPathPrefix = path + "/" + vmLockPrefix.toString();
+      final String lockPathPrefix = path + "/" + vmLockPrefix;
       // Implement recipe at https://zookeeper.apache.org/doc/current/recipes.html#sc_recipes_Locks
       // except that instead of the ephemeral lock node being of the form guid-lock- use lock-guid-.
       // Another deviation from the recipe is that we cleanup any extraneous ephemeral nodes that

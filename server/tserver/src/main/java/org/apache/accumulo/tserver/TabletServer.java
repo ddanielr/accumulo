@@ -491,8 +491,8 @@ public class TabletServer extends AbstractServer implements TabletHostingServer 
       tabletServerLock = new ServiceLock(getContext().getZooSession(), zLockPath, tabletServerUUID);
 
       AccumuloLockWatcher lw =
-          new ServiceLockWatcher(Type.TABLET_SERVER, () -> getShutdownComplete().get(),
-              (type) -> context.getLowMemoryDetector().logGCInfo(getConfiguration()));
+          new ServiceLockWatcher(Type.TABLET_SERVER.name(), () -> getShutdownComplete().get(),
+              unused -> context.getLowMemoryDetector().logGCInfo(getConfiguration()));
 
       for (int i = 0; i < 120 / 5; i++) {
         zoo.putPersistentData(zLockPath.toString(), new byte[0], NodeExistsPolicy.SKIP);

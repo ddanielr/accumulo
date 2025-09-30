@@ -78,6 +78,7 @@ import org.apache.accumulo.core.lock.ServiceLockData;
 import org.apache.accumulo.core.lock.ServiceLockPaths.AddressSelector;
 import org.apache.accumulo.core.lock.ServiceLockPaths.ResourceGroupPredicate;
 import org.apache.accumulo.core.lock.ServiceLockPaths.ServiceLockPath;
+import org.apache.accumulo.core.lock.ServiceLockSupport;
 import org.apache.accumulo.core.manager.thrift.FateService;
 import org.apache.accumulo.core.manager.thrift.TFateId;
 import org.apache.accumulo.core.metadata.SystemTables;
@@ -373,36 +374,6 @@ public class Admin implements KeywordExecutable {
     @Parameter(names = {"-t", "--type"},
         description = "<type>... Print transactions of fate instance type(s) {USER, META}")
     List<String> instanceTypes = new ArrayList<>();
-  }
-
-  class AdminLockWatcher implements ServiceLock.AccumuloLockWatcher {
-    @Override
-    public void lostLock(ServiceLock.LockLossReason reason) {
-      String msg = "Admin lost lock: " + reason.toString();
-      if (reason == ServiceLock.LockLossReason.LOCK_DELETED) {
-        Halt.halt(0, msg);
-      } else {
-        Halt.halt(1, msg);
-      }
-    }
-
-    @Override
-    public void unableToMonitorLockNode(Exception e) {
-      String msg = "Admin unable to monitor lock: " + e.getMessage();
-      log.warn(msg);
-      Halt.halt(1, msg);
-    }
-
-    @Override
-    public void acquiredLock() {
-      lockAcquiredLatch.countDown();
-      log.debug("Acquired ZooKeeper lock for Admin");
-    }
-
-    @Override
-    public void failedToAcquireLock(Exception e) {
-      log.warn("Failed to acquire ZooKeeper lock for Admin, msg: " + e.getMessage());
-    }
   }
 
   @Parameters(commandNames = "serviceStatus", commandDescription = "show service status")
@@ -1141,7 +1112,7 @@ public class Admin implements KeywordExecutable {
     UUID uuid = UUID.randomUUID();
     ServiceLockPath slp = context.getServerPaths().createAdminLockPath();
     ServiceLock adminLock = new ServiceLock(zk, slp, uuid);
-    AdminLockWatcher lw = new AdminLockWatcher();
+    ServiceLockSupport.ServiceLockWatcher lw = new ServiceLockSupport.ServiceLockWatcher("admin", () -> lockAcquiredLatch,  () -> true, unused -> {});
     ServiceLockData.ServiceDescriptors descriptors = new ServiceLockData.ServiceDescriptors();
     descriptors.addService(new ServiceLockData.ServiceDescriptor(uuid,
         ServiceLockData.ThriftService.NONE, "fake_admin_util_host", ResourceGroupId.DEFAULT));

@@ -18,6 +18,7 @@
  */
 package org.apache.accumulo.core.lock;
 
+import java.util.concurrent.CountDownLatch;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -55,6 +56,8 @@ public class ServiceLockSupport {
       throw e;
     }
   }
+
+
 
   /**
    * Lock Watcher used by Highly Available services. These are services where only instance is
@@ -148,21 +151,25 @@ public class ServiceLockSupport {
    */
   public static class ServiceLockWatcher implements AccumuloLockWatcher {
 
-    private final Logger log = LoggerFactory.getLogger(ServiceLockWatcher.class);
-    private final Type server;
-    private final Supplier<Boolean> shutdownComplete;
-    private final Consumer<Type> lostLockAction;
+    private final Supplier<CountDownLatch> lockAcquiredLatch;
 
-    public ServiceLockWatcher(Type server, Supplier<Boolean> shutdownComplete,
-        Consumer<Type> lostLockAction) {
-      this.server = server;
+    private final Logger log = LoggerFactory.getLogger(ServiceLockWatcher.class);
+    private final String service;
+    private final Supplier<Boolean> shutdownComplete;
+    private final Consumer<Void> lostLockAction;
+
+    public ServiceLockWatcher(String service, Supplier<CountDownLatch> lockAcquiredLatch, Supplier<Boolean> shutdownComplete,
+        Consumer<Void> lostLockAction) {
+      this.lockAcquiredLatch = lockAcquiredLatch;
+      this.service = service;
       this.shutdownComplete = shutdownComplete;
       this.lostLockAction = lostLockAction;
     }
 
     @Override
     public void acquiredLock() {
-      LOG.debug("Acquired {} lock", server);
+      lockAcquiredLatch.get().countDown();
+      LOG.debug("Acquired {} lock", service);
     }
 
     @Override
@@ -174,18 +181,18 @@ public class ServiceLockSupport {
     public void lostLock(final LockLossReason reason) {
       if (shutdownComplete.get()) {
         Halt.halt(0,
-            server + " lost lock (reason = " + reason
+            service + " lost lock (reason = " + reason
                 + "), exiting cleanly because shutdown is complete.",
-            () -> lostLockAction.accept(server));
+            () -> lostLockAction.accept(null));
       } else {
-        Halt.halt(1, server + " lost lock (reason = " + reason + "), exiting.",
-            () -> lostLockAction.accept(server));
+        Halt.halt(1, service + " lost lock (reason = " + reason + "), exiting.",
+            () -> lostLockAction.accept(null));
       }
     }
 
     @Override
     public void unableToMonitorLockNode(final Exception e) {
-      Halt.halt(1, "Lost ability to monitor " + server + " lock, exiting.", e);
+      Halt.halt(1, "Lost ability to monitor " + service + " lock, exiting.", e);
     }
 
   }
