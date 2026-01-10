@@ -926,7 +926,7 @@ public class Admin implements KeywordExecutable {
         if (!admin.prepDelete(zs, zk, zLockManagerPath, txid)) {
           throw new AccumuloException("Could not delete transaction: " + txid);
         }
-        admin.deleteLocks(zk, zTableLocksPath, txid);
+        admin.deleteFateLocks(zk, zkRoot, txid);
       }
     }
 

@@ -34,6 +34,7 @@ import java.util.Map.Entry;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
+import org.apache.accumulo.core.Constants;
 import org.apache.accumulo.core.fate.ReadOnlyTStore.TStatus;
 import org.apache.accumulo.core.fate.zookeeper.FateLock;
 import org.apache.accumulo.core.fate.zookeeper.FateLock.FateLockPath;
@@ -440,7 +441,7 @@ public class AdminUtil<T> {
 
   public boolean prepDelete(TStore<T> zs, ZooReaderWriter zk, ServiceLockPath path,
       String txidStr) {
-    if (!checkGlobalLock(zk, path)) {
+    if (ManagerIsRunning(zk, path)) {
       return false;
     }
 
@@ -477,7 +478,7 @@ public class AdminUtil<T> {
 
   public boolean prepFail(TStore<T> zs, ZooReaderWriter zk, ServiceLockPath zLockManagerPath,
       String txidStr) {
-    if (!checkGlobalLock(zk, zLockManagerPath)) {
+    if (ManagerIsRunning(zk, zLockManagerPath)) {
       return false;
     }
 
@@ -519,10 +520,11 @@ public class AdminUtil<T> {
     return state;
   }
 
-  public void deleteLocks(ZooReaderWriter zk, ServiceLock.ServiceLockPath path, String txidStr)
+  public void deleteFateLocks(ZooReaderWriter zk, String zkRoot, String txidStr)
       throws KeeperException, InterruptedException {
-    // delete any locks assoc w/ fate operation
-    List<String> lockedIds = zk.getChildren(path.toString());
+    // delete any table locks assoc w/ fate operation
+    String path = zkRoot + Constants.ZTABLE_LOCKS;
+    List<String> lockedIds = zk.getChildren(path);
 
     for (String id : lockedIds) {
       List<String> lockNodes = zk.getChildren(path + "/" + id);
@@ -540,14 +542,14 @@ public class AdminUtil<T> {
   @SuppressFBWarnings(value = "DM_EXIT",
       justification = "TODO - should probably avoid System.exit here; "
           + "this code is used by the fate admin shell command")
-  public boolean checkGlobalLock(ZooReaderWriter zk, ServiceLockPath zLockManagerPath) {
+  public boolean ManagerIsRunning(ZooReaderWriter zk, ServiceLockPath zLockManagerPath) {
     try {
       if (ServiceLock.getLockData(zk.getZooKeeper(), zLockManagerPath) != null) {
         System.err.println("ERROR: Manager lock is held, not running");
         if (this.exitOnError) {
           System.exit(1);
         } else {
-          return false;
+          return true;
         }
       }
     } catch (KeeperException e) {
@@ -555,16 +557,16 @@ public class AdminUtil<T> {
       if (this.exitOnError) {
         System.exit(1);
       } else {
-        return false;
+        return true;
       }
     } catch (InterruptedException e) {
       System.err.println("ERROR: Could not read manager lock, not running" + e.getMessage());
       if (this.exitOnError) {
         System.exit(1);
       } else {
-        return false;
+        return true;
       }
     }
-    return true;
+    return false;
   }
 }
