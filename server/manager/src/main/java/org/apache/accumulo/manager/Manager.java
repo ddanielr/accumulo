@@ -1179,9 +1179,6 @@ public class Manager extends AbstractServer implements LiveTServerSet.Listener, 
     long start = System.currentTimeMillis();
     final SortedMap<TServerInstance,TabletServerStatus> result = new ConcurrentSkipListMap<>();
     final RateLimiter shutdownServerRateLimiter = RateLimiter.create(MAX_SHUTDOWNS_PER_SEC);
-    final int maxTserverRpcHaltAttempts =
-        getConfiguration().getCount(Property.MANAGER_TSERVER_HALT_DURATION);
-    final boolean forceHaltingEnabled = maxTserverRpcHaltAttempts != 0;
     for (TServerInstance serverInstance : currentServers) {
       final TServerInstance server = serverInstance;
       if (threads == 0) {
