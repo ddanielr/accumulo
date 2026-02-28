@@ -766,7 +766,7 @@ public class Manager extends AbstractServer
                   break;
               }
           }
-        } catch (Exception t) {
+        } catch (RuntimeException t) {
           log.error("Error occurred reading / switching manager goal state. Will"
               + " continue with attempt to update status", t);
         }
@@ -775,7 +775,7 @@ public class Manager extends AbstractServer
         try (Scope scope = span.makeCurrent()) {
           wait = updateStatus();
           eventTracker.waitForEvents(wait);
-        } catch (Exception t) {
+        } catch (RuntimeException t) {
           TraceUtil.setException(span, t, false);
           log.error("Error updating status tablets, will wait for {} (seconds) and then retry ",
               WAIT_BETWEEN_ERRORS / ONE_SECOND, t);
