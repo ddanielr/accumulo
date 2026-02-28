@@ -39,6 +39,7 @@ import org.apache.accumulo.core.fate.zookeeper.ZooUtil.NodeMissingPolicy;
 import org.apache.accumulo.core.singletons.SingletonManager;
 import org.apache.accumulo.core.singletons.SingletonManager.Mode;
 import org.apache.accumulo.core.util.HostAndPort;
+import org.apache.accumulo.core.util.ServerServices;
 import org.apache.accumulo.core.volume.VolumeConfiguration;
 import org.apache.accumulo.server.fs.VolumeManager;
 import org.apache.accumulo.server.security.SecurityUtil;
@@ -178,9 +179,10 @@ public class ZooZap implements KeywordExecutable {
     if (opts.zapGc) {
       String gcLockPath = Constants.ZROOT + "/" + iid + Constants.ZGC_LOCK;
       try {
-        removeSingletonLock(zoo, gcLockPath, hostPortPredicate, opts);
+        ServiceLock.deleteLock(zoo, gcLockPath, ServerServices.Service.GC_CLIENT, hostPortPredicate,
+            m -> message(m, opts), opts.dryRun);
       } catch (KeeperException | InterruptedException e) {
-        log.error("Error deleting manager lock", e);
+        log.error("Error deleting gc lock", e);
       }
     }
 
@@ -235,7 +237,8 @@ public class ZooZap implements KeywordExecutable {
     if (opts.zapCompactors) {
       String compactorsBasepath = Constants.ZROOT + "/" + iid + Constants.ZCOMPACTORS;
       try {
-        removeGroupedLocks(zoo, compactorsBasepath, groupPredicate, hostPortPredicate, opts);
+        removeCompactorGroupedLocks(zoo, compactorsBasepath, groupPredicate, hostPortPredicate,
+            opts);
       } catch (KeeperException | InterruptedException e) {
         log.error("Error deleting compactors from zookeeper", e);
       }
@@ -245,7 +248,11 @@ public class ZooZap implements KeywordExecutable {
     if (opts.zapScanServers) {
       String sserversPath = Constants.ZROOT + "/" + iid + Constants.ZSSERVERS;
       try {
-        removeGroupedLocks(zoo, sserversPath, groupPredicate, hostPortPredicate, opts);
+        if (opts.includeGroups == null) {
+          removeLocks(zoo, sserversPath, hostPortPredicate, opts);
+        } else {
+          removeScanServerGroupLocks(zoo, sserversPath, hostPortPredicate, groupPredicate, opts);
+        }
       } catch (KeeperException | InterruptedException e) {
         log.error("Error deleting scan server locks", e);
       }
@@ -263,8 +270,8 @@ public class ZooZap implements KeywordExecutable {
     }
   }
 
-  static void removeGroupedLocks(ZooReaderWriter zoo, String path, Predicate<String> groupPredicate,
-      Predicate<HostAndPort> hostPortPredicate, Opts opts)
+  static void removeCompactorGroupedLocks(ZooReaderWriter zoo, String path,
+      Predicate<String> groupPredicate, Predicate<HostAndPort> hostPortPredicate, Opts opts)
       throws KeeperException, InterruptedException {
     if (zoo.exists(path)) {
       List<String> groups = zoo.getChildren(path);
@@ -281,6 +288,14 @@ public class ZooZap implements KeywordExecutable {
       Predicate<HostAndPort> hostPortPredicate, Opts opts)
       throws KeeperException, InterruptedException {
     ServiceLock.deleteLocks(zoo, path, hostPortPredicate, m -> message(m, opts), opts.dryRun);
+  }
+
+  @Deprecated(since = "2.1.5")
+  static void removeScanServerGroupLocks(ZooReaderWriter zoo, String path,
+      Predicate<HostAndPort> hostPortPredicate, Predicate<String> groupPredicate, Opts opts)
+      throws KeeperException, InterruptedException {
+    ServiceLock.deleteScanServerLocks(zoo, path, hostPortPredicate, groupPredicate,
+        m -> message(m, opts), opts.dryRun);
   }
 
   static void removeSingletonLock(ZooReaderWriter zoo, String path,

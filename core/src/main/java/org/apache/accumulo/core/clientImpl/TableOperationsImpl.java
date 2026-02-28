@@ -1009,9 +1009,8 @@ public class TableOperationsImpl extends TableOperationsHelper {
 
     try {
       setPropertyNoChecks(tableName, property, value);
-
       checkLocalityGroups(tableName, property);
-    } catch (TableNotFoundException e) {
+    } catch (TableNotFoundException | IllegalArgumentException e) {
       throw new AccumuloException(e);
     }
   }

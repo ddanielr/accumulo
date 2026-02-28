@@ -18,6 +18,7 @@
  */
 package org.apache.accumulo.core.fate.zookeeper;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Objects.requireNonNull;
 
 import java.util.ArrayList;
@@ -31,6 +32,7 @@ import org.apache.accumulo.core.fate.zookeeper.ZooCache.ZcStat;
 import org.apache.accumulo.core.fate.zookeeper.ZooUtil.LockID;
 import org.apache.accumulo.core.fate.zookeeper.ZooUtil.NodeMissingPolicy;
 import org.apache.accumulo.core.util.HostAndPort;
+import org.apache.accumulo.core.util.ServerServices;
 import org.apache.zookeeper.CreateMode;
 import org.apache.zookeeper.KeeperException;
 import org.apache.zookeeper.KeeperException.Code;
@@ -757,6 +759,43 @@ public class ServiceLock implements Watcher {
     }
   }
 
+  public static void deleteScanServerLocks(ZooReaderWriter zk, String zPath,
+      Predicate<HostAndPort> hostPortPredicate, Predicate<String> groupPredicate,
+      Consumer<String> messageOutput, Boolean dryRun) throws KeeperException, InterruptedException {
+
+    Objects.requireNonNull(zPath, "Lock path cannot be null");
+    Objects.requireNonNull(groupPredicate, "group predicate cannot be null");
+    if (!zk.exists(zPath)) {
+      throw new IllegalStateException("Path " + zPath + " does not exist");
+    }
+
+    List<String> servers = zk.getChildren(zPath);
+    if (servers.isEmpty()) {
+      throw new IllegalStateException("No server locks are held at " + zPath);
+    }
+
+    ZooKeeper z = zk.getZooKeeper();
+    for (String server : servers) {
+      if (hostPortPredicate.test(HostAndPort.fromString(server))) {
+        final String serverPath = zPath + "/" + server;
+        byte[] lockData = ServiceLock.getLockData(z, path(serverPath));
+        if (lockData == null) {
+          messageOutput.accept("Skipping server " + server + " as it's lock content is empty.");
+          continue;
+        }
+        String lockContent = new String(lockData, UTF_8);
+        String[] parts = lockContent.split(",");
+        if (parts.length == 2 && groupPredicate.test(parts[1])) {
+          messageOutput.accept("Deleting " + serverPath + " from zookeeper");
+          if (!dryRun) {
+            LOG.debug("Deleting all locks at path {} due to lock deletion", serverPath);
+            zk.recursiveDelete(serverPath, NodeMissingPolicy.SKIP);
+          }
+        }
+      }
+    }
+  }
+
   /**
    * This method will delete the top server lock for a given lock path
    *
@@ -784,6 +823,21 @@ public class ServiceLock implements Watcher {
     LOG.debug("Deleting all at path {} due to lock deletion", pathToDelete);
     zk.recursiveDelete(pathToDelete, NodeMissingPolicy.SKIP);
 
+  }
+
+  public static void deleteLock(ZooReaderWriter zoo, String path,
+      ServerServices.Service serviceType, Predicate<HostAndPort> hostPortPredicate,
+      Consumer<String> messageOutput, Boolean dryRun) throws KeeperException, InterruptedException {
+    var lockData = ServiceLock.getLockData(zoo.getZooKeeper(), ServiceLock.path(path));
+    if (lockData != null) {
+      ServerServices lock = new ServerServices(new String(lockData, UTF_8));
+      if (hostPortPredicate.test(lock.getAddress(serviceType))) {
+        messageOutput.accept("Deleting " + path + " from zookeeper");
+        if (!dryRun) {
+          zoo.recursiveDelete(path, NodeMissingPolicy.SKIP);
+        }
+      }
+    }
   }
 
   /**
