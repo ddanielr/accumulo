@@ -36,6 +36,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.stream.Collectors;
 
 import org.apache.accumulo.core.client.Durability;
 import org.apache.accumulo.core.data.Mutation;
@@ -45,17 +46,17 @@ import org.apache.accumulo.core.file.blockfile.impl.CacheProvider;
 import org.apache.accumulo.core.lock.ServiceLock;
 import org.apache.accumulo.core.logging.LoggingBlockCache;
 import org.apache.accumulo.core.spi.cache.CacheType;
+import org.apache.accumulo.core.spi.wal.WriteAheadLog;
+import org.apache.accumulo.core.spi.wal.WriteAheadLogFactory;
 import org.apache.accumulo.core.tabletserver.log.LogEntry;
 import org.apache.accumulo.core.util.Halt;
 import org.apache.accumulo.core.util.Retry;
 import org.apache.accumulo.core.util.Retry.RetryFactory;
 import org.apache.accumulo.core.util.threads.Threads;
-import org.apache.accumulo.server.ServerContext;
 import org.apache.accumulo.server.log.WalStateManager.WalMarkerException;
 import org.apache.accumulo.tserver.TabletMutations;
 import org.apache.accumulo.tserver.TabletServer;
 import org.apache.accumulo.tserver.TabletServerResourceManager;
-import org.apache.accumulo.tserver.log.DfsLogger.LoggerOperation;
 import org.apache.accumulo.tserver.tablet.CommitSession;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.slf4j.Logger;
@@ -82,8 +83,11 @@ public class TabletServerLogger {
 
   private final TabletServer tserver;
 
-  // The current logger
-  private DfsLogger currentLog = null;
+  // Factory that creates and references WriteAheadLog instances
+  private final WriteAheadLogFactory walFactory;
+
+  // The current open WAL
+  private WriteAheadLog currentLog = null;
   private final SynchronousQueue<Object> nextLog = new SynchronousQueue<>();
   private Thread nextLogMaker = null;
 
@@ -99,9 +103,6 @@ public class TabletServerLogger {
   // Use a ReadWriteLock to allow multiple threads to use the log set, but obtain a write lock to
   // change them
   private final ReentrantReadWriteLock logIdLock = new ReentrantReadWriteLock();
-
-  private final AtomicLong syncCounter;
-  private final AtomicLong flushCounter;
 
   private long createTime = 0;
 
@@ -154,22 +155,27 @@ public class TabletServerLogger {
     }
   }
 
-  public TabletServerLogger(TabletServer tserver, long maxSize, AtomicLong syncCounter,
-      AtomicLong flushCounter, RetryFactory createRetryFactory, RetryFactory writeRetryFactory,
-      long maxAge) {
+  public TabletServerLogger(TabletServer tserver, long maxSize, RetryFactory createRetryFactory,
+      RetryFactory writeRetryFactory, long maxAge, WriteAheadLogFactory walFactory) {
+    this(tserver, maxSize, createRetryFactory, writeRetryFactory, maxAge, walFactory,
+        Caffeine.newBuilder().expireAfterWrite(3, TimeUnit.SECONDS).build());
+  }
+
+  TabletServerLogger(TabletServer tserver, long maxSize, RetryFactory createRetryFactory,
+      RetryFactory writeRetryFactory, long maxAge, WriteAheadLogFactory walFactory,
+      Cache<LogEntry,ResolvedSortedLog> sortedLogCache) {
     this.tserver = tserver;
     this.maxSize = maxSize;
-    this.syncCounter = syncCounter;
-    this.flushCounter = flushCounter;
     this.createRetryFactory = createRetryFactory;
     this.createRetry = null;
     this.writeRetryFactory = writeRetryFactory;
     this.maxAge = maxAge;
-    this.sortedLogCache = Caffeine.newBuilder().expireAfterWrite(3, TimeUnit.SECONDS).build();
+    this.walFactory = walFactory;
+    this.sortedLogCache = sortedLogCache;
   }
 
-  private DfsLogger initializeLoggers(final AtomicInteger logIdOut) throws IOException {
-    final AtomicReference<DfsLogger> result = new AtomicReference<>();
+  private WriteAheadLog initializeLoggers(final AtomicInteger logIdOut) throws IOException {
+    final AtomicReference<WriteAheadLog> result = new AtomicReference<>();
     testLockAndRun(logIdLock, new TestCallWithWriteLock() {
       @Override
       boolean test() {
@@ -224,8 +230,8 @@ public class TabletServerLogger {
       if (next instanceof Exception) {
         throw (Exception) next;
       }
-      if (next instanceof DfsLogger) {
-        currentLog = (DfsLogger) next;
+      if (next instanceof WriteAheadLog) {
+        currentLog = (WriteAheadLog) next;
         logId.incrementAndGet();
         log.info("Using next log {}", currentLog.getLogEntry());
 
@@ -272,11 +278,10 @@ public class TabletServerLogger {
     Thread newThread = Threads.createCriticalThread(TSERVER_WAL_CREATOR_POOL.poolName, () -> {
       while (true) {
         log.debug("Creating next WAL");
-        final DfsLogger alog;
+        final WriteAheadLog alog;
 
         try {
-          alog = DfsLogger.createNew(tserver.getContext(), syncCounter, flushCounter,
-              tserver.getAdvertiseAddress().toString());
+          alog = walFactory.createNew(tserver.getAdvertiseAddress().toString());
         } catch (IOException | RuntimeException e) {
           log.error("Failed to open WAL", e);
           try {
@@ -293,7 +298,7 @@ public class TabletServerLogger {
         try {
           tserver.addNewLogMarker(alog);
         } catch (Exception e) {
-          log.error("Failed to add new WAL marker for " + alog.getLogEntry(), e);
+          log.error("Failed to add new WAL marker for {}", alog.getLogEntry(), e);
 
           try {
             // Intentionally not deleting walog because it may have been advertised in ZK. See
@@ -311,7 +316,7 @@ public class TabletServerLogger {
           try {
             tserver.walogClosed(alog);
           } catch (WalMarkerException | RuntimeException e2) {
-            log.error("Failed to close WAL that failed to open: " + alog.getLogEntry(), e2);
+            log.error("Failed to close WAL that failed to open: {}", alog.getLogEntry(), e2);
           }
 
           try {
@@ -345,10 +350,10 @@ public class TabletServerLogger {
     if (currentLog != null) {
       try {
         currentLog.close();
-      } catch (DfsLogger.LogClosedException ex) {
+      } catch (WriteAheadLog.LogClosedException ex) {
         // ignore
       } catch (IOException | RuntimeException ex) {
-        log.error("Unable to cleanly close log " + currentLog.getLogEntry() + ": " + ex, ex);
+        log.error("Unable to cleanly close log {}: {}", currentLog.getLogEntry(), ex, ex);
       } finally {
         try {
           this.tserver.walogClosed(currentLog);
@@ -361,8 +366,20 @@ public class TabletServerLogger {
     }
   }
 
+  /**
+   * A function that performs a single write against a {@link WriteAheadLog} and returns an
+   * {@link WriteAheadLog.Operation} the caller must await. This is a private functional interface
+   * so that the retry loop in {@link #write} stays generic while each public method supplies only
+   * the line that differs — which method to call on the current log.
+   *
+   * <p>
+   * Note: {@code throws Exception} is required because the lambdas passed at call sites invoke
+   * methods that declare checked exceptions. Java's built-in {@code Function} does not permit
+   * checked exceptions, hence this custom interface.
+   */
+  @FunctionalInterface
   interface Writer {
-    LoggerOperation write(DfsLogger logger) throws Exception;
+    WriteAheadLog.Operation write(WriteAheadLog log) throws Exception;
   }
 
   private void write(final Collection<CommitSession> sessions, boolean mincFinish, Writer writer,
@@ -376,7 +393,7 @@ public class TabletServerLogger {
       try {
         // get a reference to the loggers that no other thread can touch
         AtomicInteger currentId = new AtomicInteger(-1);
-        DfsLogger copy = initializeLoggers(currentId);
+        WriteAheadLog copy = initializeLoggers(currentId);
         currentLogId = currentId.get();
 
         // add the logger to the log set for the memory in the tablet,
@@ -388,7 +405,9 @@ public class TabletServerLogger {
               try {
                 // Scribble out a tablet definition and then write to the metadata table
                 write(singletonList(commitSession), false,
-                    logger -> logger.defineTablet(commitSession), writeRetry);
+                    logger -> logger.defineTablet(commitSession.getWALogSeq(),
+                        commitSession.getLogId(), commitSession.getExtent()),
+                    writeRetry);
               } finally {
                 commitSession.finishUpdatingLogsUsed();
               }
@@ -400,13 +419,13 @@ public class TabletServerLogger {
         if (currentLogId == logId.get()) {
 
           // write the mutation to the logs
-          LoggerOperation lop = writer.write(copy);
+          WriteAheadLog.Operation lop = writer.write(copy);
           lop.await();
 
           // double-check: did the log set change?
           success = (currentLogId == logId.get());
         }
-      } catch (DfsLogger.LogClosedException | ClosedChannelException ex) {
+      } catch (WriteAheadLog.LogClosedException | ClosedChannelException ex) {
         writeRetry.logRetry(log, "Logs closed while writing", ex);
       } catch (Exception t) {
         writeRetry.logRetry(log, "Failed to write to WAL", t);
@@ -466,6 +485,39 @@ public class TabletServerLogger {
   }
 
   /**
+   * Adapts a tserver-internal ${@link TabletMutations} to the SPI's
+   * ${@link WriteAheadLog.TabletWrite}. This keeps the adaptation local to this class so
+   * ${@link TabletMutations} doesn't cross the SPI boundary
+   */
+  private static final class TabletMutationsAdapter implements WriteAheadLog.TabletWrite {
+    private final TabletMutations delegate;
+
+    TabletMutationsAdapter(TabletMutations delegate) {
+      this.delegate = delegate;
+    }
+
+    @Override
+    public long getSequence() {
+      return delegate.getSeq();
+    }
+
+    @Override
+    public int getTabletId() {
+      return delegate.getTid();
+    }
+
+    @Override
+    public List<Mutation> getMutations() {
+      return delegate.getMutations();
+    }
+
+    @Override
+    public Durability getDurability() {
+      return delegate.getDurability();
+    }
+  }
+
+  /**
    * Log mutations. This method expects mutations that have a durability other than NONE.
    */
   public void logManyTablets(Map<CommitSession,TabletMutations> loggables) throws IOException {
@@ -473,7 +525,10 @@ public class TabletServerLogger {
       return;
     }
 
-    write(loggables.keySet(), false, logger -> logger.logManyTablets(loggables.values()),
+    Collection<WriteAheadLog.TabletWrite> tabletWrites =
+        loggables.values().stream().map(TabletMutationsAdapter::new).collect(Collectors.toList());
+
+    write(loggables.keySet(), false, logger -> logger.logManyTablets(tabletWrites),
         writeRetryFactory.createRetry());
     for (TabletMutations entry : loggables.values()) {
       if (entry.getMutations().size() < 1) {
@@ -523,26 +578,25 @@ public class TabletServerLogger {
         LoggingBlockCache.wrap(CacheType.DATA, resourceMgr.getDataCache()));
   }
 
-  public boolean needsRecovery(ServerContext context, KeyExtent extent, Collection<LogEntry> walogs)
-      throws IOException {
+  public boolean needsRecovery(KeyExtent extent, Collection<LogEntry> walogs) throws IOException {
     try {
       var resourceMgr = tserver.getResourceManager();
       var cacheProvider = createCacheProvider(resourceMgr);
       SortedLogRecovery recovery =
-          new SortedLogRecovery(context, resourceMgr.getFileLenCache(), cacheProvider);
+          new SortedLogRecovery(tserver.getContext(), resourceMgr.getFileLenCache(), cacheProvider);
       return recovery.needsRecovery(extent, resolve(walogs));
     } catch (Exception e) {
       throw new IOException(e);
     }
   }
 
-  public void recover(ServerContext context, KeyExtent extent, Collection<LogEntry> walogs,
-      Set<String> tabletFiles, MutationReceiver mr) throws IOException {
+  public void recover(KeyExtent extent, Collection<LogEntry> walogs, Set<String> tabletFiles,
+      MutationReceiver mr) throws IOException {
     try {
       var resourceMgr = tserver.getResourceManager();
       var cacheProvider = createCacheProvider(resourceMgr);
       SortedLogRecovery recovery =
-          new SortedLogRecovery(context, resourceMgr.getFileLenCache(), cacheProvider);
+          new SortedLogRecovery(tserver.getContext(), resourceMgr.getFileLenCache(), cacheProvider);
       recovery.recover(extent, resolve(walogs), tabletFiles, mr);
     } catch (Exception e) {
       throw new IOException(e);

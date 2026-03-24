@@ -61,6 +61,7 @@ import org.apache.accumulo.core.clientImpl.thrift.ThriftSecurityException;
 import org.apache.accumulo.core.conf.AccumuloConfiguration;
 import org.apache.accumulo.core.conf.Property;
 import org.apache.accumulo.core.conf.SiteConfiguration;
+import org.apache.accumulo.core.crypto.CryptoEnvironmentImpl;
 import org.apache.accumulo.core.data.TableId;
 import org.apache.accumulo.core.dataImpl.KeyExtent;
 import org.apache.accumulo.core.dataImpl.thrift.InitialMultiScan;
@@ -90,6 +91,8 @@ import org.apache.accumulo.core.metadata.schema.TabletMetadata;
 import org.apache.accumulo.core.metadata.schema.TabletsMetadata;
 import org.apache.accumulo.core.metrics.MetricsInfo;
 import org.apache.accumulo.core.securityImpl.thrift.TCredentials;
+import org.apache.accumulo.core.spi.crypto.CryptoEnvironment;
+import org.apache.accumulo.core.spi.wal.WriteAheadLogFactory;
 import org.apache.accumulo.core.tabletscan.thrift.ActiveScan;
 import org.apache.accumulo.core.tabletscan.thrift.ScanServerBusyException;
 import org.apache.accumulo.core.tabletscan.thrift.TSampleNotPresentException;
@@ -113,6 +116,7 @@ import org.apache.accumulo.server.rpc.TServerUtils;
 import org.apache.accumulo.server.rpc.ThriftProcessorTypes;
 import org.apache.accumulo.server.security.SecurityUtil;
 import org.apache.accumulo.tserver.TabletServerResourceManager.TabletResourceManager;
+import org.apache.accumulo.tserver.log.DfsWalReader;
 import org.apache.accumulo.tserver.log.LogSorter;
 import org.apache.accumulo.tserver.metrics.TabletServerScanMetrics;
 import org.apache.accumulo.tserver.session.MultiScanSession;
@@ -392,7 +396,7 @@ public class ScanServer extends AbstractServer
 
     int threadPoolSize = getConfiguration().getCount(Property.SSERV_WAL_SORT_MAX_CONCURRENT);
     if (threadPoolSize > 0) {
-      final LogSorter logSorter = new LogSorter(this);
+      final LogSorter logSorter = new LogSorter(this, buildWalReader());
       metricsInfo.addMetricsProducers(logSorter);
       try {
         // Attempt to process all existing log sorting work and start a background
@@ -457,6 +461,15 @@ public class ScanServer extends AbstractServer
       LOG.debug("Shutting down TabletMetadataCache executor");
       tmCacheExecutor.shutdownNow();
     }
+  }
+
+  private WriteAheadLogFactory.WalReader buildWalReader() {
+    AccumuloConfiguration conf = getContext().getConfiguration();
+    var cryptoFactory = getContext().getCryptoFactory();
+    var env = new CryptoEnvironmentImpl(CryptoEnvironment.Scope.RECOVERY);
+    var cryptoService = cryptoFactory.getService(env, conf.getAllCryptoProperties());
+    return new DfsWalReader(cryptoService, conf);
+
   }
 
   // Visible for testing

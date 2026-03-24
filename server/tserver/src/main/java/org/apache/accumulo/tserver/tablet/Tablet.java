@@ -82,6 +82,7 @@ import org.apache.accumulo.core.metadata.schema.TabletMetadata.Location;
 import org.apache.accumulo.core.sample.impl.SamplerConfigurationImpl;
 import org.apache.accumulo.core.security.Authorizations;
 import org.apache.accumulo.core.spi.scan.ScanDispatch;
+import org.apache.accumulo.core.spi.wal.WriteAheadLog;
 import org.apache.accumulo.core.tabletserver.log.LogEntry;
 import org.apache.accumulo.core.tabletserver.thrift.TabletStats;
 import org.apache.accumulo.core.trace.TraceUtil;
@@ -102,7 +103,6 @@ import org.apache.accumulo.tserver.TabletStatsKeeper;
 import org.apache.accumulo.tserver.TabletStatsKeeper.Operation;
 import org.apache.accumulo.tserver.TservConstraintEnv;
 import org.apache.accumulo.tserver.constraints.ConstraintChecker;
-import org.apache.accumulo.tserver.log.DfsLogger;
 import org.apache.accumulo.tserver.metrics.TabletServerMinCMetrics;
 import org.apache.accumulo.tserver.metrics.TabletServerScanMetrics;
 import org.apache.accumulo.tserver.scan.ScanParameters;
@@ -279,19 +279,18 @@ public class Tablet extends TabletBase {
           absPaths.add(ref.getNormalizedPathStr());
         }
 
-        tabletServer.recover(this.getTabletServer().getVolumeManager(), extent, logEntries,
-            absPaths, m -> {
-              Collection<ColumnUpdate> muts = m.getUpdates();
-              for (ColumnUpdate columnUpdate : muts) {
-                if (!columnUpdate.hasTimestamp()) {
-                  // if it is not a user set timestamp, it must have been set
-                  // by the system
-                  maxTime.set(Math.max(maxTime.get(), columnUpdate.getTimestamp()));
-                }
-              }
-              getTabletMemory().mutate(commitSession, Collections.singletonList(m), 1);
-              entriesUsedOnTablet.incrementAndGet();
-            });
+        tabletServer.recover(extent, logEntries, absPaths, m -> {
+          Collection<ColumnUpdate> muts = m.getUpdates();
+          for (ColumnUpdate columnUpdate : muts) {
+            if (!columnUpdate.hasTimestamp()) {
+              // if it is not a user set timestamp, it must have been set
+              // by the system
+              maxTime.set(Math.max(maxTime.get(), columnUpdate.getTimestamp()));
+            }
+          }
+          getTabletMemory().mutate(commitSession, Collections.singletonList(m), 1);
+          entriesUsedOnTablet.incrementAndGet();
+        });
 
         if (maxTime.get() != Long.MIN_VALUE) {
           tabletTime.updateTimeIfGreater(maxTime.get());
@@ -332,7 +331,7 @@ public class Tablet extends TabletBase {
       // make some closed references that represent the recovered logs
       currentLogs = new HashSet<>();
       for (LogEntry logEntry : logEntries) {
-        currentLogs.add(DfsLogger.fromLogEntry(logEntry));
+        currentLogs.add(tabletServer.getWalFactory().fromLogEntry(logEntry));
       }
 
       rebuildReferencedLogs();
@@ -1169,12 +1168,12 @@ public class Tablet extends TabletBase {
     scannedRate.update(now, this.scannedCount.sum());
   }
 
-  private Set<DfsLogger> currentLogs = new HashSet<>();
-  private Set<DfsLogger> otherLogs = Collections.emptySet();
+  private Set<WriteAheadLog> currentLogs = new HashSet<>();
+  private Set<WriteAheadLog> otherLogs = Collections.emptySet();
 
   // An immutable copy of currentLogs + otherLogs. This exists so that removeInUseLogs() does not
   // have to get the tablet lock. See #558
-  private volatile Set<DfsLogger> referencedLogs = Collections.emptySet();
+  private volatile Set<WriteAheadLog> referencedLogs = Collections.emptySet();
 
   private synchronized void rebuildReferencedLogs() {
     /*
@@ -1199,17 +1198,17 @@ public class Tablet extends TabletBase {
         .collect(Collectors.toUnmodifiableSet());
 
     if (TabletLogger.isWalRefLoggingEnabled() && !prev.equals(referencedLogs)) {
-      TabletLogger.walRefsChanged(extent,
-          referencedLogs.stream().map(DfsLogger::getPath).map(Path::getName).collect(toList()));
+      TabletLogger.walRefsChanged(extent, referencedLogs.stream()
+          .map(wal -> new Path(wal.getLogEntry().getPath()).getName()).collect(toList()));
     }
 
   }
 
-  public void removeInUseLogs(Set<DfsLogger> candidates) {
+  public void removeInUseLogs(Set<WriteAheadLog> candidates) {
     candidates.removeAll(referencedLogs);
   }
 
-  public void checkIfMinorCompactionNeededForLogs(List<DfsLogger> closedLogs, int maxLogs) {
+  public void checkIfMinorCompactionNeededForLogs(List<WriteAheadLog> closedLogs, int maxLogs) {
 
     String reason = null;
     synchronized (this) {
@@ -1221,8 +1220,8 @@ public class Tablet extends TabletBase {
         // mean each tablet had to process lots of WAL. This check looks for a single use of an
         // older WAL and compacts if one is found. The following check assumes the most recent WALs
         // are at the end of the list and ignores these.
-        List<DfsLogger> oldClosed = closedLogs.subList(0, closedLogs.size() - maxLogs);
-        for (DfsLogger closedLog : oldClosed) {
+        List<WriteAheadLog> oldClosed = closedLogs.subList(0, closedLogs.size() - maxLogs);
+        for (WriteAheadLog closedLog : oldClosed) {
           if (currentLogs.contains(closedLog)) {
             reason = "referenced at least one old write ahead log " + closedLog.getLogEntry();
             break;
@@ -1251,12 +1250,12 @@ public class Tablet extends TabletBase {
             "Attempted to clear logs when removal of logs in progress on " + extent);
       }
 
-      for (DfsLogger logger : otherLogs) {
+      for (WriteAheadLog logger : otherLogs) {
         otherLogsCopy.add(logger.getLogEntry());
         unusedLogs.add(logger.getLogEntry());
       }
 
-      for (DfsLogger logger : currentLogs) {
+      for (WriteAheadLog logger : currentLogs) {
         currentLogsCopy.add(logger.getLogEntry());
         unusedLogs.remove(logger.getLogEntry());
       }
@@ -1300,7 +1299,8 @@ public class Tablet extends TabletBase {
   // clean up by calling finishUpdatingLogsUsed()
   @SuppressFBWarnings(value = "UL_UNRELEASED_LOCK",
       justification = "lock is released by caller calling finishedUpdatingLogsUsed method")
-  public boolean beginUpdatingLogsUsed(InMemoryMap memTable, DfsLogger more, boolean mincFinish) {
+  public boolean beginUpdatingLogsUsed(InMemoryMap memTable, WriteAheadLog more,
+      boolean mincFinish) {
 
     boolean releaseLock = true;
 

@@ -787,6 +787,7 @@ public enum Property {
       assume there is some failure local to its node, and quit. A value of zero \
       is equivalent to forever.
       """, "1.4.0"),
+  @Deprecated(since = "4.0.0")
   TSERV_WAL_BLOCKSIZE("tserver.wal.blocksize", "0", PropertyType.BYTES,
       "The size of the HDFS blocks used to write to the Write-Ahead log. If"
           + " zero, it will be 110% of `tserver.wal.max.size` (that is, try to use just"
@@ -809,6 +810,8 @@ public enum Property {
       "Use the SYNC_BLOCK create flag to sync WAL writes to disk. Prevents"
           + " problems recovering from sudden system resets.",
       "1.5.0"),
+  TSERV_WAL_FACTORY("tserver.wal.factory", "org.apache.accumulo.tserver.log.DfsLoggerFactory",
+      PropertyType.CLASSNAME, "The WriteAheadLog factory to use for creating WALs.", "4.0.0"),
   TSERV_ASSIGNMENT_DURATION_WARNING("tserver.assignment.duration.warning", "10m",
       PropertyType.TIMEDURATION,
       "The amount of time an assignment can run before the server will print a"

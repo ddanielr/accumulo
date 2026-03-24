@@ -23,6 +23,7 @@ import static org.apache.accumulo.tserver.logger.LogEvents.COMPACTION_START;
 import static org.apache.accumulo.tserver.logger.LogEvents.DEFINE_TABLET;
 import static org.apache.accumulo.tserver.logger.LogEvents.MUTATION;
 import static org.apache.accumulo.tserver.logger.LogEvents.OPEN;
+import static org.easymock.EasyMock.createMock;
 import static org.easymock.EasyMock.expect;
 import static org.easymock.EasyMock.replay;
 import static org.easymock.EasyMock.reset;
@@ -64,6 +65,7 @@ import org.apache.accumulo.core.file.streams.SeekableDataInputStream;
 import org.apache.accumulo.core.spi.cache.CacheType;
 import org.apache.accumulo.core.spi.crypto.CryptoServiceFactory;
 import org.apache.accumulo.core.spi.crypto.GenericCryptoServiceFactory;
+import org.apache.accumulo.core.spi.wal.WriteAheadLogFactory;
 import org.apache.accumulo.core.tabletserver.log.LogEntry;
 import org.apache.accumulo.core.util.Pair;
 import org.apache.accumulo.server.ServerContext;
@@ -202,8 +204,9 @@ public class SortedLogRecoveryTest extends WithTestNames {
       expect(context.getCryptoFactory()).andReturn(cryptoFactory).anyTimes();
       expect(context.getConfiguration()).andReturn(DefaultConfiguration.getInstance()).anyTimes();
       expect(context.getScheduledExecutor()).andReturn(EXECUTOR).anyTimes();
+      WriteAheadLogFactory.WalReader reader = createMock(DfsWalReader.class);
       replay(server, context);
-      logSorter = new LogSorter(server);
+      logSorter = new LogSorter(server, reader);
 
       final Path workdirPath = new Path("file://" + workdir);
       fs.deleteRecursively(workdirPath);
@@ -1112,8 +1115,9 @@ public class SortedLogRecoveryTest extends WithTestNames {
     testConfig.set(prop, "snappy");
     expect(server.getContext()).andReturn(context).anyTimes();
     expect(context.getConfiguration()).andReturn(testConfig).anyTimes();
-    replay(server, context);
-    assertThrows(IllegalArgumentException.class, () -> new LogSorter(server),
+    WriteAheadLogFactory.WalReader reader = createMock(DfsWalReader.class);
+    replay(server, context, reader);
+    assertThrows(IllegalArgumentException.class, () -> new LogSorter(server, reader),
         "Did not throw IllegalArgumentException for " + prop);
     verify(server, context);
   }
@@ -1143,8 +1147,9 @@ public class SortedLogRecoveryTest extends WithTestNames {
       expect(context.getVolumeManager()).andReturn(vm).anyTimes();
       expect(context.getConfiguration()).andReturn(testConfig).anyTimes();
       expect(context.getScheduledExecutor()).andReturn(EXECUTOR).anyTimes();
-      replay(server, context);
-      LogSorter sorter = new LogSorter(server);
+      WriteAheadLogFactory.WalReader reader = createMock(DfsWalReader.class);
+      replay(server, context, reader);
+      LogSorter sorter = new LogSorter(server, reader);
 
       final Path workdirPath = new Path("file://" + workdir);
       vm.deleteRecursively(workdirPath);

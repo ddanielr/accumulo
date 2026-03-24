@@ -19,7 +19,8 @@
 package org.apache.accumulo.tserver.util;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
-import static org.apache.accumulo.tserver.log.DfsLogger.LOG_FILE_HEADER_V4;
+import static org.apache.accumulo.core.spi.wal.WriteAheadLogFactory.WalHeaderIncompleteException;
+import static org.apache.accumulo.tserver.log.DfsWalReader.LOG_FILE_HEADER_V4;
 import static org.easymock.EasyMock.expect;
 import static org.easymock.EasyMock.expectLastCall;
 import static org.easymock.EasyMock.mock;
@@ -51,7 +52,7 @@ import org.apache.accumulo.server.ServerContext;
 import org.apache.accumulo.server.fs.VolumeManager;
 import org.apache.accumulo.server.fs.VolumeManagerImpl;
 import org.apache.accumulo.tserver.WithTestNames;
-import org.apache.accumulo.tserver.log.DfsLogger;
+import org.apache.accumulo.tserver.log.DfsWalReader;
 import org.apache.accumulo.tserver.logger.LogEvents;
 import org.apache.accumulo.tserver.logger.LogFileKey;
 import org.apache.accumulo.tserver.logger.LogFileValue;
@@ -247,8 +248,8 @@ public class CreateEmptyTest extends WithTestNames {
         context.getConfiguration().getAllCryptoProperties());
 
     int eventCount = 0;
-    try (final FSDataInputStream fsinput = fs.open(path);
-        DataInputStream input = DfsLogger.getDecryptingStream(fsinput, cryptoService)) {
+    try (final FSDataInputStream fsinput = fs.open(path); DataInputStream input =
+        new DfsWalReader(cryptoService, context.getConfiguration()).open(fsinput)) {
       while (true) {
         try {
           key.readFields(input);
@@ -258,7 +259,7 @@ public class CreateEmptyTest extends WithTestNames {
         }
         eventCount++;
       }
-    } catch (DfsLogger.LogHeaderIncompleteException e) {
+    } catch (WalHeaderIncompleteException e) {
       fail("Could not read header for {}" + path);
     } finally {
       // empty wal has 1 event (OPEN)

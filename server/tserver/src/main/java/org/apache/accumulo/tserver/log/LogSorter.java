@@ -51,6 +51,7 @@ import org.apache.accumulo.core.metadata.UnreferencedTabletFile;
 import org.apache.accumulo.core.metrics.MetricsProducer;
 import org.apache.accumulo.core.spi.crypto.CryptoEnvironment;
 import org.apache.accumulo.core.spi.crypto.CryptoService;
+import org.apache.accumulo.core.spi.wal.WriteAheadLogFactory;
 import org.apache.accumulo.core.util.Pair;
 import org.apache.accumulo.core.util.threads.ThreadPools;
 import org.apache.accumulo.server.AbstractServer;
@@ -59,7 +60,6 @@ import org.apache.accumulo.server.fs.VolumeManager;
 import org.apache.accumulo.server.log.SortedLogState;
 import org.apache.accumulo.server.zookeeper.DistributedWorkQueue;
 import org.apache.accumulo.server.zookeeper.DistributedWorkQueue.Processor;
-import org.apache.accumulo.tserver.log.DfsLogger.LogHeaderIncompleteException;
 import org.apache.accumulo.tserver.logger.LogFileKey;
 import org.apache.accumulo.tserver.logger.LogFileValue;
 import org.apache.hadoop.fs.FSDataInputStream;
@@ -82,6 +82,7 @@ public class LogSorter implements MetricsProducer {
 
   private final Map<String,LogProcessor> currentWork = Collections.synchronizedMap(new HashMap<>());
 
+  // Defined so this work can be used in a DistributedWorkQueue
   class LogProcessor implements Processor {
 
     private FSDataInputStream input;
@@ -169,8 +170,8 @@ public class LogSorter implements MetricsProducer {
       }
 
       try {
-        decryptingInput = DfsLogger.getDecryptingStream(input, cryptoService);
-      } catch (LogHeaderIncompleteException e) {
+        decryptingInput = reader.open(input);
+      } catch (WriteAheadLogFactory.WalHeaderIncompleteException e) {
         log.warn("Could not read header from write-ahead log {}. Not sorting.", srcPath);
         // Creating a 'finished' marker will cause recovery to proceed normally and the
         // empty file will be correctly ignored downstream.
@@ -236,19 +237,21 @@ public class LogSorter implements MetricsProducer {
   private final AbstractServer server;
   private final ServerContext context;
   private final AccumuloConfiguration conf;
-  private final double walBlockSize;
+  private final long walBlockSize;
   private final CryptoService cryptoService;
   private final AccumuloConfiguration sortedLogConf;
   private final AtomicLong recoveriesInProgress = new AtomicLong(0);
   private final AtomicLong recoveryRuntime = new AtomicLong(0);
   private final AtomicDouble recoveryAvgProgress = new AtomicDouble(0.0D);
+  private final WriteAheadLogFactory.WalReader reader;
 
-  public LogSorter(AbstractServer server) {
+  public LogSorter(AbstractServer server, WriteAheadLogFactory.WalReader walReader) {
     this.server = server;
     this.context = this.server.getContext();
     this.conf = this.context.getConfiguration();
     this.sortedLogConf = extractSortedLogConfig(this.conf);
-    this.walBlockSize = DfsLogger.getWalBlockSize(this.conf);
+    this.reader = walReader;
+    this.walBlockSize = walReader.getWalBlockSize();
     CryptoEnvironment env = new CryptoEnvironmentImpl(CryptoEnvironment.Scope.RECOVERY);
     this.cryptoService =
         context.getCryptoFactory().getService(env, this.conf.getAllCryptoProperties());

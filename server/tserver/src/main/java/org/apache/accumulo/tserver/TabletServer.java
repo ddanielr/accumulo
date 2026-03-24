@@ -98,9 +98,12 @@ import org.apache.accumulo.core.metadata.schema.TabletMetadata;
 import org.apache.accumulo.core.metrics.MetricsInfo;
 import org.apache.accumulo.core.rpc.ThriftUtil;
 import org.apache.accumulo.core.rpc.clients.ThriftClientTypes;
+import org.apache.accumulo.core.spi.common.ServiceEnvironment;
 import org.apache.accumulo.core.spi.fs.VolumeChooserEnvironment;
 import org.apache.accumulo.core.spi.ondemand.OnDemandTabletUnloader;
 import org.apache.accumulo.core.spi.ondemand.OnDemandTabletUnloader.UnloaderParams;
+import org.apache.accumulo.core.spi.wal.WriteAheadLog;
+import org.apache.accumulo.core.spi.wal.WriteAheadLogFactory;
 import org.apache.accumulo.core.tabletserver.UnloaderParamsImpl;
 import org.apache.accumulo.core.tabletserver.log.LogEntry;
 import org.apache.accumulo.core.trace.TraceUtil;
@@ -128,7 +131,7 @@ import org.apache.accumulo.server.rpc.ThriftProcessorTypes;
 import org.apache.accumulo.server.security.SecurityUtil;
 import org.apache.accumulo.server.security.delegation.ZooAuthenticationKeyWatcher;
 import org.apache.accumulo.server.util.time.RelativeTime;
-import org.apache.accumulo.tserver.log.DfsLogger;
+import org.apache.accumulo.server.wal.ServerWalInitParameters;
 import org.apache.accumulo.tserver.log.LogSorter;
 import org.apache.accumulo.tserver.log.MutationReceiver;
 import org.apache.accumulo.tserver.log.TabletServerLogger;
@@ -159,6 +162,7 @@ public class TabletServer extends AbstractServer implements TabletHostingServer 
   private static final Logger log = LoggerFactory.getLogger(TabletServer.class);
   private static final long TIME_BETWEEN_LOCATOR_CACHE_CLEARS = TimeUnit.HOURS.toMillis(1);
 
+  final WriteAheadLogFactory walFactory;
   final TabletServerLogger logger;
 
   private TabletServerMetrics metrics;
@@ -222,10 +226,12 @@ public class TabletServer extends AbstractServer implements TabletHostingServer 
     super(ServerId.Type.TABLET_SERVER, opts, serverContextFactory, args);
     context = super.getContext();
     final AccumuloConfiguration aconf = getConfiguration();
-    log.info("Version " + Constants.VERSION);
-    log.info("Instance " + getInstanceID());
+    log.info("Version {}", Constants.VERSION);
+    log.info("Instance {}", getInstanceID());
     this.sessionManager = new SessionManager(context);
-    this.logSorter = new LogSorter(this);
+    this.walFactory = loadWalFactory(aconf);
+    walFactory.init(buildWalInitParams());
+    this.logSorter = new LogSorter(this, walFactory.getReader());
     this.statsKeeper = new TabletStatsKeeper();
     final int numBusyTabletsToLog = aconf.getCount(Property.TSERV_LOG_BUSY_TABLETS_COUNT);
     final long logBusyTabletsDelay =
@@ -322,8 +328,8 @@ public class TabletServer extends AbstractServer implements TabletHostingServer 
             .maxWait(Duration.ofMillis(walFailureRetryMax)).backOffFactor(1.5)
             .logInterval(Duration.ofMinutes(3)).createFactory();
 
-    logger = new TabletServerLogger(this, walMaxSize, syncCounter, flushCounter,
-        walCreationRetryFactory, walWritingRetryFactory, walMaxAge);
+    logger = new TabletServerLogger(this, walMaxSize, walCreationRetryFactory,
+        walWritingRetryFactory, walMaxAge, walFactory);
     this.resourceManager = new TabletServerResourceManager(context, this);
 
     watchCriticalScheduledTask(context.getScheduledExecutor().scheduleWithFixedDelay(
@@ -405,6 +411,35 @@ public class TabletServer extends AbstractServer implements TabletHostingServer 
       recoveryLock.lock();
       return recoveryLock::unlock;
     }
+  }
+
+  private ServerWalInitParameters buildWalInitParams() {
+    return new ServerWalInitParameters() {
+      @Override
+      public AtomicLong getSyncCounter() {
+        return syncCounter;
+      }
+
+      @Override
+      public AtomicLong getFlushCounter() {
+        return flushCounter;
+      }
+
+      @Override
+      public VolumeManager getVolumeManager() {
+        return context.getVolumeManager();
+      }
+
+      @Override
+      public ServiceEnvironment getServiceEnvironment() {
+        return new ServiceEnvironmentImpl(context);
+      }
+
+      @Override
+      public Set<String> getBaseUris() {
+        return context.getBaseUris();
+      }
+    };
   }
 
   private void startServer(String address, TProcessor processor) throws UnknownHostException {
@@ -890,15 +925,16 @@ public class TabletServer extends AbstractServer implements TabletHostingServer 
     }
 
     try {
-      return logger.needsRecovery(getContext(), tabletMetadata.getExtent(), logEntries);
+      return logger.needsRecovery(tabletMetadata.getExtent(), logEntries);
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }
   }
 
-  public void recover(VolumeManager fs, KeyExtent extent, Collection<LogEntry> logEntries,
-      Set<String> tabletFiles, MutationReceiver mutationReceiver) throws IOException {
-    logger.recover(getContext(), extent, logEntries, tabletFiles, mutationReceiver);
+  // Check this in main
+  public void recover(KeyExtent extent, Collection<LogEntry> logEntries, Set<String> tabletFiles,
+      MutationReceiver mutationReceiver) throws IOException {
+    logger.recover(extent, logEntries, tabletFiles, mutationReceiver);
   }
 
   public int createLogId() {
@@ -961,7 +997,7 @@ public class TabletServer extends AbstractServer implements TabletHostingServer 
   // is used because its very import to know the order in which WALs were closed when deciding if a
   // WAL is eligible for removal. Maintaining the order that logs were used in is currently a simple
   // task because there is only one active log at a time.
-  final LinkedHashSet<DfsLogger> closedLogs = new LinkedHashSet<>();
+  final LinkedHashSet<WriteAheadLog> closedLogs = new LinkedHashSet<>();
 
   /**
    * For a closed WAL to be eligible for removal it must be unreferenced AND all closed WALs older
@@ -969,20 +1005,20 @@ public class TabletServer extends AbstractServer implements TabletHostingServer 
    * issue #537.
    */
   @VisibleForTesting
-  static Set<DfsLogger> findOldestUnreferencedWals(List<DfsLogger> closedLogs,
-      Consumer<Set<DfsLogger>> referencedRemover) {
-    LinkedHashSet<DfsLogger> unreferenced = new LinkedHashSet<>(closedLogs);
+  static Set<WriteAheadLog> findOldestUnreferencedWals(List<WriteAheadLog> closedLogs,
+      Consumer<Set<WriteAheadLog>> referencedRemover) {
+    LinkedHashSet<WriteAheadLog> unreferenced = new LinkedHashSet<>(closedLogs);
 
     referencedRemover.accept(unreferenced);
 
-    Iterator<DfsLogger> closedIter = closedLogs.iterator();
-    Iterator<DfsLogger> unrefIter = unreferenced.iterator();
+    Iterator<WriteAheadLog> closedIter = closedLogs.iterator();
+    Iterator<WriteAheadLog> unrefIter = unreferenced.iterator();
 
-    Set<DfsLogger> eligible = new HashSet<>();
+    Set<WriteAheadLog> eligible = new HashSet<>();
 
     while (closedIter.hasNext() && unrefIter.hasNext()) {
-      DfsLogger closed = closedIter.next();
-      DfsLogger unref = unrefIter.next();
+      WriteAheadLog closed = closedIter.next();
+      WriteAheadLog unref = unrefIter.next();
 
       if (closed.equals(unref)) {
         eligible.add(unref);
@@ -996,13 +1032,13 @@ public class TabletServer extends AbstractServer implements TabletHostingServer 
 
   private void markUnusedWALs() {
 
-    List<DfsLogger> closedCopy;
+    List<WriteAheadLog> closedCopy;
 
     synchronized (closedLogs) {
       closedCopy = List.copyOf(closedLogs);
     }
 
-    Consumer<Set<DfsLogger>> refRemover = candidates -> {
+    Consumer<Set<WriteAheadLog>> refRemover = candidates -> {
       for (Tablet tablet : getOnlineTablets().values()) {
         tablet.removeInUseLogs(candidates);
         if (candidates.isEmpty()) {
@@ -1011,13 +1047,14 @@ public class TabletServer extends AbstractServer implements TabletHostingServer 
       }
     };
 
-    Set<DfsLogger> eligible = findOldestUnreferencedWals(closedCopy, refRemover);
+    Set<WriteAheadLog> eligible = findOldestUnreferencedWals(closedCopy, refRemover);
 
     try {
       TServerInstance session = this.getTabletSession();
-      for (DfsLogger candidate : eligible) {
-        log.info("Marking " + candidate.getPath() + " as unreferenced");
-        walMarker.walUnreferenced(session, candidate.getPath());
+      for (WriteAheadLog candidate : eligible) {
+        var path = new Path(candidate.getLogEntry().getPath());
+        log.info("Marking {} as unreferenced", path);
+        walMarker.walUnreferenced(session, path);
       }
       synchronized (closedLogs) {
         closedLogs.removeAll(eligible);
@@ -1027,25 +1064,26 @@ public class TabletServer extends AbstractServer implements TabletHostingServer 
     }
   }
 
-  public void addNewLogMarker(DfsLogger copy) throws WalMarkerException {
-    log.info("Writing log marker for " + copy.getPath());
-    walMarker.addNewWalMarker(getTabletSession(), copy.getPath());
+  public void addNewLogMarker(WriteAheadLog copy) throws WalMarkerException {
+    var path = new Path(copy.getLogEntry().getPath());
+    log.info("Writing log marker for {}", path);
+    walMarker.addNewWalMarker(getTabletSession(), path);
   }
 
-  public void walogClosed(DfsLogger currentLog) throws WalMarkerException {
-
+  public void walogClosed(WriteAheadLog currentLog) throws WalMarkerException {
+    var path = new Path(currentLog.getLogEntry().getPath());
     if (currentLog.getWrites() > 0) {
       int clSize;
       synchronized (closedLogs) {
         closedLogs.add(currentLog);
         clSize = closedLogs.size();
       }
-      log.info("Marking " + currentLog.getPath() + " as closed. Total closed logs " + clSize);
-      walMarker.closeWal(getTabletSession(), currentLog.getPath());
+      log.info("Marking {} as closed. Total closed logs {}", path, clSize);
+      walMarker.closeWal(getTabletSession(), path);
 
       // whenever a new log is added to the set of closed logs, go through all of the tablets and
       // see if any need to minor compact
-      List<DfsLogger> closedCopy;
+      List<WriteAheadLog> closedCopy;
       synchronized (closedLogs) {
         closedCopy = List.copyOf(closedLogs);
       }
@@ -1058,9 +1096,8 @@ public class TabletServer extends AbstractServer implements TabletHostingServer 
         }
       }
     } else {
-      log.info(
-          "Marking " + currentLog.getPath() + " as unreferenced (skipping closed writes == 0)");
-      walMarker.walUnreferenced(getTabletSession(), currentLog.getPath());
+      log.info("Marking {} as unreferenced (skipping closed writes == 0)", path);
+      walMarker.walUnreferenced(getTabletSession(), path);
     }
   }
 
@@ -1195,4 +1232,21 @@ public class TabletServer extends AbstractServer implements TabletHostingServer 
       });
     }
   }
+
+  public WriteAheadLogFactory getWalFactory() {
+    return walFactory;
+  }
+
+  public static WriteAheadLogFactory loadWalFactory(AccumuloConfiguration conf) {
+    String factoryClazz = conf.get(Property.TSERV_WAL_FACTORY);
+    try {
+      Class<? extends WriteAheadLogFactory> clazz =
+          ClassLoaderUtil.loadClass(factoryClazz, WriteAheadLogFactory.class);
+      log.info("Using WAL factory: {}", clazz.getSimpleName());
+      return clazz.getDeclaredConstructor().newInstance();
+    } catch (ReflectiveOperationException e) {
+      throw new RuntimeException("Failed to load WAL factory: " + factoryClazz, e);
+    }
+  }
+
 }

@@ -19,7 +19,7 @@
 package org.apache.accumulo.tserver.util;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
-import static org.apache.accumulo.tserver.log.DfsLogger.LOG_FILE_HEADER_V4;
+import static org.apache.accumulo.tserver.log.DfsWalReader.LOG_FILE_HEADER_V4;
 import static org.apache.accumulo.tserver.logger.LogEvents.OPEN;
 
 import java.io.DataOutputStream;

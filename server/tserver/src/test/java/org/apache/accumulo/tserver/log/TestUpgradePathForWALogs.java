@@ -35,6 +35,7 @@ import java.util.concurrent.ScheduledThreadPoolExecutor;
 
 import org.apache.accumulo.core.conf.DefaultConfiguration;
 import org.apache.accumulo.core.spi.crypto.GenericCryptoServiceFactory;
+import org.apache.accumulo.core.spi.wal.WriteAheadLogFactory;
 import org.apache.accumulo.server.ServerContext;
 import org.apache.accumulo.server.fs.VolumeManager;
 import org.apache.accumulo.server.fs.VolumeManagerImpl;
@@ -64,6 +65,7 @@ public class TestUpgradePathForWALogs extends WithTestNames {
 
   private ServerContext context;
   private TabletServer server;
+  private WriteAheadLogFactory.WalReader reader;
 
   @TempDir
   private static java.nio.file.Path tempDir;
@@ -74,6 +76,7 @@ public class TestUpgradePathForWALogs extends WithTestNames {
   public void setUp() throws Exception {
     context = createMock(ServerContext.class);
     server = createMock(TabletServer.class);
+    reader = createMock(WriteAheadLogFactory.WalReader.class);
 
     // Create a new subdirectory for each test
     perTestTempSubDir = tempDir.resolve(testName());
@@ -90,12 +93,12 @@ public class TestUpgradePathForWALogs extends WithTestNames {
     expect(context.getCryptoFactory()).andReturn(new GenericCryptoServiceFactory()).anyTimes();
     expect(context.getVolumeManager()).andReturn(fs).anyTimes();
     expect(context.getScheduledExecutor()).andReturn(EXECUTOR).anyTimes();
-    replay(server, context);
+    replay(server, context, reader);
   }
 
   @AfterEach
   public void tearDown() {
-    verify(server, context);
+    verify(server, context, reader);
   }
 
   @AfterAll
@@ -118,7 +121,7 @@ public class TestUpgradePathForWALogs extends WithTestNames {
       walogInHDFStream.flush();
       walogInHDFStream.close();
 
-      LogSorter logSorter = new LogSorter(server);
+      LogSorter logSorter = new LogSorter(server, reader);
       LogSorter.LogProcessor logProcessor = logSorter.new LogProcessor();
 
       assertThrows(IllegalArgumentException.class,
@@ -143,7 +146,7 @@ public class TestUpgradePathForWALogs extends WithTestNames {
 
       assertFalse(context.getVolumeManager().exists(getFinishedMarkerPath(destPath)));
 
-      LogSorter logSorter = new LogSorter(server);
+      LogSorter logSorter = new LogSorter(server, reader);
       LogSorter.LogProcessor logProcessor = logSorter.new LogProcessor();
 
       logProcessor.sort(context.getVolumeManager(), "/" + walogToTest,
@@ -168,7 +171,7 @@ public class TestUpgradePathForWALogs extends WithTestNames {
 
       assertFalse(context.getVolumeManager().exists(getFinishedMarkerPath(destPath)));
 
-      LogSorter logSorter = new LogSorter(server);
+      LogSorter logSorter = new LogSorter(server, reader);
       LogSorter.LogProcessor logProcessor = logSorter.new LogProcessor();
       logProcessor.sort(context.getVolumeManager(), "/" + walogToTest,
           new Path("file://" + testPath + "/" + walogToTest), destPath);

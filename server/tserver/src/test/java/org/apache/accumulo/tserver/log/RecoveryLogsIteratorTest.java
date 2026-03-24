@@ -43,6 +43,7 @@ import org.apache.accumulo.core.conf.DefaultConfiguration;
 import org.apache.accumulo.core.data.TableId;
 import org.apache.accumulo.core.dataImpl.KeyExtent;
 import org.apache.accumulo.core.spi.crypto.GenericCryptoServiceFactory;
+import org.apache.accumulo.core.spi.wal.WriteAheadLogFactory;
 import org.apache.accumulo.core.tabletserver.log.LogEntry;
 import org.apache.accumulo.core.util.Pair;
 import org.apache.accumulo.server.ServerContext;
@@ -81,6 +82,7 @@ public class RecoveryLogsIteratorTest extends WithTestNames {
   public void setUp() throws Exception {
     context = createMock(ServerContext.class);
     server = createMock(TabletServer.class);
+    WriteAheadLogFactory.WalReader reader = createMock(DfsWalReader.class);
     workDir = tempDir.resolve(testName());
     String path = workDir.toString();
     fs = VolumeManagerImpl.getLocalForTesting(path);
@@ -91,7 +93,7 @@ public class RecoveryLogsIteratorTest extends WithTestNames {
     expect(context.getScheduledExecutor()).andReturn(EXECUTOR).anyTimes();
     replay(server, context);
 
-    logSorter = new LogSorter(server);
+    logSorter = new LogSorter(server, reader);
   }
 
   @AfterEach

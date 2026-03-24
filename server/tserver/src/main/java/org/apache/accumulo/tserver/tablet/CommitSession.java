@@ -22,8 +22,8 @@ import java.util.List;
 
 import org.apache.accumulo.core.data.Mutation;
 import org.apache.accumulo.core.dataImpl.KeyExtent;
+import org.apache.accumulo.core.spi.wal.WriteAheadLog;
 import org.apache.accumulo.tserver.InMemoryMap;
-import org.apache.accumulo.tserver.log.DfsLogger;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -86,7 +86,7 @@ public class CommitSession {
     committer.commit(this, mutations);
   }
 
-  public boolean beginUpdatingLogsUsed(DfsLogger copy, boolean mincFinish) {
+  public boolean beginUpdatingLogsUsed(WriteAheadLog copy, boolean mincFinish) {
     return committer.beginUpdatingLogsUsed(memTable, copy, mincFinish);
   }
 

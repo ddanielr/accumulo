@@ -19,6 +19,7 @@
 package org.apache.accumulo.test;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
+import static org.apache.accumulo.tserver.log.DfsWalReader.LOG_FILE_HEADER_V4;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -42,7 +43,6 @@ import org.apache.accumulo.core.tabletserver.log.LogEntry;
 import org.apache.accumulo.miniclusterImpl.MiniAccumuloClusterImpl;
 import org.apache.accumulo.miniclusterImpl.MiniAccumuloConfigImpl;
 import org.apache.accumulo.test.functional.ConfigurableMacBase;
-import org.apache.accumulo.tserver.log.DfsLogger;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileSystem;
@@ -182,8 +182,7 @@ public class MissingWalHeaderCompletesRecoveryIT extends ConfigurableMacBase {
 
       // Write half of the header
       FSDataOutputStream wal = fs.create(new Path(partialHeaderWalog.toUri()));
-      wal.write(DfsLogger.LOG_FILE_HEADER_V4.getBytes(UTF_8), 0,
-          DfsLogger.LOG_FILE_HEADER_V4.length() / 2);
+      wal.write(LOG_FILE_HEADER_V4.getBytes(UTF_8), 0, LOG_FILE_HEADER_V4.length() / 2);
       wal.close();
 
       assertTrue(client.securityOperations().hasTablePermission("root",

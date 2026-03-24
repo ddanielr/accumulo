@@ -19,6 +19,9 @@
 package org.apache.accumulo.tserver.logger;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
+import static org.apache.accumulo.core.spi.wal.WriteAheadLogFactory.WalHeaderIncompleteException;
+import static org.apache.accumulo.tserver.log.DfsWalReader.LOG_FILE_HEADER_V3;
+import static org.apache.accumulo.tserver.log.DfsWalReader.LOG_FILE_HEADER_V4;
 
 import java.io.DataInputStream;
 import java.io.EOFException;
@@ -49,8 +52,7 @@ import org.apache.accumulo.server.util.ServerKeywordExecutable;
 import org.apache.accumulo.start.spi.CommandGroup;
 import org.apache.accumulo.start.spi.CommandGroups;
 import org.apache.accumulo.start.spi.KeywordExecutable;
-import org.apache.accumulo.tserver.log.DfsLogger;
-import org.apache.accumulo.tserver.log.DfsLogger.LogHeaderIncompleteException;
+import org.apache.accumulo.tserver.log.DfsWalReader;
 import org.apache.accumulo.tserver.log.RecoveryLogsIterator;
 import org.apache.accumulo.tserver.log.ResolvedSortedLog;
 import org.apache.accumulo.tserver.logger.LogReader.ReaderOpts;
@@ -117,6 +119,8 @@ public class LogReader extends ServerKeywordExecutable<ReaderOpts> {
       var walCryptoService = CryptoFactoryLoader.getServiceForClient(CryptoEnvironment.Scope.WAL,
           siteConfig.getAllCryptoProperties());
 
+      var reader = new DfsWalReader(walCryptoService, context.getConfiguration());
+
       Matcher rowMatcher = null;
       KeyExtent ke = null;
       Text row = null;
@@ -155,7 +159,8 @@ public class LogReader extends ServerKeywordExecutable<ReaderOpts> {
           }
 
           try (final FSDataInputStream fsinput = fs.open(path);
-              DataInputStream input = DfsLogger.getDecryptingStream(fsinput, walCryptoService)) {
+              // Check this
+              DataInputStream input = reader.open(fsinput)) {
             while (true) {
               try {
                 key.readFields(input);
@@ -165,7 +170,7 @@ public class LogReader extends ServerKeywordExecutable<ReaderOpts> {
               }
               printLogEvent(key, value, row, rowMatcher, ke, tabletIds, opts.maxMutations);
             }
-          } catch (LogHeaderIncompleteException e) {
+          } catch (WalHeaderIncompleteException e) {
             log.warn("Could not read header for {} . Ignoring...", path);
           } finally {
             log.info("Done reading {}", path);
@@ -188,8 +193,8 @@ public class LogReader extends ServerKeywordExecutable<ReaderOpts> {
   }
 
   private void printCryptoParams(FSDataInputStream input, Path path) {
-    byte[] magic4 = DfsLogger.LOG_FILE_HEADER_V4.getBytes(UTF_8);
-    byte[] magic3 = DfsLogger.LOG_FILE_HEADER_V3.getBytes(UTF_8);
+    byte[] magic4 = LOG_FILE_HEADER_V4.getBytes(UTF_8);
+    byte[] magic3 = LOG_FILE_HEADER_V3.getBytes(UTF_8);
     byte[] noCryptoBytes = new NoFileEncrypter().getDecryptionParameters();
 
     byte[] magicBuffer = new byte[magic4.length];

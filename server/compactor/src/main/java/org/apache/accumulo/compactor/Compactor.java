@@ -28,6 +28,7 @@ import static org.apache.accumulo.core.metrics.Metric.COMPACTOR_MAJC_FAILURES_CO
 import static org.apache.accumulo.core.metrics.Metric.COMPACTOR_MAJC_FAILURES_TERMINATION;
 import static org.apache.accumulo.core.metrics.Metric.COMPACTOR_MAJC_IN_PROGRESS;
 import static org.apache.accumulo.core.metrics.Metric.COMPACTOR_MAJC_STUCK;
+import static org.apache.accumulo.core.spi.wal.WriteAheadLogFactory.WalReader;
 import static org.apache.accumulo.core.util.LazySingletons.RANDOM;
 
 import java.io.IOException;
@@ -74,6 +75,7 @@ import org.apache.accumulo.core.conf.AccumuloConfiguration;
 import org.apache.accumulo.core.conf.ConfigurationCopy;
 import org.apache.accumulo.core.conf.Property;
 import org.apache.accumulo.core.conf.SiteConfiguration;
+import org.apache.accumulo.core.crypto.CryptoEnvironmentImpl;
 import org.apache.accumulo.core.data.NamespaceId;
 import org.apache.accumulo.core.data.TableId;
 import org.apache.accumulo.core.dataImpl.KeyExtent;
@@ -104,6 +106,7 @@ import org.apache.accumulo.core.metrics.MetricsProducer;
 import org.apache.accumulo.core.rpc.ThriftUtil;
 import org.apache.accumulo.core.rpc.clients.ThriftClientTypes;
 import org.apache.accumulo.core.securityImpl.thrift.TCredentials;
+import org.apache.accumulo.core.spi.crypto.CryptoEnvironment;
 import org.apache.accumulo.core.spi.crypto.CryptoService;
 import org.apache.accumulo.core.tabletserver.thrift.ActiveCompaction;
 import org.apache.accumulo.core.tabletserver.thrift.TCompactionKind;
@@ -129,6 +132,7 @@ import org.apache.accumulo.server.conf.TableConfiguration;
 import org.apache.accumulo.server.fs.VolumeManager;
 import org.apache.accumulo.server.rpc.TServerUtils;
 import org.apache.accumulo.server.rpc.ThriftProcessorTypes;
+import org.apache.accumulo.tserver.log.DfsWalReader;
 import org.apache.accumulo.tserver.log.LogSorter;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -812,6 +816,15 @@ public class Compactor extends AbstractServer implements MetricsProducer, Compac
     }
   }
 
+  private WalReader buildWalReader() {
+    AccumuloConfiguration conf = getContext().getConfiguration();
+    var cryptoFactory = getContext().getCryptoFactory();
+    var env = new CryptoEnvironmentImpl(CryptoEnvironment.Scope.RECOVERY);
+    var cryptoService = cryptoFactory.getService(env, conf.getAllCryptoProperties());
+    return new DfsWalReader(cryptoService, conf);
+
+  }
+
   @Override
   public void run() {
 
@@ -831,7 +844,7 @@ public class Compactor extends AbstractServer implements MetricsProducer, Compac
 
     MetricsInfo metricsInfo = getContext().getMetricsInfo();
 
-    final LogSorter logSorter = new LogSorter(this);
+    final LogSorter logSorter = new LogSorter(this, buildWalReader());
     metricsInfo.addMetricsProducers(this, pausedMetrics, logSorter);
     metricsInfo.init(getServiceTags(clientAddress));
 
