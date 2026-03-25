@@ -85,8 +85,8 @@ public class DfsLoggerFactory implements WriteAheadLogFactory {
   }
 
   @Override
-  public WriteAheadLog fromLogEntry(LogEntry logEntry) {
-    return DfsLogger.fromLogEntry(logEntry);
+  public WriteAheadLog fromLogEntryPath(String logEntryPath) {
+    return DfsLogger.fromLogEntry(LogEntry.fromPath(logEntryPath));
   }
 
   @Override

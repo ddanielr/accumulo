@@ -331,7 +331,7 @@ public class Tablet extends TabletBase {
       // make some closed references that represent the recovered logs
       currentLogs = new HashSet<>();
       for (LogEntry logEntry : logEntries) {
-        currentLogs.add(tabletServer.getWalFactory().fromLogEntry(logEntry));
+        currentLogs.add(tabletServer.getWalFactory().fromLogEntryPath(logEntry.getPath()));
       }
 
       rebuildReferencedLogs();
@@ -1199,7 +1199,7 @@ public class Tablet extends TabletBase {
 
     if (TabletLogger.isWalRefLoggingEnabled() && !prev.equals(referencedLogs)) {
       TabletLogger.walRefsChanged(extent, referencedLogs.stream()
-          .map(wal -> new Path(wal.getLogEntry().getPath()).getName()).collect(toList()));
+          .map(wal -> new Path(wal.getLogEntryPath()).getName()).collect(toList()));
     }
 
   }
@@ -1223,7 +1223,7 @@ public class Tablet extends TabletBase {
         List<WriteAheadLog> oldClosed = closedLogs.subList(0, closedLogs.size() - maxLogs);
         for (WriteAheadLog closedLog : oldClosed) {
           if (currentLogs.contains(closedLog)) {
-            reason = "referenced at least one old write ahead log " + closedLog.getLogEntry();
+            reason = "referenced at least one old write ahead log " + closedLog.getLogEntryPath();
             break;
           }
         }
@@ -1251,13 +1251,15 @@ public class Tablet extends TabletBase {
       }
 
       for (WriteAheadLog logger : otherLogs) {
-        otherLogsCopy.add(logger.getLogEntry());
-        unusedLogs.add(logger.getLogEntry());
+        var logEntry = LogEntry.fromPath(logger.getLogEntryPath());
+        otherLogsCopy.add(logEntry);
+        unusedLogs.add(logEntry);
       }
 
       for (WriteAheadLog logger : currentLogs) {
-        currentLogsCopy.add(logger.getLogEntry());
-        unusedLogs.remove(logger.getLogEntry());
+        var logEntry = LogEntry.fromPath(logger.getLogEntryPath());
+        currentLogsCopy.add(logEntry);
+        unusedLogs.remove(logEntry);
       }
 
       if (!unusedLogs.isEmpty()) {

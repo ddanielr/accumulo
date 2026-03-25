@@ -54,6 +54,7 @@ import org.apache.accumulo.core.crypto.CryptoEnvironmentImpl;
 import org.apache.accumulo.core.crypto.CryptoUtils;
 import org.apache.accumulo.core.crypto.streams.NoFlushOutputStream;
 import org.apache.accumulo.core.data.Mutation;
+import org.apache.accumulo.core.data.TableId;
 import org.apache.accumulo.core.dataImpl.KeyExtent;
 import org.apache.accumulo.core.spi.crypto.CryptoEnvironment;
 import org.apache.accumulo.core.spi.crypto.CryptoEnvironment.Scope;
@@ -75,6 +76,7 @@ import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hdfs.DFSOutputStream;
 import org.apache.hadoop.hdfs.protocol.DatanodeInfo;
+import org.apache.hadoop.io.Text;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -406,8 +408,8 @@ public final class DfsLogger implements WriteAheadLog {
     return logEntry.toString();
   }
 
-  public LogEntry getLogEntry() {
-    return logEntry;
+  public String getLogEntryPath() {
+    return logEntry.getPath();
   }
 
   public Path getPath() {
@@ -460,14 +462,14 @@ public final class DfsLogger implements WriteAheadLog {
   }
 
   @Override
-  public WriteAheadLog.Operation defineTablet(long seq, int tabletId, KeyExtent keyExtent)
-      throws IOException {
+  public WriteAheadLog.Operation defineTablet(long seq, int tabletId, TableId tableId, Text endRow,
+      Text prevEndRow) throws IOException {
     // write this log to the METADATA table
     final LogFileKey key = new LogFileKey();
     key.setEvent(DEFINE_TABLET);
     key.setSeq(seq);
     key.setTabletId(tabletId);
-    key.setTablet(keyExtent);
+    key.setTablet(new KeyExtent(tableId, endRow, prevEndRow));
     return logKeyData(key, Durability.LOG);
   }
 

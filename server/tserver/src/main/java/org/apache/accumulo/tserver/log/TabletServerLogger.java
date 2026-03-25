@@ -206,10 +206,10 @@ public class TabletServerLogger {
    * @return the current log entry, or null if there is no current log
    */
   @Nullable
-  public LogEntry getLogEntry() {
+  public String getLogEntry() {
     logIdLock.readLock().lock();
     try {
-      return currentLog == null ? null : currentLog.getLogEntry();
+      return currentLog == null ? null : currentLog.getLogEntryPath();
     } finally {
       logIdLock.readLock().unlock();
     }
@@ -233,7 +233,7 @@ public class TabletServerLogger {
       if (next instanceof WriteAheadLog) {
         currentLog = (WriteAheadLog) next;
         logId.incrementAndGet();
-        log.info("Using next log {}", currentLog.getLogEntry());
+        log.info("Using next log {}", currentLog.getLogEntryPath());
 
         // When we successfully create a WAL, make sure to reset the Retry.
         if (createRetry != null) {
@@ -293,12 +293,12 @@ public class TabletServerLogger {
           continue;
         }
 
-        log.debug("Created next WAL {}", alog.getLogEntry());
+        log.debug("Created next WAL {}", alog.getLogEntryPath());
 
         try {
           tserver.addNewLogMarker(alog);
         } catch (Exception e) {
-          log.error("Failed to add new WAL marker for {}", alog.getLogEntry(), e);
+          log.error("Failed to add new WAL marker for {}", alog.getLogEntryPath(), e);
 
           try {
             // Intentionally not deleting walog because it may have been advertised in ZK. See
@@ -316,7 +316,7 @@ public class TabletServerLogger {
           try {
             tserver.walogClosed(alog);
           } catch (WalMarkerException | RuntimeException e2) {
-            log.error("Failed to close WAL that failed to open: {}", alog.getLogEntry(), e2);
+            log.error("Failed to close WAL that failed to open: {}", alog.getLogEntryPath(), e2);
           }
 
           try {
@@ -331,7 +331,7 @@ public class TabletServerLogger {
 
         try {
           while (!nextLog.offer(alog, 12, TimeUnit.HOURS)) {
-            log.info("Our WAL was not used for 12 hours: {}", alog.getLogEntry());
+            log.info("Our WAL was not used for 12 hours: {}", alog.getLogEntryPath());
           }
         } catch (InterruptedException e) {
           // This is a critical thread, so dying will log this then halt the VM.
@@ -353,7 +353,7 @@ public class TabletServerLogger {
       } catch (WriteAheadLog.LogClosedException ex) {
         // ignore
       } catch (IOException | RuntimeException ex) {
-        log.error("Unable to cleanly close log {}: {}", currentLog.getLogEntry(), ex, ex);
+        log.error("Unable to cleanly close log {}: {}", currentLog.getLogEntryPath(), ex, ex);
       } finally {
         try {
           this.tserver.walogClosed(currentLog);
@@ -406,7 +406,8 @@ public class TabletServerLogger {
                 // Scribble out a tablet definition and then write to the metadata table
                 write(singletonList(commitSession), false,
                     logger -> logger.defineTablet(commitSession.getWALogSeq(),
-                        commitSession.getLogId(), commitSession.getExtent()),
+                        commitSession.getLogId(), commitSession.getExtent().tableId(),
+                        commitSession.getExtent().endRow(), commitSession.getExtent().prevEndRow()),
                     writeRetry);
               } finally {
                 commitSession.finishUpdatingLogsUsed();

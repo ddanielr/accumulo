@@ -26,8 +26,8 @@ import java.util.List;
 
 import org.apache.accumulo.core.client.Durability;
 import org.apache.accumulo.core.data.Mutation;
-import org.apache.accumulo.core.dataImpl.KeyExtent;
-import org.apache.accumulo.core.tabletserver.log.LogEntry;
+import org.apache.accumulo.core.data.TableId;
+import org.apache.hadoop.io.Text;
 
 /**
  * Defines a potential abstraction interface for WALs. All write operations return a
@@ -38,13 +38,14 @@ import org.apache.accumulo.core.tabletserver.log.LogEntry;
 public interface WriteAheadLog extends Closeable {
 
   /* Static Identifier */
-  LogEntry getLogEntry();
+  String getLogEntryPath();
 
   // Number of serialized write operations (size-based rotations)
   long getWrites();
 
   // Write operations
-  WriteAheadLog.Operation defineTablet(long seq, int tabletId, KeyExtent extent) throws IOException;
+  WriteAheadLog.Operation defineTablet(long seq, int tabletId, TableId tableId, Text endRow,
+      Text prevEndRow) throws IOException;
 
   WriteAheadLog.Operation log(long seq, int tabletId, Mutation m, Durability d) throws IOException;
 

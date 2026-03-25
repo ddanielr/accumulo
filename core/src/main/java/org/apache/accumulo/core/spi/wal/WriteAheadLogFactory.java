@@ -24,7 +24,6 @@ import java.io.IOException;
 import java.util.Set;
 
 import org.apache.accumulo.core.spi.common.ServiceEnvironment;
-import org.apache.accumulo.core.tabletserver.log.LogEntry;
 
 /**
  * A Factory that returns a WriteAheadLog implementation based on the environment and configuration.
@@ -67,7 +66,7 @@ public interface WriteAheadLogFactory {
 
   WriteAheadLog createNew(String address) throws IOException;
 
-  WriteAheadLog fromLogEntry(LogEntry logEntry);
+  WriteAheadLog fromLogEntryPath(String logEntry);
 
   WalReader getReader();
 }

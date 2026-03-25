@@ -1052,7 +1052,7 @@ public class TabletServer extends AbstractServer implements TabletHostingServer 
     try {
       TServerInstance session = this.getTabletSession();
       for (WriteAheadLog candidate : eligible) {
-        var path = new Path(candidate.getLogEntry().getPath());
+        var path = new Path(candidate.getLogEntryPath());
         log.info("Marking {} as unreferenced", path);
         walMarker.walUnreferenced(session, path);
       }
@@ -1065,13 +1065,13 @@ public class TabletServer extends AbstractServer implements TabletHostingServer 
   }
 
   public void addNewLogMarker(WriteAheadLog copy) throws WalMarkerException {
-    var path = new Path(copy.getLogEntry().getPath());
+    var path = new Path(copy.getLogEntryPath());
     log.info("Writing log marker for {}", path);
     walMarker.addNewWalMarker(getTabletSession(), path);
   }
 
   public void walogClosed(WriteAheadLog currentLog) throws WalMarkerException {
-    var path = new Path(currentLog.getLogEntry().getPath());
+    var path = new Path(currentLog.getLogEntryPath());
     if (currentLog.getWrites() > 0) {
       int clSize;
       synchronized (closedLogs) {
