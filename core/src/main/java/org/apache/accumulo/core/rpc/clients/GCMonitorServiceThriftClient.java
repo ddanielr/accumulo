@@ -19,11 +19,12 @@
 package org.apache.accumulo.core.rpc.clients;
 
 import org.apache.accumulo.core.gc.thrift.GCMonitorService.Client;
+import org.apache.accumulo.core.lock.ServiceLockData.ThriftService;
 
 public class GCMonitorServiceThriftClient extends ThriftClientTypes<Client> {
 
   GCMonitorServiceThriftClient(String serviceName) {
-    super(serviceName, new Client.Factory());
+    super(serviceName, new Client.Factory(), ThriftService.GC);
   }
 
 }

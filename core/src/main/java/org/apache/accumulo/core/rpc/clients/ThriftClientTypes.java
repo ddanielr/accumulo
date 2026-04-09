@@ -24,6 +24,7 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import org.apache.accumulo.core.client.AccumuloException;
 import org.apache.accumulo.core.client.AccumuloSecurityException;
 import org.apache.accumulo.core.clientImpl.ClientContext;
+import org.apache.accumulo.core.lock.ServiceLockData.ThriftService;
 import org.apache.accumulo.core.manager.thrift.FateWorkerService;
 import org.apache.thrift.TException;
 import org.apache.thrift.TServiceClient;
@@ -86,10 +87,13 @@ public abstract class ThriftClientTypes<C extends TServiceClient> {
 
   private final String serviceName;
   private final TServiceClientFactory<C> clientFactory;
+  private final ThriftService thriftService;
 
-  protected ThriftClientTypes(String serviceName, TServiceClientFactory<C> factory) {
+  protected ThriftClientTypes(String serviceName, TServiceClientFactory<C> factory,
+      ThriftService service) {
     this.serviceName = serviceName;
     this.clientFactory = factory;
+    this.thriftService = service;
   }
 
   public final String getServiceName() {
@@ -98,6 +102,10 @@ public abstract class ThriftClientTypes<C extends TServiceClient> {
 
   public final TServiceClientFactory<C> getClientFactory() {
     return clientFactory;
+  }
+
+  public final ThriftService getThriftService() {
+    return thriftService;
   }
 
   public C getClient(TProtocol prot) {

@@ -61,10 +61,115 @@ import com.google.common.net.HostAndPort;
 
 public interface TServerClient<C extends TServiceClient> {
 
-  static final String DEBUG_HOST = "org.apache.accumulo.client.rpc.debug.host";
+  String DEBUG_HOST = "org.apache.accumulo.client.rpc.debug.host";
 
   Pair<String,C> getThriftServerConnection(ClientContext context, boolean preferCachedConnections)
       throws TTransportException;
+
+  /**
+   * Refactored version of getThriftServerConnection that uses only the ThriftService to determine
+   * which ServiceLockPaths to search. This eliminates the need for the ThriftClientTypes parameter
+   * by using ServiceLockPaths.getForService() to map ThriftService to the appropriate paths.
+   *
+   * @param LOG logger for diagnostic messages
+   * @param type the ThriftClientTypes (still needed for transport pool and client creation)
+   * @param context the client context
+   * @param preferCachedConnections whether to prefer cached connections
+   * @param warned atomic boolean to track whether we've warned about server availability
+   * @param service the ThriftService we're trying to connect to
+   * @return pair of server address and client
+   * @throws TTransportException if connection fails
+   */
+  default Pair<String,C> getThriftServerConnectionByService(Logger LOG, ThriftClientTypes<C> type,
+      ClientContext context, boolean preferCachedConnections, AtomicBoolean warned,
+      ThriftService service) throws TTransportException {
+    checkArgument(context != null, "context is null");
+
+    final String debugHost = System.getProperty(DEBUG_HOST, null);
+    final boolean debugHostSpecified = debugHost != null;
+
+    if (preferCachedConnections && !debugHostSpecified) {
+      Pair<String,TTransport> cachedTransport =
+          context.getTransportPool().getAnyCachedTransport(service);
+      if (cachedTransport != null) {
+        C client =
+            ThriftUtil.createClient(type, cachedTransport.getSecond(), context.getInstanceID());
+        warned.set(false);
+        return new Pair<>(cachedTransport.getFirst(), client);
+      }
+    }
+
+    final long rpcTimeout = context.getClientTimeoutInMillis();
+    final ZooCache zc = context.getZooCache();
+    final ServiceLockPaths sp = context.getServerPaths();
+
+    // Use the new getForService method to get paths based solely on ThriftService
+    AddressSelector selector = AddressSelector.all();
+
+    if (debugHostSpecified) {
+      HostAndPort hp = HostAndPort.fromString(debugHost);
+      selector = AddressSelector.exact(hp);
+    }
+
+    // Normal path: use getForService to get all paths that could provide this service
+    // Pass withLock=false to get all paths, then filter by lock presence below
+    final List<ServiceLockPath> serverPaths =
+        new ArrayList<>(sp.getForService(service, ResourceGroupPredicate.ANY, selector, false));
+
+    if (serverPaths.isEmpty()) {
+      if (warned.compareAndSet(false, true)) {
+        LOG.warn(
+            "There are no servers serving the {} service: check that zookeeper and accumulo are running.",
+            service);
+      }
+      throw new TTransportException("There are no servers for service: " + service);
+    }
+
+    Collections.shuffle(serverPaths, RANDOM.get());
+
+    for (ServiceLockPath path : serverPaths) {
+      Optional<ServiceLockData> data = zc.getLockData(path);
+      if (data != null && data.isPresent()) {
+        // Get the address for the specific service we're looking for
+        HostAndPort serverAddress = data.orElseThrow().getAddress(service);
+        if (serverAddress != null) {
+          try {
+            TTransport transport = context.getTransportPool().getTransport(service, serverAddress,
+                rpcTimeout, context, preferCachedConnections);
+            C client = ThriftUtil.createClient(type, transport, context.getInstanceID());
+            if (debugHostSpecified) {
+              LOG.info("Connecting to debug host: {}", debugHost);
+            }
+            warned.set(false);
+            return new Pair<>(serverAddress.toString(), client);
+          } catch (TTransportException e) {
+            if (debugHostSpecified) {
+              LOG.error(
+                  "Error creating transport to debug host: {}. If this server is"
+                      + " down, then you will need to remove or change the system property {}.",
+                  debugHost, DEBUG_HOST);
+            } else {
+              LOG.trace("Error creating transport to {}", serverAddress);
+            }
+          }
+        }
+      }
+    }
+
+    if (warned.compareAndSet(false, true)) {
+      LOG.warn("Failed to find an available server in the list of servers: {} for service: {}",
+          serverPaths, service);
+    }
+    // Need to throw a different exception, when a TTransportException is
+    // thrown below, then the operation will be retried endlessly.
+    if (debugHostSpecified) {
+      throw new UncheckedIOException("Error creating transport to debug host: " + debugHost
+          + ". If this server is down, then you will need to remove or change the system property "
+          + DEBUG_HOST + ".", new IOException(""));
+    } else {
+      throw new TTransportException("Failed to connect to any server for service " + service);
+    }
+  }
 
   default Pair<String,C> getThriftServerConnection(Logger LOG, ThriftClientTypes<C> type,
       ClientContext context, boolean preferCachedConnections, AtomicBoolean warned,
@@ -76,7 +181,7 @@ public interface TServerClient<C extends TServiceClient> {
 
     if (preferCachedConnections && !debugHostSpecified) {
       Pair<String,TTransport> cachedTransport =
-          context.getTransportPool().getAnyCachedTransport(type);
+          context.getTransportPool().getAnyCachedTransport(service);
       if (cachedTransport != null) {
         C client =
             ThriftUtil.createClient(type, cachedTransport.getSecond(), context.getInstanceID());
@@ -124,14 +229,14 @@ public interface TServerClient<C extends TServiceClient> {
         HostAndPort tserverClientAddress = data.orElseThrow().getAddress(service);
         if (tserverClientAddress != null) {
           try {
-            TTransport transport = context.getTransportPool().getTransport(type,
+            TTransport transport = context.getTransportPool().getTransport(service,
                 tserverClientAddress, rpcTimeout, context, preferCachedConnections);
             C client = ThriftUtil.createClient(type, transport, context.getInstanceID());
             if (type == ThriftClientTypes.CLIENT && debugHostSpecified) {
               LOG.info("Connecting to debug host: {}", debugHost);
             }
             warned.set(false);
-            return new Pair<String,C>(tserverClientAddress.toString(), client);
+            return new Pair<>(tserverClientAddress.toString(), client);
           } catch (TTransportException e) {
             if (type == ThriftClientTypes.CLIENT && debugHostSpecified) {
               LOG.error(
@@ -141,7 +246,6 @@ public interface TServerClient<C extends TServiceClient> {
             } else {
               LOG.trace("Error creating transport to {}", tserverClientAddress);
             }
-            continue;
           }
         }
       }

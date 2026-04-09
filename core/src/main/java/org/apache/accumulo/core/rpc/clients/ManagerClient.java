@@ -58,7 +58,7 @@ public interface ManagerClient<C extends TServiceClient> {
       return ThriftUtil.getClientNoTimeout(type, manager, context);
     } catch (TTransportException tte) {
       Throwable cause = tte.getCause();
-      if (cause != null && cause instanceof UnknownHostException) {
+      if (cause instanceof UnknownHostException) {
         // do not expect to recover from this
         throw new IllegalStateException(tte);
       }

@@ -22,16 +22,16 @@ import static java.util.Objects.requireNonNull;
 
 import java.util.Objects;
 
+import org.apache.accumulo.core.lock.ServiceLockData.ThriftService;
 import org.apache.accumulo.core.rpc.SaslConnectionParams;
 import org.apache.accumulo.core.rpc.SslConnectionParams;
-import org.apache.accumulo.core.rpc.clients.ThriftClientTypes;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.net.HostAndPort;
 
 @VisibleForTesting
 public final class ThriftTransportKey {
-  private final ThriftClientTypes<?> type;
+  private final ThriftService service;
   private final HostAndPort server;
   private final long timeout;
   private final SslConnectionParams sslParams;
@@ -40,18 +40,18 @@ public final class ThriftTransportKey {
   private final int hash;
 
   @VisibleForTesting
-  public ThriftTransportKey(ThriftClientTypes<?> type, HostAndPort server, long timeout,
+  public ThriftTransportKey(ThriftService service, HostAndPort server, long timeout,
       ClientContext context) {
-    this(type, server, timeout, context.getClientSslParams(), context.getSaslParams());
+    this(service, server, timeout, context.getClientSslParams(), context.getSaslParams());
   }
 
   /**
    * Visible only for testing
    */
-  ThriftTransportKey(ThriftClientTypes<?> type, HostAndPort server, long timeout,
+  ThriftTransportKey(ThriftService service, HostAndPort server, long timeout,
       SslConnectionParams sslParams, SaslConnectionParams saslParams) {
     requireNonNull(server, "location is null");
-    this.type = type;
+    this.service = service;
     this.server = server;
     this.timeout = timeout;
     this.sslParams = sslParams;
@@ -60,12 +60,12 @@ public final class ThriftTransportKey {
       // TSasl and TSSL transport factories don't play nicely together
       throw new IllegalArgumentException("Cannot use both SSL and SASL thrift transports");
     }
-    this.hash = Objects.hash(type, server, timeout, sslParams, saslParams);
+    this.hash = Objects.hash(service, server, timeout, sslParams, saslParams);
   }
 
   @VisibleForTesting
-  public ThriftClientTypes<?> getType() {
-    return type;
+  public ThriftService getService() {
+    return service;
   }
 
   @VisibleForTesting
@@ -91,7 +91,7 @@ public final class ThriftTransportKey {
     if (!(o instanceof ThriftTransportKey ttk)) {
       return false;
     }
-    return type.equals(ttk.type) && server.equals(ttk.server) && timeout == ttk.timeout
+    return service.equals(ttk.service) && server.equals(ttk.server) && timeout == ttk.timeout
         && (!isSsl() || (ttk.isSsl() && sslParams.equals(ttk.sslParams)))
         && (!isSasl() || (ttk.isSasl() && saslParams.equals(ttk.saslParams)));
   }
@@ -109,7 +109,7 @@ public final class ThriftTransportKey {
     } else if (isSasl()) {
       prefix = saslParams + ":";
     }
-    return prefix + type + ":" + server + " (" + timeout + ")";
+    return prefix + service + ":" + server + " (" + timeout + ")";
   }
 
   public SslConnectionParams getSslParams() {

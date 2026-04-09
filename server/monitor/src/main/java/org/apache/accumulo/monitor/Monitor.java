@@ -324,7 +324,7 @@ public class Monitor extends AbstractServer implements Connection.Listener {
       ZooReaderWriter zk = context.getZooSession().asReaderWriter();
       var path = context.getServerPaths().createGarbageCollectorPath();
       List<String> locks = ServiceLock.validateAndSort(path, zk.getChildren(path.toString()));
-      if (locks != null && !locks.isEmpty()) {
+      if (!locks.isEmpty()) {
         address = ServiceLockData.parse(zk.getData(path + "/" + locks.get(0)))
             .map(sld -> sld.getAddress(ThriftService.GC)).orElse(null);
         if (address == null) {

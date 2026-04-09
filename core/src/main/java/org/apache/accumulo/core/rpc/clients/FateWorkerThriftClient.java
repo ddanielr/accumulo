@@ -18,6 +18,7 @@
  */
 package org.apache.accumulo.core.rpc.clients;
 
+import org.apache.accumulo.core.lock.ServiceLockData.ThriftService;
 import org.apache.accumulo.core.manager.thrift.FateWorkerService;
 
 /**
@@ -26,6 +27,6 @@ import org.apache.accumulo.core.manager.thrift.FateWorkerService;
  */
 public class FateWorkerThriftClient extends ThriftClientTypes<FateWorkerService.Client> {
   FateWorkerThriftClient(String serviceName) {
-    super(serviceName, new FateWorkerService.Client.Factory());
+    super(serviceName, new FateWorkerService.Client.Factory(), ThriftService.FATE_WORKER);
   }
 }

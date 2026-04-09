@@ -361,6 +361,93 @@ public class ServiceLockPaths {
     return get(Constants.ZDEADTSERVERS, resourceGroupPredicate, address, withLock);
   }
 
+  /**
+   * Get ServiceLockPaths for the given ThriftService. This method enables determining the correct
+   * ServiceLockPath search strategy based solely on the ThriftService, which is useful for
+   * refactoring client connection code to eliminate the need for ThriftClientTypes parameter.
+   *
+   * @param service the ThriftService to get paths for
+   * @param resourceGroupPredicate predicate to filter resource groups
+   * @param addressSelector selector for specific addresses
+   * @param withLock true to only return paths with active locks
+   * @return set of ServiceLockPaths that could provide the requested service
+   */
+  public Set<ServiceLockPath> getForService(ServiceLockData.ThriftService service,
+      ResourceGroupPredicate resourceGroupPredicate, AddressSelector addressSelector,
+      boolean withLock) {
+    requireNonNull(service);
+    Set<ServiceLockPath> result = new java.util.HashSet<>();
+
+    switch (service) {
+      case MANAGER:
+        ServiceLockPath managerPath = getManager(withLock);
+        if (managerPath != null) {
+          result.add(managerPath);
+        }
+        break;
+
+      case GC:
+        ServiceLockPath gcPath = getGarbageCollector(withLock);
+        if (gcPath != null) {
+          result.add(gcPath);
+        }
+        break;
+
+      case TSERV:
+      case TABLET_SCAN:
+      case TABLET_INGEST:
+      case TABLET_MANAGEMENT:
+        // All tablet server services come from tablet servers
+        result.addAll(getTabletServer(resourceGroupPredicate, addressSelector, withLock));
+        break;
+
+      case CLIENT:
+        // CLIENT service can be provided by tablet servers, compactors, or scan servers
+        result.addAll(getTabletServer(resourceGroupPredicate, addressSelector, withLock));
+        result.addAll(getCompactor(resourceGroupPredicate, addressSelector, withLock));
+        result.addAll(getScanServer(resourceGroupPredicate, addressSelector, withLock));
+        break;
+
+      case COMPACTOR:
+        result.addAll(getCompactor(resourceGroupPredicate, addressSelector, withLock));
+        break;
+
+      case COORDINATOR:
+        // Coordinator service - currently not implemented in ServiceLockPaths
+        // This would need to be added when coordinator support is implemented
+        break;
+
+      case FATE_CLIENT:
+      case FATE_WORKER:
+        // FATE services come from manager
+        ServiceLockPath fatePath = getManager(withLock);
+        if (fatePath != null) {
+          result.add(fatePath);
+        }
+        break;
+
+      case NONE:
+        // NONE is not a real service, return empty set
+        break;
+
+      default:
+        throw new IllegalArgumentException("Unhandled ThriftService: " + service);
+    }
+
+    return result;
+  }
+
+  /**
+   * Convenience method to get ServiceLockPaths for a service with default parameters (any resource
+   * group, all addresses, with lock required).
+   *
+   * @param service the ThriftService to get paths for
+   * @return set of ServiceLockPaths that could provide the requested service
+   */
+  public Set<ServiceLockPath> getForService(ServiceLockData.ThriftService service) {
+    return getForService(service, ResourceGroupPredicate.ANY, AddressSelector.all(), true);
+  }
+
   public interface ResourceGroupPredicate extends Predicate<ResourceGroupId> {
     ResourceGroupPredicate ANY = rgid -> true;
     ResourceGroupPredicate DEFAULT_RG_ONLY = ResourceGroupId.DEFAULT::equals;
