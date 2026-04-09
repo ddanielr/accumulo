@@ -61,6 +61,7 @@ import com.google.common.net.HostAndPort;
 
 public interface TServerClient<C extends TServiceClient> {
 
+  // Append client Type to the end and then parse for specific value
   static final String DEBUG_HOST = "org.apache.accumulo.client.rpc.debug.host";
 
   Pair<String,C> getThriftServerConnection(ClientContext context, boolean preferCachedConnections)
@@ -124,8 +125,10 @@ public interface TServerClient<C extends TServiceClient> {
         HostAndPort tserverClientAddress = data.orElseThrow().getAddress(service);
         if (tserverClientAddress != null) {
           try {
+            // Needs to support timeout being passed in.
             TTransport transport = context.getTransportPool().getTransport(type,
                 tserverClientAddress, rpcTimeout, context, preferCachedConnections);
+
             C client = ThriftUtil.createClient(type, transport, context.getInstanceID());
             if (type == ThriftClientTypes.CLIENT && debugHostSpecified) {
               LOG.info("Connecting to debug host: {}", debugHost);

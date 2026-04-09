@@ -337,7 +337,7 @@ public class Fate extends ServerKeywordExecutable<FateOpts> {
       throws AccumuloException {
     FateService.Client client = null;
     try {
-      client = ThriftClientTypes.FATE.getConnectionWithRetry(context);
+      client = ThriftClientTypes.FATE_CLIENT.getConnectionWithRetry(context);
       return client.cancelFateOperation(TraceUtil.traceInfo(), context.rpcCreds(), thriftFateId);
     } catch (Exception e) {
       throw new AccumuloException(e);

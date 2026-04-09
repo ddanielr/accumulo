@@ -24,6 +24,7 @@ import org.apache.accumulo.core.client.AccumuloException;
 import org.apache.accumulo.core.client.AccumuloSecurityException;
 import org.apache.accumulo.core.clientImpl.ClientContext;
 import org.apache.accumulo.core.lock.ServiceLockData.ThriftService;
+import org.apache.accumulo.core.rpc.RpcService;
 import org.apache.accumulo.core.tablet.thrift.TabletManagementClientService.Client;
 import org.apache.accumulo.core.util.Pair;
 import org.apache.thrift.transport.TTransportException;
@@ -41,8 +42,8 @@ public class TabletManagementClientServiceThriftClient extends ThriftClientTypes
       LoggerFactory.getLogger(TabletManagementClientServiceThriftClient.class);
   private final AtomicBoolean warnedAboutTServersBeingDown = new AtomicBoolean(false);
 
-  public TabletManagementClientServiceThriftClient(String serviceName) {
-    super(serviceName, new Client.Factory());
+  public TabletManagementClientServiceThriftClient(RpcService service) {
+    super(service, new Client.Factory());
   }
 
   @Override

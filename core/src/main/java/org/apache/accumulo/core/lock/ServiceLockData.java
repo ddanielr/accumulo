@@ -53,7 +53,8 @@ public class ServiceLockData implements Comparable<ServiceLockData> {
     TABLET_INGEST,
     TABLET_MANAGEMENT,
     TABLET_SCAN,
-    TSERV
+    TSERV,
+    SERVER_PROCESS
   }
 
   /**
@@ -124,7 +125,7 @@ public class ServiceLockData implements Comparable<ServiceLockData> {
   }
 
   /**
-   * A set of ServiceDescriptor's
+   * A set of ServiceDescriptors
    */
   public static class ServiceDescriptors {
     private final Set<ServiceDescriptor> descriptors;
