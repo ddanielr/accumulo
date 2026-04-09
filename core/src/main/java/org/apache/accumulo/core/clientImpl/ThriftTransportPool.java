@@ -42,8 +42,8 @@ import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
+import org.apache.accumulo.core.lock.ServiceLockData.ThriftService;
 import org.apache.accumulo.core.rpc.ThriftUtil;
-import org.apache.accumulo.core.rpc.clients.ThriftClientTypes;
 import org.apache.accumulo.core.util.Pair;
 import org.apache.accumulo.core.util.Timer;
 import org.apache.accumulo.core.util.threads.Threads;
@@ -128,10 +128,10 @@ public class ThriftTransportPool {
     return pool;
   }
 
-  public TTransport getTransport(ThriftClientTypes<?> type, HostAndPort location, long milliseconds,
+  public TTransport getTransport(ThriftService service, HostAndPort location, long milliseconds,
       ClientContext context, boolean preferCached) throws TTransportException {
 
-    ThriftTransportKey cacheKey = new ThriftTransportKey(type, location, milliseconds, context);
+    ThriftTransportKey cacheKey = new ThriftTransportKey(service, location, milliseconds, context);
     if (preferCached) {
       CachedConnection connection = connectionPool.reserveAny(cacheKey);
       if (connection != null) {
@@ -142,12 +142,12 @@ public class ThriftTransportPool {
     return createNewTransport(cacheKey);
   }
 
-  public Pair<String,TTransport> getAnyCachedTransport(ThriftClientTypes<?> type) {
+  public Pair<String,TTransport> getAnyCachedTransport(ThriftService service) {
 
     final List<ThriftTransportKey> serversSet = new ArrayList<>();
 
     for (ThriftTransportKey ttk : connectionPool.getThriftTransportKeys()) {
-      if (ttk.getType().equals(type)) {
+      if (ttk.getService().equals(service)) {
         serversSet.add(ttk);
       }
     }

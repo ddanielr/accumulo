@@ -37,13 +37,13 @@ public class ClientServiceThriftClient extends ThriftClientTypes<Client>
   private final AtomicBoolean warnedAboutTServersBeingDown = new AtomicBoolean(false);
 
   ClientServiceThriftClient(String serviceName) {
-    super(serviceName, new Client.Factory());
+    super(serviceName, new Client.Factory(), ThriftService.CLIENT);
   }
 
   @Override
   public Pair<String,Client> getThriftServerConnection(ClientContext context,
       boolean preferCachedConnections) throws TTransportException {
-    return getThriftServerConnection(LOG, this, context, preferCachedConnections,
+    return getThriftServerConnectionByService(LOG, this, context, preferCachedConnections,
         warnedAboutTServersBeingDown, ThriftService.CLIENT);
   }
 

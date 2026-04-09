@@ -42,13 +42,13 @@ public class TabletManagementClientServiceThriftClient extends ThriftClientTypes
   private final AtomicBoolean warnedAboutTServersBeingDown = new AtomicBoolean(false);
 
   public TabletManagementClientServiceThriftClient(String serviceName) {
-    super(serviceName, new Client.Factory());
+    super(serviceName, new Client.Factory(), ThriftService.TABLET_MANAGEMENT);
   }
 
   @Override
   public Pair<String,Client> getThriftServerConnection(ClientContext context,
       boolean preferCachedConnections) throws TTransportException {
-    return getThriftServerConnection(LOG, this, context, preferCachedConnections,
+    return getThriftServerConnectionByService(LOG, this, context, preferCachedConnections,
         warnedAboutTServersBeingDown, ThriftService.TABLET_MANAGEMENT);
   }
 

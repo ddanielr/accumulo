@@ -41,7 +41,7 @@ public class ServiceLockData implements Comparable<ServiceLockData> {
   /**
    * Thrift Service list
    */
-  public static enum ThriftService {
+  public enum ThriftService {
     CLIENT,
     COORDINATOR,
     COMPACTOR,

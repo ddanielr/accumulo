@@ -286,7 +286,7 @@ public class ClientContext implements AccumuloClient {
     this.namespaceops = new NamespaceOperationsImpl(this, tableops);
     this.serverPaths = Suppliers.memoize(() -> new ServiceLockPaths(this.getZooCache()));
     if (ueh == Threads.UEH) {
-      clientThreadPools = () -> ThreadPools.getServerThreadPools();
+      clientThreadPools = ThreadPools::getServerThreadPools;
     } else {
       // Provide a default UEH that just logs the error
       if (ueh == null) {

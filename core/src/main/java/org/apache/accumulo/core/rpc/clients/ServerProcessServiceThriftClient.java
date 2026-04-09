@@ -22,6 +22,7 @@ import java.io.UncheckedIOException;
 import java.net.UnknownHostException;
 
 import org.apache.accumulo.core.clientImpl.ClientContext;
+import org.apache.accumulo.core.lock.ServiceLockData.ThriftService;
 import org.apache.accumulo.core.process.thrift.ServerProcessService.Client;
 import org.apache.accumulo.core.rpc.ThriftUtil;
 import org.apache.thrift.transport.TTransportException;
@@ -32,7 +33,7 @@ import com.google.common.net.HostAndPort;
 public class ServerProcessServiceThriftClient extends ThriftClientTypes<Client> {
 
   protected ServerProcessServiceThriftClient(String serviceName) {
-    super(serviceName, new Client.Factory());
+    super(serviceName, new Client.Factory(), ThriftService.NONE);
   }
 
   public Client getServerProcessConnection(ClientContext context, Logger log, String hostname,

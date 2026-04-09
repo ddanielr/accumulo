@@ -182,24 +182,31 @@ public class ThriftServiceMappingsIT extends AccumuloClusterHarness {
       log.info("  {} -> {}", entry.getKey(), entry.getValue());
     }
 
+    // Validate the Manager
     validateMapping(serviceToPathType, ThriftService.MANAGER, Set.of(Constants.ZMANAGER_LOCK));
     validateMapping(serviceToPathType, ThriftService.COORDINATOR, Set.of(Constants.ZMANAGER_LOCK));
-    validateMapping(serviceToPathType, ThriftService.GC, Set.of(Constants.ZGC_LOCK));
-    validateMapping(serviceToPathType, ThriftService.TSERV, Set.of(Constants.ZTSERVERS));
+    validateMapping(serviceToPathType, ThriftService.FATE_CLIENT, Set.of(Constants.ZMANAGER_LOCK));
+
+    // Validate the client
     validateMapping(serviceToPathType, ThriftService.CLIENT,
         Set.of(Constants.ZCOMPACTORS, Constants.ZSSERVERS, Constants.ZTSERVERS));
-    validateMapping(serviceToPathType, ThriftService.COMPACTOR, Set.of(Constants.ZCOMPACTORS));
 
-    validateMapping(serviceToPathType, ThriftService.TABLET_SCAN,
-        Set.of(Constants.ZSSERVERS, Constants.ZTSERVERS));
+    // Validate the tserver
+    validateMapping(serviceToPathType, ThriftService.TSERV, Set.of(Constants.ZTSERVERS));
     validateMapping(serviceToPathType, ThriftService.TABLET_INGEST, Set.of(Constants.ZTSERVERS));
     validateMapping(serviceToPathType, ThriftService.TABLET_MANAGEMENT,
         Set.of(Constants.ZTSERVERS));
 
+    // Validate tablet scanning
+    validateMapping(serviceToPathType, ThriftService.TABLET_SCAN,
+        Set.of(Constants.ZSSERVERS, Constants.ZTSERVERS));
+
     // Handle the rest
-    validateMapping(serviceToPathType, ThriftService.FATE_CLIENT, Set.of(Constants.ZMANAGER_LOCK));
+    validateMapping(serviceToPathType, ThriftService.GC, Set.of(Constants.ZGC_LOCK));
+    validateMapping(serviceToPathType, ThriftService.COMPACTOR, Set.of(Constants.ZCOMPACTORS));
     validateMapping(serviceToPathType, ThriftService.FATE_WORKER,
         Set.of(Constants.ZMANAGER_ASSISTANT_LOCK));
+
     assertFalse(serviceToPathType.containsKey(ThriftService.NONE));
 
     log.info("Total ThriftServices discovered: {}", serviceToPathType.size());
@@ -214,59 +221,65 @@ public class ThriftServiceMappingsIT extends AccumuloClusterHarness {
   public void testServiceLockPathFromThriftServiceOnly() {
     ServiceLockPaths paths = getServerContext().getServerPaths();
 
-    Set<ServiceLockPath> managerPaths =
-        getServiceLockPathsForThriftService(ThriftService.MANAGER, paths);
+    Set<ServiceLockPath> managerPaths = paths.getForService(ThriftService.MANAGER,
+        ResourceGroupPredicate.ANY, AddressSelector.all(), true);
     assertNotNull(managerPaths);
     assertFalse(managerPaths.isEmpty());
 
-    Set<ServiceLockPath> gcPaths = getServiceLockPathsForThriftService(ThriftService.GC, paths);
+    Set<ServiceLockPath> gcPaths = paths.getForService(ThriftService.GC, ResourceGroupPredicate.ANY,
+        AddressSelector.all(), true);
     assertNotNull(gcPaths);
     assertFalse(gcPaths.isEmpty());
 
-    Set<ServiceLockPath> tservPaths =
-        getServiceLockPathsForThriftService(ThriftService.TSERV, paths);
+    Set<ServiceLockPath> tservPaths = paths.getForService(ThriftService.TSERV,
+        ResourceGroupPredicate.ANY, AddressSelector.all(), true);
     assertNotNull(tservPaths);
     assertFalse(tservPaths.isEmpty());
 
-    Set<ServiceLockPath> clientPaths =
-        getServiceLockPathsForThriftService(ThriftService.CLIENT, paths);
+    Set<ServiceLockPath> clientPaths = paths.getForService(ThriftService.CLIENT,
+        ResourceGroupPredicate.ANY, AddressSelector.all(), true);
     assertNotNull(clientPaths);
     assertFalse(clientPaths.isEmpty());
 
-    Set<ServiceLockPath> coorPaths =
-        getServiceLockPathsForThriftService(ThriftService.COORDINATOR, paths);
+    Set<ServiceLockPath> coorPaths = paths.getForService(ThriftService.COORDINATOR,
+        ResourceGroupPredicate.ANY, AddressSelector.all(), true);
     assertNotNull(coorPaths);
     assertFalse(coorPaths.isEmpty());
 
-    Set<ServiceLockPath> fateWorkerPaths =
-        getServiceLockPathsForThriftService(ThriftService.FATE_WORKER, paths);
+    Set<ServiceLockPath> fateWorkerPaths = paths.getForService(ThriftService.FATE_WORKER,
+        ResourceGroupPredicate.ANY, AddressSelector.all(), true);
     assertNotNull(fateWorkerPaths);
     assertFalse(fateWorkerPaths.isEmpty());
 
-    Set<ServiceLockPath> fateClientPaths =
-        getServiceLockPathsForThriftService(ThriftService.FATE_CLIENT, paths);
+    Set<ServiceLockPath> fateClientPaths = paths.getForService(ThriftService.FATE_CLIENT,
+        ResourceGroupPredicate.ANY, AddressSelector.all(), true);
     assertNotNull(fateClientPaths);
     assertFalse(fateClientPaths.isEmpty());
 
-    Set<ServiceLockPath> compactorPaths =
-        getServiceLockPathsForThriftService(ThriftService.COMPACTOR, paths);
+    Set<ServiceLockPath> compactorPaths = paths.getForService(ThriftService.COMPACTOR,
+        ResourceGroupPredicate.ANY, AddressSelector.all(), true);
     assertNotNull(compactorPaths);
     assertFalse(compactorPaths.isEmpty());
 
-    Set<ServiceLockPath> tabletIngestPaths =
-        getServiceLockPathsForThriftService(ThriftService.TABLET_INGEST, paths);
+    Set<ServiceLockPath> tabletIngestPaths = paths.getForService(ThriftService.TABLET_INGEST,
+        ResourceGroupPredicate.ANY, AddressSelector.all(), true);
     assertNotNull(tabletIngestPaths);
     assertFalse(tabletIngestPaths.isEmpty());
 
-    Set<ServiceLockPath> tabletMgmtPaths =
-        getServiceLockPathsForThriftService(ThriftService.TABLET_MANAGEMENT, paths);
+    Set<ServiceLockPath> tabletMgmtPaths = paths.getForService(ThriftService.TABLET_MANAGEMENT,
+        ResourceGroupPredicate.ANY, AddressSelector.all(), true);
     assertNotNull(tabletMgmtPaths);
     assertFalse(tabletMgmtPaths.isEmpty());
 
-    Set<ServiceLockPath> tabletScanPaths =
-        getServiceLockPathsForThriftService(ThriftService.TABLET_SCAN, paths);
+    Set<ServiceLockPath> tabletScanPaths = paths.getForService(ThriftService.TABLET_SCAN,
+        ResourceGroupPredicate.ANY, AddressSelector.all(), true);
     assertNotNull(tabletScanPaths);
     assertFalse(tabletScanPaths.isEmpty());
+
+    Set<ServiceLockPath> noneScanPaths = paths.getForService(ThriftService.NONE,
+        ResourceGroupPredicate.ANY, AddressSelector.all(), true);
+    assertNotNull(noneScanPaths);
+    assertTrue(noneScanPaths.isEmpty());
   }
 
   private void checkServiceLockForThriftServices(ZooCache zc, ServiceLockPath path,
@@ -279,7 +292,7 @@ public class ThriftServiceMappingsIT extends AccumuloClusterHarness {
     Optional<ServiceLockData> lockData = ServiceLock.getLockData(zc, path, stat);
 
     ServiceLockData data = lockData.orElseThrow();
-    // ServiceLockData contains ServiceDescriptors, each with a ThriftService
+    // ServiceLockData contains ServiceDescriptors which list one or more ThriftServices
     // We need to check all possible ThriftService values to see which ones have data
     for (ThriftService service : ThriftService.values()) {
       if (data.getAddressString(service) != null) {
@@ -369,71 +382,4 @@ public class ThriftServiceMappingsIT extends AccumuloClusterHarness {
       log.info("  {} provides {} services: {}", serverType, services.size(), services);
     }
   }
-
-  /**
-   * Code of getConnectionService mapping code
-   */
-  private Set<ServiceLockPath> getServiceLockPathsForThriftService(ThriftService service,
-      ServiceLockPaths paths) {
-    Set<ServiceLockPath> result = new HashSet<>();
-
-    switch (service) {
-      case MANAGER:
-        ServiceLockPath managerPath = paths.getManager(true);
-        if (managerPath != null) {
-          result.add(managerPath);
-        }
-        break;
-
-      case GC:
-        ServiceLockPath gcPath = paths.getGarbageCollector(true);
-        if (gcPath != null) {
-          result.add(gcPath);
-        }
-        break;
-
-      case TSERV:
-      case TABLET_SCAN:
-      case TABLET_INGEST:
-      case TABLET_MANAGEMENT:
-        // All tablet server services come from tablet servers
-        result
-            .addAll(paths.getTabletServer(ResourceGroupPredicate.ANY, AddressSelector.all(), true));
-        break;
-
-      case CLIENT:
-        // CLIENT service can be provided by tablet servers, compactors, or scan servers
-        result
-            .addAll(paths.getTabletServer(ResourceGroupPredicate.ANY, AddressSelector.all(), true));
-        result.addAll(paths.getCompactor(ResourceGroupPredicate.ANY, AddressSelector.all(), true));
-        result.addAll(paths.getScanServer(ResourceGroupPredicate.ANY, AddressSelector.all(), true));
-        break;
-
-      case COMPACTOR:
-        result.addAll(paths.getCompactor(ResourceGroupPredicate.ANY, AddressSelector.all(), true));
-        break;
-
-      case COORDINATOR:
-        // Coordinator service (if it exists) - would need to add support in ServiceLockPaths
-        result.add(paths.getManager(true));
-        break;
-
-      case FATE_CLIENT:
-      case FATE_WORKER:
-        // FATE services come from manager
-        result.addAll(paths.getAssistantManagers(AddressSelector.all(), true));
-        break;
-
-      case NONE:
-        // NONE is not a real service
-        break;
-
-      default:
-        log.warn("Unhandled ThriftService: {}", service);
-        break;
-    }
-
-    return result;
-  }
-
 }

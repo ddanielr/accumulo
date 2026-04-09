@@ -23,7 +23,6 @@ import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 import org.apache.accumulo.core.client.Accumulo;
 import org.apache.accumulo.core.client.AccumuloClient;
@@ -33,7 +32,7 @@ import org.apache.accumulo.core.clientImpl.ThriftTransportKey;
 import org.apache.accumulo.core.clientImpl.ThriftTransportPool;
 import org.apache.accumulo.core.conf.ConfigurationTypeHelper;
 import org.apache.accumulo.core.conf.Property;
-import org.apache.accumulo.core.rpc.clients.ThriftClientTypes;
+import org.apache.accumulo.core.lock.ServiceLockData.ThriftService;
 import org.apache.accumulo.core.util.Pair;
 import org.apache.accumulo.harness.AccumuloClusterHarness;
 import org.apache.accumulo.test.util.Wait;
@@ -63,10 +62,10 @@ public class TransportCachingIT extends AccumuloClusterHarness {
           ConfigurationTypeHelper.getTimeInMillis(Property.GENERAL_RPC_TIMEOUT.getDefaultValue());
 
       List<ThriftTransportKey> servers =
-          client.instanceOperations().getServers(ServerId.Type.TABLET_SERVER).stream().map(tsi -> {
-            return new ThriftTransportKey(ThriftClientTypes.CLIENT,
-                HostAndPort.fromParts(tsi.getHost(), tsi.getPort()), rpcTimeout, context);
-          }).collect(Collectors.toList());
+          client.instanceOperations().getServers(ServerId.Type.TABLET_SERVER).stream()
+              .map(tsi -> new ThriftTransportKey(ThriftService.CLIENT,
+                  HostAndPort.fromParts(tsi.getHost(), tsi.getPort()), rpcTimeout, context))
+              .toList();
 
       // only want to use one server for all subsequent test
       ThriftTransportKey ttk = servers.get(0);
@@ -113,14 +112,14 @@ public class TransportCachingIT extends AccumuloClusterHarness {
   private TTransport getAnyTransport(ThriftTransportKey ttk, ThriftTransportPool pool,
       boolean preferCached) {
     if (preferCached) {
-      Pair<String,TTransport> cached = pool.getAnyCachedTransport(ttk.getType());
+      Pair<String,TTransport> cached = pool.getAnyCachedTransport(ttk.getService());
       if (cached != null) {
         return cached.getSecond();
       }
     }
     try {
-      return pool.getTransport(ttk.getType(), ttk.getServer(), ttk.getTimeout(), getServerContext(),
-          preferCached);
+      return pool.getTransport(ttk.getService(), ttk.getServer(), ttk.getTimeout(),
+          getServerContext(), preferCached);
     } catch (TTransportException e) {
       log.warn("Failed to obtain transport to {}", ttk.getServer());
     }
