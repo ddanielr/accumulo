@@ -440,7 +440,7 @@ public class ServiceLockPaths {
         results.add(slp);
       } else {
         Optional<ServiceLockData> sld = ServiceLock.getLockData(zooCache, slp, stat);
-        if (!sld.isEmpty()) {
+        if (sld.isPresent()) {
           results.add(slp);
         }
       }

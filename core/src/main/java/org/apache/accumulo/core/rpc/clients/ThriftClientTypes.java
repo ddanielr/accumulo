@@ -21,8 +21,6 @@ package org.apache.accumulo.core.rpc.clients;
 import static com.google.common.util.concurrent.Uninterruptibles.sleepUninterruptibly;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
-import org.apache.accumulo.core.client.AccumuloException;
-import org.apache.accumulo.core.client.AccumuloSecurityException;
 import org.apache.accumulo.core.clientImpl.ClientContext;
 import org.apache.accumulo.core.compaction.thrift.CompactionCoordinatorService;
 import org.apache.accumulo.core.compaction.thrift.CompactorService;
@@ -31,7 +29,6 @@ import org.apache.accumulo.core.manager.thrift.FateWorkerService;
 import org.apache.accumulo.core.rpc.RpcService;
 import org.apache.accumulo.core.tabletingest.thrift.TabletIngestClientService;
 import org.apache.accumulo.core.tabletscan.thrift.TabletScanClientService;
-import org.apache.thrift.TException;
 import org.apache.thrift.TServiceClient;
 import org.apache.thrift.TServiceClientFactory;
 import org.apache.thrift.protocol.TMultiplexedProtocol;
@@ -75,35 +72,20 @@ public class ThriftClientTypes<C extends TServiceClient> {
   public static final ThriftClientTypes<FateWorkerService.Client> FATE_WORKER =
       new ThriftClientTypes<>(RpcService.FATE_WORKER, new FateWorkerService.Client.Factory());
 
-  /**
-   * execute method with supplied client returning object of type R
-   *
-   * @param <R> return type
-   * @param <C> client type
-   */
-  public interface Exec<R,C> {
-    R execute(C client) throws TException;
-  }
-
-  /**
-   * execute method with supplied client
-   *
-   * @param <C> client type
-   */
-  public interface ExecVoid<C> {
-    void execute(C client) throws TException;
-  }
-
-  private final RpcService serviceName;
+  private final RpcService service;
   private final TServiceClientFactory<C> clientFactory;;
 
-  protected ThriftClientTypes(RpcService serviceName, TServiceClientFactory<C> factory) {
-    this.serviceName = serviceName;
+  protected ThriftClientTypes(RpcService service, TServiceClientFactory<C> factory) {
+    this.service = service;
     this.clientFactory = factory;
   }
 
   public final String getServiceName() {
-    return serviceName.name();
+    return service.name();
+  }
+
+  public final RpcService getService() {
+    return service;
   }
 
   public final TServiceClientFactory<C> getClientFactory() {
@@ -127,16 +109,6 @@ public class ThriftClientTypes<C extends TServiceClient> {
       }
       sleepUninterruptibly(250, MILLISECONDS);
     }
-  }
-
-  public <R> R execute(ClientContext context, Exec<R,C> exec)
-      throws AccumuloException, AccumuloSecurityException {
-    throw new UnsupportedOperationException("This method has not been implemented");
-  }
-
-  public void executeVoid(ClientContext context, ExecVoid<C> exec)
-      throws AccumuloException, AccumuloSecurityException {
-    throw new UnsupportedOperationException("This method has not been implemented");
   }
 
   @Override

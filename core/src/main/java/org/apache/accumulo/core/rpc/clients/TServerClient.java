@@ -40,14 +40,12 @@ import org.apache.accumulo.core.clientImpl.ClientContext;
 import org.apache.accumulo.core.clientImpl.thrift.ThriftSecurityException;
 import org.apache.accumulo.core.clientImpl.thrift.ThriftTableOperationException;
 import org.apache.accumulo.core.lock.ServiceLockData;
-import org.apache.accumulo.core.lock.ServiceLockData.ThriftService;
 import org.apache.accumulo.core.lock.ServiceLockPaths;
 import org.apache.accumulo.core.lock.ServiceLockPaths.AddressSelector;
 import org.apache.accumulo.core.lock.ServiceLockPaths.ResourceGroupPredicate;
 import org.apache.accumulo.core.lock.ServiceLockPaths.ServiceLockPath;
+import org.apache.accumulo.core.rpc.RpcService;
 import org.apache.accumulo.core.rpc.ThriftUtil;
-import org.apache.accumulo.core.rpc.clients.ThriftClientTypes.Exec;
-import org.apache.accumulo.core.rpc.clients.ThriftClientTypes.ExecVoid;
 import org.apache.accumulo.core.util.Pair;
 import org.apache.accumulo.core.zookeeper.ZooCache;
 import org.apache.thrift.TApplicationException;
@@ -64,12 +62,39 @@ public interface TServerClient<C extends TServiceClient> {
   // Append client Type to the end and then parse for specific value
   static final String DEBUG_HOST = "org.apache.accumulo.client.rpc.debug.host";
 
+  RpcService getService();
+
+  /**
+   * execute method with supplied client returning object of type R
+   *
+   * @param <R> return type
+   * @param <C> client type
+   */
+  public interface Exec<R,C> {
+    R execute(C client) throws TException;
+  }
+
+  /**
+   * execute method with supplied client
+   *
+   * @param <C> client type
+   */
+  public interface ExecVoid<C> {
+    void execute(C client) throws TException;
+  }
+
+  <R> R execute(ClientContext context, Exec<R,C> exec)
+      throws AccumuloException, AccumuloSecurityException;
+
+  void executeVoid(ClientContext context, ExecVoid<C> exec)
+      throws AccumuloException, AccumuloSecurityException;
+
   Pair<String,C> getThriftServerConnection(ClientContext context, boolean preferCachedConnections)
       throws TTransportException;
 
   default Pair<String,C> getThriftServerConnection(Logger LOG, ThriftClientTypes<C> type,
       ClientContext context, boolean preferCachedConnections, AtomicBoolean warned,
-      ThriftService service) throws TTransportException {
+      RpcService service) throws TTransportException {
     checkArgument(context != null, "context is null");
 
     final String debugHost = System.getProperty(DEBUG_HOST, null);
@@ -92,32 +117,36 @@ public interface TServerClient<C extends TServiceClient> {
     final List<ServiceLockPath> serverPaths = new ArrayList<>();
     final ResourceGroupPredicate rgp = ResourceGroupPredicate.ANY;
 
+    AddressSelector selector = AddressSelector.all();
     if (type == ThriftClientTypes.CLIENT && debugHostSpecified) {
-      // add all three paths to the set even though they may not be correct.
-      // The entire set will be checked in the code below to validate
-      // that the path is correct and the lock is held and will return the
-      // correct one.
       HostAndPort hp = HostAndPort.fromString(debugHost);
-      serverPaths.addAll(sp.getCompactor(rgp, AddressSelector.exact(hp), true));
-      serverPaths.addAll(sp.getScanServer(rgp, AddressSelector.exact(hp), true));
-      serverPaths.addAll(sp.getTabletServer(rgp, AddressSelector.exact(hp), true));
-    } else {
-      serverPaths.addAll(sp.getTabletServer(rgp, AddressSelector.all(), false));
-      if (type == ThriftClientTypes.CLIENT) {
-        serverPaths.addAll(sp.getCompactor(rgp, AddressSelector.all(), false));
-        serverPaths.addAll(sp.getScanServer(rgp, AddressSelector.all(), false));
-      }
-      if (serverPaths.isEmpty()) {
-        if (warned.compareAndSet(false, true)) {
-          LOG.warn(
-              "There are no servers serving the {} api: check that zookeeper and accumulo are running.",
-              type);
-        }
-        throw new TTransportException("There are no servers for type: " + type);
-      }
+      selector = AddressSelector.exact(hp);
     }
 
-    Collections.shuffle(serverPaths, RANDOM.get());
+    // add all three paths to the set even though they may not be correct.
+    // The entire set will be checked in the code below to validate
+    // that the path is correct and the lock is held and will return the
+    // correct one.
+    if (type == ThriftClientTypes.CLIENT) {
+      serverPaths.addAll(sp.getCompactor(rgp, selector, false));
+      serverPaths.addAll(sp.getScanServer(rgp, selector, false));
+      serverPaths.addAll(sp.getTabletServer(rgp, selector, false));
+    } else {
+      // It takes too long to fetch all lock data from ZK instead of just returning path values
+      serverPaths.addAll(sp.getTabletServer(rgp, AddressSelector.all(), false));
+    }
+    if (serverPaths.isEmpty()) {
+      if (warned.compareAndSet(false, true)) {
+        LOG.warn(
+            "There are no servers serving the {} api: check that zookeeper and accumulo are running.",
+            type);
+      }
+      throw new TTransportException("There are no servers for type: " + type);
+    }
+
+    if (serverPaths.size() > 1) {
+      Collections.shuffle(serverPaths, RANDOM.get());
+    }
 
     for (ServiceLockPath path : serverPaths) {
       Optional<ServiceLockData> data = zc.getLockData(path);

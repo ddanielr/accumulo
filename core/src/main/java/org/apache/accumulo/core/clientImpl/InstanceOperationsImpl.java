@@ -60,10 +60,10 @@ import org.apache.accumulo.core.conf.DeprecatedPropertyUtil;
 import org.apache.accumulo.core.data.InstanceId;
 import org.apache.accumulo.core.data.ResourceGroupId;
 import org.apache.accumulo.core.lock.ServiceLockData;
-import org.apache.accumulo.core.lock.ServiceLockData.ThriftService;
 import org.apache.accumulo.core.lock.ServiceLockPaths.AddressSelector;
 import org.apache.accumulo.core.lock.ServiceLockPaths.ResourceGroupPredicate;
 import org.apache.accumulo.core.lock.ServiceLockPaths.ServiceLockPath;
+import org.apache.accumulo.core.rpc.RpcService;
 import org.apache.accumulo.core.rpc.clients.ThriftClientTypes;
 import org.apache.accumulo.core.tabletscan.thrift.TabletScanClientService;
 import org.apache.accumulo.core.tabletserver.thrift.TabletServerClientService.Client;
@@ -566,7 +566,7 @@ public class InstanceOperationsImpl implements InstanceOperations {
           Optional<ServiceLockData> sld = context.getZooCache().getLockData(m);
           String location = null;
           if (sld.isPresent()) {
-            location = sld.orElseThrow().getAddressString(ThriftService.MANAGER);
+            location = sld.orElseThrow().getAddressString(RpcService.MGR);
             if (location != null && addressSelector.getPredicate().test(location)) {
               HostAndPort hp = HostAndPort.fromString(location);
               results.add(new ServerId(type, ResourceGroupId.DEFAULT, hp.getHost(), hp.getPort()));
@@ -580,7 +580,7 @@ public class InstanceOperationsImpl implements InstanceOperations {
           Optional<ServiceLockData> sld = context.getZooCache().getLockData(mon);
           String location = null;
           if (sld.isPresent()) {
-            location = sld.orElseThrow().getAddressString(ThriftService.NONE);
+            location = sld.orElseThrow().getAddressString(RpcService.NONE);
             if (location != null && addressSelector.getPredicate().test(location)) {
               HostAndPort hp = HostAndPort.fromString(location);
               results.add(new ServerId(type, ResourceGroupId.DEFAULT, hp.getHost(), hp.getPort()));
@@ -594,7 +594,7 @@ public class InstanceOperationsImpl implements InstanceOperations {
           Optional<ServiceLockData> sld = context.getZooCache().getLockData(gc);
           String location = null;
           if (sld.isPresent()) {
-            location = sld.orElseThrow().getAddressString(ThriftService.GC);
+            location = sld.orElseThrow().getAddressString(RpcService.GC);
             if (location != null && addressSelector.getPredicate().test(location)) {
               HostAndPort hp = HostAndPort.fromString(location);
               results.add(new ServerId(type, ResourceGroupId.DEFAULT, hp.getHost(), hp.getPort()));
