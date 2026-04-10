@@ -16,18 +16,22 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.accumulo.core.rpc.clients;
+package org.apache.accumulo.core.rpc;
 
-import org.apache.accumulo.core.tabletscan.thrift.TabletScanClientService.Client;
-
-/**
- * Client side object that can be used to interact with services that support scan operations
- * against tablets. See TabletScanClientService$Iface for a list of supported operations.
- */
-public class TabletScanClientServiceThriftClient extends ThriftClientTypes<Client> {
-
-  TabletScanClientServiceThriftClient(String serviceName) {
-    super(serviceName, new Client.Factory());
-  }
-
+// Consolidate
+public enum RpcService {
+  // Make this tiny for rpc length reduction
+  CLIENT,
+  COORDINATOR,
+  COMPACTOR,
+  FATE_CLIENT,
+  FATE_WORKER,
+  GC,
+  MGR,
+  NONE,
+  TABLET_INGEST,
+  TABLET_MGMT,
+  TABLET_SCAN,
+  TSERVER,
+  SERVER_PROCESS,;
 }

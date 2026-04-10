@@ -45,7 +45,7 @@ import com.google.common.annotations.VisibleForTesting;
 public class ThriftProcessorTypes<C extends TServiceClient> extends ThriftClientTypes<C> {
 
   public ThriftProcessorTypes(ThriftClientTypes<C> type) {
-    super(type.getServiceName(), type.getClientFactory());
+    super(type.getService(), type.getClientFactory());
   }
 
   @VisibleForTesting
@@ -75,7 +75,7 @@ public class ThriftProcessorTypes<C extends TServiceClient> extends ThriftClient
       new ThriftProcessorTypes<>(ThriftClientTypes.COORDINATOR);
 
   private static final ThriftProcessorTypes<FateService.Client> FATE =
-      new ThriftProcessorTypes<>(ThriftClientTypes.FATE);
+      new ThriftProcessorTypes<>(ThriftClientTypes.FATE_CLIENT);
 
   private static final ThriftProcessorTypes<GCMonitorService.Client> GC =
       new ThriftProcessorTypes<>(ThriftClientTypes.GC);

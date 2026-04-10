@@ -287,7 +287,7 @@ public class TableOperationsImpl extends TableOperationsHelper {
     while (true) {
       FateService.Client client = null;
       try {
-        client = ThriftClientTypes.FATE.getConnectionWithRetry(context);
+        client = ThriftClientTypes.FATE_CLIENT.getConnectionWithRetry(context);
         return client.beginFateOperation(TraceUtil.traceInfo(), context.rpcCreds(), type);
       } catch (TTransportException tte) {
         log.debug("Failed to call beginFateOperation(), retrying ... ", tte);
@@ -309,7 +309,7 @@ public class TableOperationsImpl extends TableOperationsHelper {
     while (true) {
       FateService.Client client = null;
       try {
-        client = ThriftClientTypes.FATE.getConnectionWithRetry(context);
+        client = ThriftClientTypes.FATE_CLIENT.getConnectionWithRetry(context);
         client.executeFateOperation(TraceUtil.traceInfo(), context.rpcCreds(), opid, op, args, opts,
             autoCleanUp);
         return;
@@ -330,7 +330,7 @@ public class TableOperationsImpl extends TableOperationsHelper {
     while (true) {
       FateService.Client client = null;
       try {
-        client = ThriftClientTypes.FATE.getConnectionWithRetry(context);
+        client = ThriftClientTypes.FATE_CLIENT.getConnectionWithRetry(context);
         return client.waitForFateOperation(TraceUtil.traceInfo(), context.rpcCreds(), opid);
       } catch (TTransportException tte) {
         log.debug("Failed to call waitForFateOperation(), retrying ... ", tte);
@@ -349,7 +349,7 @@ public class TableOperationsImpl extends TableOperationsHelper {
     while (true) {
       FateService.Client client = null;
       try {
-        client = ThriftClientTypes.FATE.getConnectionWithRetry(context);
+        client = ThriftClientTypes.FATE_CLIENT.getConnectionWithRetry(context);
         client.finishFateOperation(TraceUtil.traceInfo(), context.rpcCreds(), opid);
         break;
       } catch (TTransportException tte) {

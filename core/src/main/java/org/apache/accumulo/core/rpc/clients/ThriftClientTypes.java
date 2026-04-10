@@ -21,79 +21,71 @@ package org.apache.accumulo.core.rpc.clients;
 import static com.google.common.util.concurrent.Uninterruptibles.sleepUninterruptibly;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
-import org.apache.accumulo.core.client.AccumuloException;
-import org.apache.accumulo.core.client.AccumuloSecurityException;
 import org.apache.accumulo.core.clientImpl.ClientContext;
+import org.apache.accumulo.core.compaction.thrift.CompactionCoordinatorService;
+import org.apache.accumulo.core.compaction.thrift.CompactorService;
+import org.apache.accumulo.core.gc.thrift.GCMonitorService;
 import org.apache.accumulo.core.manager.thrift.FateWorkerService;
-import org.apache.thrift.TException;
+import org.apache.accumulo.core.rpc.RpcService;
+import org.apache.accumulo.core.tabletingest.thrift.TabletIngestClientService;
+import org.apache.accumulo.core.tabletscan.thrift.TabletScanClientService;
 import org.apache.thrift.TServiceClient;
 import org.apache.thrift.TServiceClientFactory;
 import org.apache.thrift.protocol.TMultiplexedProtocol;
 import org.apache.thrift.protocol.TProtocol;
 
-public abstract class ThriftClientTypes<C extends TServiceClient> {
+public class ThriftClientTypes<C extends TServiceClient> {
 
-  public static final ClientServiceThriftClient CLIENT = new ClientServiceThriftClient("client");
+  public static final ClientServiceThriftClient CLIENT =
+      new ClientServiceThriftClient(RpcService.CLIENT);
 
-  public static final CompactorServiceThriftClient COMPACTOR =
-      new CompactorServiceThriftClient("compactor");
+  public static final ThriftClientTypes<CompactorService.Client> COMPACTOR =
+      new ThriftClientTypes<>(RpcService.COMPACTOR, new CompactorService.Client.Factory());
 
-  public static final CompactionCoordinatorServiceThriftClient COORDINATOR =
-      new CompactionCoordinatorServiceThriftClient("coordinator");
+  public static final ThriftClientTypes<CompactionCoordinatorService.Client> COORDINATOR =
+      new ThriftClientTypes<>(RpcService.COORDINATOR,
+          new CompactionCoordinatorService.Client.Factory());
 
-  public static final FateThriftClient FATE = new FateThriftClient("fate");
+  public static final FateThriftClient FATE_CLIENT = new FateThriftClient(RpcService.FATE_CLIENT);
 
-  public static final GCMonitorServiceThriftClient GC = new GCMonitorServiceThriftClient("gc");
+  public static final ThriftClientTypes<GCMonitorService.Client> GC =
+      new ThriftClientTypes<>(RpcService.GC, new GCMonitorService.Client.Factory());
 
-  public static final ManagerThriftClient MANAGER = new ManagerThriftClient("mgr");
+  public static final ManagerThriftClient MANAGER = new ManagerThriftClient(RpcService.MGR);
 
   public static final TabletServerThriftClient TABLET_SERVER =
-      new TabletServerThriftClient("tserver");
+      new TabletServerThriftClient(RpcService.TSERVER);
 
-  public static final TabletScanClientServiceThriftClient TABLET_SCAN =
-      new TabletScanClientServiceThriftClient("scan");
+  public static final ThriftClientTypes<TabletScanClientService.Client> TABLET_SCAN =
+      new ThriftClientTypes<>(RpcService.TABLET_SCAN, new TabletScanClientService.Client.Factory());
 
-  public static final TabletIngestClientServiceThriftClient TABLET_INGEST =
-      new TabletIngestClientServiceThriftClient("ingest");
+  public static final ThriftClientTypes<TabletIngestClientService.Client> TABLET_INGEST =
+      new ThriftClientTypes<>(RpcService.TABLET_INGEST,
+          new TabletIngestClientService.Client.Factory());
 
   public static final TabletManagementClientServiceThriftClient TABLET_MGMT =
-      new TabletManagementClientServiceThriftClient("tablet");
+      new TabletManagementClientServiceThriftClient(RpcService.TABLET_MGMT);
 
   public static final ServerProcessServiceThriftClient SERVER_PROCESS =
-      new ServerProcessServiceThriftClient("process");
+      new ServerProcessServiceThriftClient(RpcService.SERVER_PROCESS);
 
   public static final ThriftClientTypes<FateWorkerService.Client> FATE_WORKER =
-      new FateWorkerThriftClient("fate_worker");
+      new ThriftClientTypes<>(RpcService.FATE_WORKER, new FateWorkerService.Client.Factory());
 
-  /**
-   * execute method with supplied client returning object of type R
-   *
-   * @param <R> return type
-   * @param <C> client type
-   */
-  public interface Exec<R,C> {
-    R execute(C client) throws TException;
-  }
+  private final RpcService service;
+  private final TServiceClientFactory<C> clientFactory;;
 
-  /**
-   * execute method with supplied client
-   *
-   * @param <C> client type
-   */
-  public interface ExecVoid<C> {
-    void execute(C client) throws TException;
-  }
-
-  private final String serviceName;
-  private final TServiceClientFactory<C> clientFactory;
-
-  protected ThriftClientTypes(String serviceName, TServiceClientFactory<C> factory) {
-    this.serviceName = serviceName;
+  protected ThriftClientTypes(RpcService service, TServiceClientFactory<C> factory) {
+    this.service = service;
     this.clientFactory = factory;
   }
 
   public final String getServiceName() {
-    return serviceName;
+    return service.name();
+  }
+
+  public final RpcService getService() {
+    return service;
   }
 
   public final TServiceClientFactory<C> getClientFactory() {
@@ -119,18 +111,8 @@ public abstract class ThriftClientTypes<C extends TServiceClient> {
     }
   }
 
-  public <R> R execute(ClientContext context, Exec<R,C> exec)
-      throws AccumuloException, AccumuloSecurityException {
-    throw new UnsupportedOperationException("This method has not been implemented");
-  }
-
-  public void executeVoid(ClientContext context, ExecVoid<C> exec)
-      throws AccumuloException, AccumuloSecurityException {
-    throw new UnsupportedOperationException("This method has not been implemented");
-  }
-
   @Override
   public String toString() {
-    return serviceName;
+    return getServiceName();
   }
 }
