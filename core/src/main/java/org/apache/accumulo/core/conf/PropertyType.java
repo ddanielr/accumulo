@@ -139,7 +139,7 @@ public enum PropertyType {
   COMPRESSION_TYPE("compression type name", new ValidCompressionType(),
       "One of the configured compression types."),
 
-  DURABILITY("durability", in(false, null, "default", "none", "log", "flush", "sync"),
+  DURABILITY("durability", in(false, null, "default", "none", "log", "flush", "batch-sync", "sync"),
       "One of 'none', 'log', 'flush' or 'sync'."),
 
   GC_POST_ACTION("gc_post_action", in(true, null, "none", "flush", "compact"),

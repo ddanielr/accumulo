@@ -1190,15 +1190,22 @@ public enum Property {
       configures the durability used to write to the write-ahead log. Legal \
       values are: none, which skips the write-ahead log; log, which sends the \
       data to the write-ahead log, but does nothing to make it durable; flush, \
-      which pushes data out of the JVM (likely to page cache); and sync, which \
-      ensures that each mutation is written to the physical disk. To configure \
+      which pushes data out of the JVM (likely to page cache); sync, which \
+      ensures that each mutation is written to the physical disk; batch-sync \
+      (write to WAL; hflush after every transaction, hsync after every number \
+      of transactions set by batch size). To configure \
       the durability of files written during minor and major compactions, set the \
-      Hadoop property \"dfs.datanode.synconclose\" to \"true\". This will ensure \
+      Hadoop property "dfs.datanode.synconclose" to "true". This will ensure \
       that the blocks of the files in HDFS are written to the physical disk as \
       the compaction output files are written (Note that this may only apply \
       to replicated files in HDFS). \
       """, "1.7.0"),
-
+  TABLE_DURABILITY_BATCH_SYNC_SIZE(TABLE_DURABILITY + ".batch.sync.size", "1", PropertyType.COUNT, """
+          When table.durability=batch-sync, the number of WAL write transactions that must accumulate before a full \
+          hsync() is issued to flush data to persistent storage \
+          on all replicas. Between sync points an hflush() is issued so data is always \
+          replicated in-memory across DataNodes. Must be >=1.\
+          """, "4.0.0"),
   TABLE_FAILURES_IGNORE("table.failures.ignore", "false", PropertyType.BOOLEAN, """
       If you want queries for your table to hang or fail when data is missing \
       from the system, then set this to false. When this set to true missing \

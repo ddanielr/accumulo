@@ -44,6 +44,11 @@ public enum Durability {
    */
   FLUSH,
   /**
+   * Write mutations to the write-ahead log, and ensure the data is stored on remote servers, but
+   * only verify it is on persistent storage after a set number of transactions have occurred.
+   */
+  BATCH_SYNC,
+  /**
    * Write mutations to the write-ahead log, and ensure the data is saved to persistent storage.
    */
   SYNC
