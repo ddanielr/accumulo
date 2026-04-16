@@ -44,8 +44,12 @@ public enum Durability {
    */
   FLUSH,
   /**
-   * Write mutations to the write-ahead log, and ensure the data is stored on remote servers, but
-   * only verify it is on persistent storage after a set number of transactions have occurred.
+   * Write mutations to the write-ahead log, accumulate a batch of transactions, and only trigger a
+   * full {@code hsync()} to persistent storage after the configured number of transactions have
+   * been accumulated (see {@code table.durability.batch.sync.size}). Between sync points the WAL is
+   * {@code hflush()}'d data is replicated in-memory on all DataNodes. This provides a middle-ground
+   * between {@link #FLUSH} (never syncs to disk) and {@link #SYNC} (syncs every single
+   * transaction).
    */
   BATCH_SYNC,
   /**

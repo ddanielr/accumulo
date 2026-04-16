@@ -30,7 +30,8 @@ public enum TDurability implements org.apache.thrift.TEnum {
   SYNC(1),
   FLUSH(2),
   LOG(3),
-  NONE(4);
+  NONE(4),
+  BATCH_SYNC(5);
 
   private final int value;
 
@@ -63,6 +64,8 @@ public enum TDurability implements org.apache.thrift.TEnum {
         return LOG;
       case 4:
         return NONE;
+      case 5:
+        return BATCH_SYNC;
       default:
         return null;
     }

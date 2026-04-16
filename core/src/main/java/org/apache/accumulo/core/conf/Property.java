@@ -1200,12 +1200,14 @@ public enum Property {
       the compaction output files are written (Note that this may only apply \
       to replicated files in HDFS). \
       """, "1.7.0"),
-  TABLE_DURABILITY_BATCH_SYNC_SIZE(TABLE_DURABILITY + ".batch.sync.size", "1", PropertyType.COUNT, """
+  TABLE_DURABILITY_BATCH_SYNC_SIZE(TABLE_DURABILITY + ".batch.sync.size", "1", PropertyType.COUNT,
+      """
           When table.durability=batch-sync, the number of WAL write transactions that must accumulate before a full \
           hsync() is issued to flush data to persistent storage \
           on all replicas. Between sync points an hflush() is issued so data is always \
           replicated in-memory across DataNodes. Must be >=1.\
-          """, "4.0.0"),
+          """,
+      "4.0.0"),
   TABLE_FAILURES_IGNORE("table.failures.ignore", "false", PropertyType.BOOLEAN, """
       If you want queries for your table to hang or fail when data is missing \
       from the system, then set this to false. When this set to true missing \

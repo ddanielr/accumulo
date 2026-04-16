@@ -35,6 +35,7 @@ enum TDurability {
   FLUSH = 2
   LOG = 3
   NONE = 4
+  BATCH_SYNC = 5
 }
 
 struct DataFileInfo {

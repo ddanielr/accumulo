@@ -321,7 +321,7 @@ public class TabletClientHandler implements TabletServerClientService.Iface,
 
         Tablet tablet = entry.getKey();
         Durability durability =
-            DurabilityImpl.resolveDurabilty(us.durability, tablet.getDurability());
+            DurabilityImpl.resolveDurability(us.durability, tablet.getDurability());
         logDurabilityWarning(tablet.getExtent(), durability);
         List<Mutation> mutations = entry.getValue();
         if (!mutations.isEmpty()) {
@@ -636,7 +636,7 @@ public class TabletClientHandler implements TabletServerClientService.Iface,
           addMutationsAsTCMResults(results, entry.getValue(), TCMStatus.IGNORED);
         } else {
           final Durability durability =
-              DurabilityImpl.resolveDurabilty(sess.durability, tablet.getDurability());
+              DurabilityImpl.resolveDurability(sess.durability, tablet.getDurability());
           logDurabilityWarning(tablet.getExtent(), durability);
           List<Mutation> mutations = Collections.unmodifiableList(entry.getValue());
           preppedMutions += mutations.size();

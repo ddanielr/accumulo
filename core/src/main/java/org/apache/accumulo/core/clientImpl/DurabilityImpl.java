@@ -26,10 +26,11 @@ public class DurabilityImpl {
   public static TDurability toThrift(Durability durability) {
     return switch (durability) {
       case DEFAULT -> TDurability.DEFAULT;
-      case SYNC -> TDurability.SYNC;
-      case FLUSH -> TDurability.FLUSH;
+      case NONE -> TDurability.NONE;
       case LOG -> TDurability.LOG;
-      default -> TDurability.NONE;
+      case FLUSH -> TDurability.FLUSH;
+      case BATCH_SYNC -> TDurability.BATCH_SYNC;
+      case SYNC -> TDurability.SYNC;
     };
   }
 
@@ -42,15 +43,16 @@ public class DurabilityImpl {
       return Durability.DEFAULT;
     }
     return switch (tdurabilty) {
-      case DEFAULT -> Durability.DEFAULT;
-      case SYNC -> Durability.SYNC;
-      case FLUSH -> Durability.FLUSH;
+      case NONE -> Durability.NONE;
       case LOG -> Durability.LOG;
-      default -> Durability.NONE;
+      case FLUSH -> Durability.FLUSH;
+      case BATCH_SYNC -> Durability.BATCH_SYNC;
+      case SYNC -> Durability.SYNC;
+      case DEFAULT -> Durability.DEFAULT;
     };
   }
 
-  public static Durability resolveDurabilty(Durability durability, Durability tabletDurability) {
+  public static Durability resolveDurability(Durability durability, Durability tabletDurability) {
     if (durability == Durability.DEFAULT) {
       return tabletDurability;
     }

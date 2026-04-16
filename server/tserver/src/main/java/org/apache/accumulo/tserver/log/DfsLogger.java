@@ -101,8 +101,8 @@ public final class DfsLogger implements Comparable<DfsLogger> {
   /**
    * Default number of BATCH_SYNC transactions before a full hsync() is forced.
    */
-  static final int DEFAULT_BATCH_SYNC_SIZE = Integer.parseInt(
-          Property.TABLE_DURABILITY_BATCH_SYNC_SIZE.getDefaultValue());
+  static final int DEFAULT_BATCH_SYNC_SIZE =
+      Integer.parseInt(Property.TABLE_DURABILITY_BATCH_SYNC_SIZE.getDefaultValue());
 
   public static class LogClosedException extends IOException {
     private static final long serialVersionUID = 1L;
@@ -142,22 +142,17 @@ public final class DfsLogger implements Comparable<DfsLogger> {
     private final AtomicLong flushCounter;
     private final Duration slowFlushDuration;
 
-    LogSyncingTask(AtomicLong syncCounter, AtomicLong flushCounter, Duration slowFlushDuration) {
-      this.syncCounter = syncCounter;
-      this.flushCounter = flushCounter;
-      this.slowFlushDuration = slowFlushDuration;
-    }
-
     /**
-     * Configurable threshold for BATCH_SYNC; how many BATCH_SYNC transactions must accumulate before a
-     * full {@code hsync()} is issued. Defaults to {@link DfsLogger#DEFAULT_BATCH_SYNC_SIZE}.
+     * Configurable threshold for BATCH_SYNC; how many BATCH_SYNC transactions must accumulate
+     * before a full {@code hsync()} is issued. Defaults to
+     * {@link DfsLogger#DEFAULT_BATCH_SYNC_SIZE}.
      */
     private final int batchSyncSize;
 
     /**
-     * Running count of BATCH_SYNC transactions processed since the last {@code hsync()}.
-     * Presists across drain-queue iterations so the threshold is enforced globally over time,
-     * not just within a single drain cycle.
+     * Running count of BATCH_SYNC transactions processed since the last {@code hsync()}. Presists
+     * across drain-queue iterations so the threshold is enforced globally over time, not just
+     * within a single drain cycle.
      */
     private int batchSyncCount = 0;
 
@@ -165,9 +160,9 @@ public final class DfsLogger implements Comparable<DfsLogger> {
      * Create s a new LogSyncingTask.
      */
     LogSyncingTask(AtomicLong syncCounter, AtomicLong flushCounter, Duration slowFlushDuration,
-                   int batchSyncSize) {
-      Preconditions.checkArgument(batchSyncSize >= 1,
-              "batchSyncSize must be >= 1, got %s", batchSyncSize);
+        int batchSyncSize) {
+      Preconditions.checkArgument(batchSyncSize >= 1, "batchSyncSize must be >= 1, got %s",
+          batchSyncSize);
       this.syncCounter = syncCounter;
       this.flushCounter = flushCounter;
       this.slowFlushDuration = slowFlushDuration;
@@ -212,7 +207,8 @@ public final class DfsLogger implements Comparable<DfsLogger> {
                 if (shouldHSync.isEmpty()) {
                   shouldHSync = Optional.of(false);
                 }
-              } break;
+              }
+              break;
             case FLUSH:
               if (shouldHSync.isEmpty()) {
                 shouldHSync = Optional.of(Boolean.FALSE);
@@ -375,11 +371,12 @@ public final class DfsLogger implements Comparable<DfsLogger> {
 
     int batchSyncSize = conf.getCount(Property.TABLE_DURABILITY_BATCH_SYNC_SIZE);
     if (batchSyncSize < 1) {
-      log.warn("{} must be greater than 1; defaulting to {}", Property.TABLE_DURABILITY_BATCH_SYNC_SIZE.getKey(), DEFAULT_BATCH_SYNC_SIZE);
+      log.warn("{} must be greater than 1; defaulting to {}",
+          Property.TABLE_DURABILITY_BATCH_SYNC_SIZE.getKey(), DEFAULT_BATCH_SYNC_SIZE);
       batchSyncSize = DEFAULT_BATCH_SYNC_SIZE;
     }
     dfsLogger.open(context, logPath, filename, address, syncCounter, flushCounter, slowFlushMillis,
-            batchSyncSize);
+        batchSyncSize);
     return dfsLogger;
   }
 
@@ -453,7 +450,7 @@ public final class DfsLogger implements Comparable<DfsLogger> {
    */
   private synchronized void open(ServerContext context, String logPath, String filename,
       String address, AtomicLong syncCounter, AtomicLong flushCounter, long slowFlushMillis,
-                                 int batchSyncSize) throws IOException {
+      int batchSyncSize) throws IOException {
     log.debug("Address is {}", address);
     log.debug("DfsLogger.open() begin");
 
@@ -526,8 +523,8 @@ public final class DfsLogger implements Comparable<DfsLogger> {
       throw new IOException(ex);
     }
 
-    syncThread = Threads.createCriticalThread("Accumulo WALog thread " + this,
-        new LogSyncingTask(syncCounter, flushCounter, Duration.ofMillis(slowFlushMillis)));
+    syncThread = Threads.createCriticalThread("Accumulo WALog thread " + this, new LogSyncingTask(
+        syncCounter, flushCounter, Duration.ofMillis(slowFlushMillis), batchSyncSize));
     syncThread.start();
     op.await();
     log.debug("Got new write-ahead log: {}", this);
@@ -729,7 +726,6 @@ public final class DfsLogger implements Comparable<DfsLogger> {
         return ((DFSOutputStream) os).getPipeline();
       }
     }
-
     // Don't have a pipeline or can't figure it out.
     return EMPTY_PIPELINE;
   }
