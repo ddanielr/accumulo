@@ -302,7 +302,7 @@ public class TableOperationsImpl extends TableOperationsHelper {
     }
   }
 
-  private String waitForFateOperation(long opid)
+  private String _waitForFateOperation(long opid)
       throws ThriftSecurityException, TException, ThriftTableOperationException {
     while (true) {
       FateService.Client client = null;
@@ -377,7 +377,7 @@ public class TableOperationsImpl extends TableOperationsHelper {
         opid = null;
         return null;
       }
-      return waitForFateOperation(opid);
+      return _waitForFateOperation(opid);
     } catch (ThriftSecurityException e) {
       switch (e.getCode()) {
         case TABLE_DOESNT_EXIST:
