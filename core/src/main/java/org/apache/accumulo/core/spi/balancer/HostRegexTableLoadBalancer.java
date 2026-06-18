@@ -255,8 +255,11 @@ public class HostRegexTableLoadBalancer extends TableLoadBalancer {
     for (Entry<String,Pattern> e : hrtlbConf.get().poolNameToRegexPattern.entrySet()) {
       if (e.getValue().matcher(test).matches()) {
         pools.add(e.getKey());
+        // Possible return here to make tserver -> only belong to single pool (first wins).
+        //return;
       }
     }
+    // Catch case for invalid regex expression
     if (pools.isEmpty()) {
       pools.add(DEFAULT_POOL);
     }
@@ -408,6 +411,9 @@ public class HostRegexTableLoadBalancer extends TableLoadBalancer {
         for (String table : tableIdMap.keySet()) {
           LOG.debug("Checking for out of bounds tablets for table {}", table);
           String tablePoolName = getPoolNameForTable(table);
+
+
+          // Tablet Queuing Work
           for (Entry<TabletServerId,TServerStatus> e : current.entrySet()) {
             // pool names are the same as table names, except in the DEFAULT case.
             // If this table is assigned to a pool for this host, then move on.
@@ -422,38 +428,44 @@ public class HostRegexTableLoadBalancer extends TableLoadBalancer {
               continue;
             }
             try {
+              String poolName = getPoolNameForTable(table);
+              SortedMap<TabletServerId,TServerStatus> currentView = currentGrouped.get(poolName);
+
+              // Thread this section {
               List<TabletStatistics> outOfBoundsTablets = getOnlineTabletsForTable(e.getKey(), tid);
               if (outOfBoundsTablets == null) {
                 continue;
               }
+              //}
+
               for (TabletStatistics ts : outOfBoundsTablets) {
                 if (migrations.contains(ts.getTabletId())) {
                   LOG.debug("Migration for out of bounds tablet {} has already been requested",
-                      ts.getTabletId());
+                          ts.getTabletId());
                   continue;
                 }
-                String poolName = getPoolNameForTable(table);
-                SortedMap<TabletServerId,TServerStatus> currentView = currentGrouped.get(poolName);
-                if (currentView != null) {
-                  int skip = random.nextInt(currentView.size());
-                  Iterator<TabletServerId> iter = currentView.keySet().iterator();
-                  for (int i = 0; i < skip; i++) {
-                    iter.next();
-                  }
-                  TabletServerId nextTS = iter.next();
-                  LOG.info(
-                      "Tablet {} is currently outside the bounds of the"
-                          + " regex, migrating from {} to {}",
-                      ts.getTabletId(), e.getKey(), nextTS);
-                  migrationsOut.add(new TabletMigration(ts.getTabletId(), e.getKey(), nextTS));
-                  if (migrationsOut.size() >= myConf.maxTServerMigrations) {
-                    break;
-                  }
-                } else {
-                  LOG.warn("No tablet servers online for pool {}, unable to"
-                      + " migrate out of bounds tablets", poolName);
-                }
               }
+              if (currentView != null) {
+                 int skip = random.nextInt(currentView.size());
+                 Iterator<TabletServerId> iter = currentView.keySet().iterator();
+                 for (int i = 0; i < skip; i++) {
+                   iter.next();
+                 }
+                 TabletServerId nextTS = iter.next();
+                 LOG.info(
+                     "Tablet {} is currently outside the bounds of the"
+                         + " regex, migrating from {} to {}",
+                     ts.getTabletId(), e.getKey(), nextTS);
+                 migrationsOut.add(new TabletMigration(ts.getTabletId(), e.getKey(), nextTS));
+                 if (migrationsOut.size() >= myConf.maxTServerMigrations) {
+                   break;
+                 }
+              } else {
+                LOG.warn("No tablet servers online for pool {}, unable to"
+                     + " migrate out of bounds tablets", poolName);
+              }
+               // Simple
+
             } catch (AccumuloException | AccumuloSecurityException e1) {
               LOG.error("Error in OOB check getting tablets for table {} from server {} {}", tid,
                   e.getKey().getHost(), e);

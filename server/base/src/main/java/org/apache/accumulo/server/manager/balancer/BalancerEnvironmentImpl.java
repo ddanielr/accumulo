@@ -62,7 +62,7 @@ public class BalancerEnvironmentImpl extends ServiceEnvironmentImpl implements B
   }
 
   @Override
-  public Map<String,TableId> getTableIdMap() {
+  public Map<String,TableId>  getTableIdMap() {
     return getContext().getTableNameToIdMap();
   }
 
