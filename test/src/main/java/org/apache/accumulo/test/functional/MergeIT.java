@@ -41,6 +41,7 @@ import org.apache.accumulo.core.client.Accumulo;
 import org.apache.accumulo.core.client.AccumuloClient;
 import org.apache.accumulo.core.client.BatchWriter;
 import org.apache.accumulo.core.client.Scanner;
+import org.apache.accumulo.core.client.admin.CloneConfiguration;
 import org.apache.accumulo.core.client.admin.NewTableConfiguration;
 import org.apache.accumulo.core.client.admin.TimeType;
 import org.apache.accumulo.core.data.Key;
@@ -280,6 +281,55 @@ public class MergeIT extends AccumuloClusterHarness {
         for (var tablet : tablets) {
           assertTrue(tablet.getExternalCompactions().isEmpty());
         }
+      }
+    }
+  }
+
+  @Test
+  public void testClonedTableMerge() throws Exception {
+    try (AccumuloClient c = Accumulo.newClient().from(getClientProps()).build()) {
+      String tableName = getUniqueNames(1)[0];
+      c.tableOperations().create(tableName);
+      c.tableOperations().addSplits(tableName,
+          new TreeSet<>(List.of(new Text("row0"), new Text("row1"), new Text("row10"))));
+      try (BatchWriter writer = c.createBatchWriter(tableName)) {
+        for (int i = 0; i < 100; i++) {
+          Mutation m = new Mutation(String.format("row00%d", i));
+          m.put("cf", "cq", "Test Value");
+          writer.addMutation(m);
+        }
+      }
+      c.tableOperations().flush(tableName, null, null, true);
+      TableId tableId = getServerContext().getTableId(tableName);
+      try (var tablets = getServerContext().getAmple().readTablets().forTable(tableId).build()) {
+        assertEquals(4, tablets.stream().count());
+      }
+
+      String tableClone = tableName + "_cloned";
+
+      CloneConfiguration config = CloneConfiguration.builder().setFlush(false).build();
+      c.tableOperations().clone(tableName, tableClone, config);
+
+      TableId clonedTableId = getServerContext().getTableId(tableClone);
+      try (var tablets =
+          getServerContext().getAmple().readTablets().forTable(clonedTableId).build()) {
+        assertEquals(4, tablets.stream().count());
+      }
+
+      List<String> args = new ArrayList<>(List.of("-t", tableClone, "-s", "1G"));
+      getClientProps().stringPropertyNames().forEach(keyProp -> {
+        args.add("-o");
+        args.add(keyProp + "=" + getClientProps().getProperty(keyProp));
+      });
+      Merge.main(args.toArray(String[]::new));
+      try (var tablets =
+          getServerContext().getAmple().readTablets().forTable(clonedTableId).build()) {
+        assertEquals(1, tablets.stream().count());
+      }
+
+      Merge.main(args.toArray(String[]::new));
+      try (var tablets = getServerContext().getAmple().readTablets().forTable(tableId).build()) {
+        assertEquals(4, tablets.stream().count());
       }
     }
   }
