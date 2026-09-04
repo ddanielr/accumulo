@@ -20,6 +20,8 @@ package org.apache.accumulo.tserver.tablet;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.stream.Collectors.toList;
+import static org.apache.accumulo.core.conf.Property.TABLE_MAX_END_ROW_SIZE;
+import static org.apache.accumulo.core.conf.Property.TABLE_SPLIT_THRESHOLD;
 import static org.apache.accumulo.core.util.UtilWaitThread.sleepUninterruptibly;
 
 import java.io.ByteArrayInputStream;
@@ -1326,7 +1328,7 @@ public class Tablet extends TabletBase {
     // check if we already decided that we can never split
     // check to see if we're big enough to split
 
-    long splitThreshold = tableConfiguration.getAsBytes(Property.TABLE_SPLIT_THRESHOLD);
+    long splitThreshold = tableConfiguration.getAsBytes(TABLE_SPLIT_THRESHOLD);
 
     if (extent.isRootTablet() || isFindSplitsSuppressed()
         || estimateTabletSize() <= splitThreshold) {
@@ -1342,7 +1344,7 @@ public class Tablet extends TabletBase {
     // check if we already decided that we can never split
     // check to see if we're big enough to split
 
-    long maxEndRow = tableConfiguration.getAsBytes(Property.TABLE_MAX_END_ROW_SIZE);
+    long maxEndRow = tableConfiguration.getAsBytes(TABLE_MAX_END_ROW_SIZE);
 
     if (!isSplitPossible()) {
       return null;
@@ -1357,7 +1359,7 @@ public class Tablet extends TabletBase {
     SortedMap<Double,Key> keys = splitComputations.orElseThrow().midPoint;
 
     if (keys.isEmpty()) {
-      log.info("Cannot split tablet " + extent + ", files contain no data for tablet.");
+      log.info("Cannot split tablet {}, files contain no data for tablet.", extent);
       suppressFindSplits();
       return null;
     }
@@ -1378,8 +1380,12 @@ public class Tablet extends TabletBase {
 
     // check to see that the midPoint is not equal to the end key
     if (mid.compareRow(lastRow) == 0) {
-      if (keys.firstKey() < .5) {
-        Key candidate = keys.get(keys.firstKey());
+      SortedMap<Double,Key> firstHalf = keys.headMap(0.5);
+
+      if (!firstHalf.isEmpty()) {
+        double candidateRatio = firstHalf.lastKey();
+        Key candidate = firstHalf.get(candidateRatio);
+
         if (candidate.getLength() > maxEndRow) {
           log.warn("Cannot split tablet {}, selected split point too long.  Length :  {}", extent,
               candidate.getLength());
@@ -1388,21 +1394,16 @@ public class Tablet extends TabletBase {
 
           return null;
         }
-        if (candidate.compareRow(lastRow) != 0) {
-          // we should use this ratio in split size estimations
-          if (log.isTraceEnabled()) {
-            log.trace(
-                String.format("Splitting at %6.2f instead of .5, row at .5 is same as end row%n",
-                    keys.firstKey()));
-          }
-          return new SplitRowSpec(keys.firstKey(), candidate.getRow());
-        }
 
+        if (candidate.compareRow(lastRow) != 0 && meetsSplitThreshold(candidateRatio)) {
+          log.debug("Splitting {} at best effort split point {} with ratio {}", extent,
+              candidate.getRow(), candidateRatio);
+          return new SplitRowSpec(candidateRatio, candidate.getRow());
+        }
       }
 
       log.warn("Cannot split tablet {} it contains a big row : {}", extent, lastRow);
       suppressFindSplits();
-
       return null;
     }
 
@@ -1431,6 +1432,12 @@ public class Tablet extends TabletBase {
   private boolean supressFindSplits = false;
   private long timeOfLastMinCWhenFindSplitsWasSupressed = 0;
   private long timeOfLastImportWhenFindSplitsWasSupressed = 0;
+
+  private boolean meetsSplitThreshold(double splitRatio) {
+    long tabletSize = estimateTabletSize();
+    long splitThreshold = tableConfiguration.getAsBytes(TABLE_SPLIT_THRESHOLD);
+    return splitRatio >= splitThreshold / (double) tabletSize;
+  }
 
   /**
    * Check if the the current files were found to be unsplittable. If so, then do not want to spend
@@ -1528,7 +1535,7 @@ public class Tablet extends TabletBase {
         log.debug("Starting midpoint calculation for extent {}", extent);
         SortedMap<Double,Key> midpoint =
             FileUtil.findMidPoint(context, tableConfiguration, chooseTabletDir(),
-                extent.prevEndRow(), extent.endRow(), FileUtil.toPathStrings(files), .25, true);
+                extent.prevEndRow(), extent.endRow(), FileUtil.toPathStrings(files), 0, true);
 
         Text lastRow = null;
 
@@ -1648,7 +1655,7 @@ public class Tablet extends TabletBase {
           "Attempting to split on EndRow " + extent.endRow() + " for " + extent);
     }
 
-    if (sp != null && sp.length > tableConfiguration.getAsBytes(Property.TABLE_MAX_END_ROW_SIZE)) {
+    if (sp != null && sp.length > tableConfiguration.getAsBytes(TABLE_MAX_END_ROW_SIZE)) {
       String msg = "Cannot split tablet " + extent + ", selected split point too long.  Length :  "
           + sp.length;
       log.warn(msg);
