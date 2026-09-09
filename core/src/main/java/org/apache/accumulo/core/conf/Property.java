@@ -309,7 +309,7 @@ public enum Property {
           + " or volume chooser.",
       "2.0.0"),
   GENERAL_CACHE_MANAGER_IMPL("general.block.cache.manager.class",
-      "org.apache.accumulo.core.file.blockfile.cache.lru.LruBlockCacheManager", PropertyType.STRING,
+      "org.apache.accumulo.core.file.blockfile.cache.tinylfu.TinyLfuBlockCacheManager", PropertyType.STRING,
       "Specifies the class name of the block cache factory implementation."
           + " Alternative implementation is"
           + " org.apache.accumulo.core.file.blockfile.cache.tinylfu.TinyLfuBlockCacheManager.",
